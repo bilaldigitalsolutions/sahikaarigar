@@ -75,7 +75,7 @@ export default function RootLayout({
       <head>
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-        <meta name="theme-color" content="#D84315" />
+        <meta name="theme-color" content="#16A34A" />
       </head>
       <body className={`${inter.className} antialiased bg-background text-text-primary`}>
         <AuthProvider>

@@ -8,11 +8,11 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Primary colors (WCAG compliant)
+        // Primary colors (WCAG compliant) - green theme
         primary: {
-          DEFAULT: '#FF6B35',  // Decorative only
-          dark: '#D84315',     // Buttons, CTAs, text on white (4.5:1)
-          light: '#FF8F66',    // Backgrounds, badges
+          DEFAULT: '#16A34A',  // Decorative only (icons, badges)
+          dark: '#15803D',     // Buttons, CTAs, text on white (5:1)
+          light: '#22C55E',    // Backgrounds, badges, gradients
         },
         // Neutral colors
         background: '#FAFAFA',
@@ -42,7 +42,7 @@ module.exports = {
       boxShadow: {
         'card': '0 2px 8px rgba(0, 0, 0, 0.08)',
         'card-hover': '0 4px 20px rgba(0, 0, 0, 0.12)',
-        'button': '0 4px 12px rgba(216, 67, 21, 0.3)',
+        'button': '0 4px 12px rgba(21, 128, 61, 0.3)',
       },
       animation: {
         'fade-in': 'fadeIn 0.2s ease-in-out',

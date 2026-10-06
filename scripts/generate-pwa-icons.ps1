@@ -17,9 +17,9 @@ $publicDir = Join-Path $root 'public'
 $iconsDir  = Join-Path $publicDir 'icons'
 New-Item -ItemType Directory -Force -Path $iconsDir | Out-Null
 
-$brand     = [System.Drawing.ColorTranslator]::FromHtml('#D84315')
-$brandDark = [System.Drawing.ColorTranslator]::FromHtml('#BF360C')
-$brandLite = [System.Drawing.ColorTranslator]::FromHtml('#FF7043')
+$brand     = [System.Drawing.ColorTranslator]::FromHtml('#16A34A')
+$brandDark = [System.Drawing.ColorTranslator]::FromHtml('#15803D')
+$brandLite = [System.Drawing.ColorTranslator]::FromHtml('#22C55E')
 
 function New-MonogramBitmap([int]$size) {
   $bmp = New-Object System.Drawing.Bitmap($size, $size)

@@ -125,7 +125,7 @@ npm run build         # server build -> .next (Vercel / Cloud Run, needs a serve
 
 ## 🎨 Design System
 
-- **Primary**: `#D84315` (WCAG 4.5:1 compliant)
+- **Primary**: `#15803D` (green, WCAG 4.5:1 compliant) · brand `#16A34A` · light `#22C55E`
 - **Body Font**: 18px (worker-friendly)
 - **Mobile-First**: Responsive, touch-friendly
 

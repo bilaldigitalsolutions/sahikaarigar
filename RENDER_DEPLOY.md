@@ -285,8 +285,26 @@ it to `Session.init()` and redeploy.
 
 ## ✅ Final checklist
 
-- [ ] SuperTokens Core created (Cloud or self-hosted) → URI + API key
-- [ ] Code pushed to GitHub (no secrets committed)
+Done already (verified this session):
+
+- [x] **SuperTokens Core** created — Cloud / Managed Service, *Sahi Kaarigar*,
+      Development, **Singapore (ap-southeast-1)**
+      → `SUPERTOKENS_CONNECTION_URI` + `SUPERTOKENS_API_KEY` are in
+      `auth-server/.env`; `npm run check-core` returns `HTTP 200 Hello` and the
+      SDK accepts the key.
+- [x] **DB migration** `0004_supertokens.sql` applied (`users.auth_user_id`
+      exists, `firebase_uid` nullable) — `npm run db:migrate`.
+- [x] **Local end-to-end** verified against the real Core + Supabase:
+      OTP generated → delivered (console) → consumed → session issued →
+      `GET /me` created the `users` row → `POST /register-worker` set
+      `role=worker`. Test rows were cleaned up.
+- [x] **Header-based sessions** wired for the cross-site production setup.
+- [x] **Git repo** initialised + first commit on `main` (audited: no `.env`,
+      no service-account key committed).
+
+Still to do (needs your GitHub + Render accounts):
+
+- [ ] Push to GitHub (`git remote add origin …` then `git push -u origin main`)
 - [ ] Render web service created (root dir `auth-server`, plan **Free**)
 - [ ] Env vars set (`SUPERTOKENS_*`, `SUPABASE_*`, `WEBSITE_DOMAIN`)
 - [ ] `https://<service>.onrender.com/health` returns `{"ok":true,…}`

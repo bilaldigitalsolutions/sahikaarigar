@@ -49,6 +49,12 @@ its dashboard.
 
 Adding a provider = one function in `src/sms.js` (same `({ phone, otp })` shape).
 
+Verify a provider's credentials without going through the whole login flow:
+
+```powershell
+npm run test-sms -- 9876543210     # sends ONE real OTP via the selected provider
+```
+
 ## Endpoints
 
 | Method | Path | Purpose |

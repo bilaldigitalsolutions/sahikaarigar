@@ -8,7 +8,8 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
-    "check-core": "node scripts/check-core.mjs"
+    "check-core": "node scripts/check-core.mjs",
+    "test-sms": "node scripts/test-sms.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

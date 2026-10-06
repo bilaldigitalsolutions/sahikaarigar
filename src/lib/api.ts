@@ -213,3 +213,46 @@ export function getBrowserLocation(): Promise<{ lat?: number; lng?: number }> {
     );
   });
 }
+
+// -----------------------------------------------------------------------------
+// Admin — worker approval
+// -----------------------------------------------------------------------------
+
+export interface ApiPendingWorker {
+  id: string;
+  userId: string;
+  skills: string[];
+  experience: number;
+  description?: string | null;
+  hourlyRate: number;
+  availability: ApiAvailability;
+  serviceAreas: string[];
+  isApproved: boolean;
+  adminNotes?: string | null;
+  createdAt: string;
+  user: {
+    id: string;
+    name: string;
+    phone?: string | null;
+    locationArea?: string | null;
+    locationCity?: string | null;
+  } | null;
+}
+
+export function listPendingWorkers(): Promise<{
+  workers: ApiPendingWorker[];
+  pagination: { total: number; page: number; pages: number };
+}> {
+  return apiFetch('/admin/workers');
+}
+
+export function setWorkerApproval(
+  id: string,
+  approved: boolean,
+  adminNotes?: string,
+): Promise<{ worker: { id: string; isApproved: boolean; adminNotes: string | null } }> {
+  return apiFetch(`/admin/workers/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ approved, adminNotes }),
+  });
+}

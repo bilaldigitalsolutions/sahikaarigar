@@ -32,6 +32,7 @@ services:
       #               the SMS OTP route needs DLT — WhatsApp/Quick-SMS do not)
       #   MSG91    -> MSG91_AUTH_KEY + MSG91_TEMPLATE_ID     (India, needs DLT)
       #   Twilio   -> TWILIO_ACCOUNT_SID/AUTH_TOKEN/FROM     (global, needs card)
+      #   Admin    -> ADMIN_PHONES (comma separated) — who may approve workers
       # With no credentials the OTP is printed in the Render logs instead (free).
       - key: APP_NAME
         value: SahiKaarigar

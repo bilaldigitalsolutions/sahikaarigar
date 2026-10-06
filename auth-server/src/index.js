@@ -34,6 +34,7 @@ import {
   listReviewsByWorker,
   getReviewByHireRequest,
 } from './reviews.js';
+import { isAdmin, listPendingWorkers, setWorkerApproval } from './admin.js';
 
 const PORT = Number(process.env.PORT || 4000);
 // Render exposes a web service's public URL as RENDER_EXTERNAL_URL, so the
@@ -303,6 +304,47 @@ app.post('/feedback', async (req, res, next) => {
       comment: req.body?.comment,
     });
     res.json({ ok: true, feedback });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Admin — worker approval. New profiles start unapproved, so nothing appears in
+// search until an admin approves it here.
+// ---------------------------------------------------------------------------
+async function requireAdmin(req, res) {
+  const session = await Session.getSession(req, res, { sessionRequired: true });
+  const { authUserId, phone } = await resolveSession(session);
+  const user = await getOrCreateUserByAuthId(authUserId, phone);
+  if (!isAdmin(user)) {
+    res.status(403).json({ ok: false, code: 'FORBIDDEN', message: 'Aap admin nahi ho' });
+    return null;
+  }
+  return user;
+}
+
+app.get('/admin/workers', async (req, res, next) => {
+  try {
+    const admin = await requireAdmin(req, res);
+    if (!admin) return;
+    const result = await listPendingWorkers(req.query.page, req.query.limit);
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.patch('/admin/workers/:id', async (req, res, next) => {
+  try {
+    const admin = await requireAdmin(req, res);
+    if (!admin) return;
+    const worker = await setWorkerApproval(
+      req.params.id,
+      req.body?.approved,
+      req.body?.adminNotes,
+    );
+    res.json({ ok: true, worker });
   } catch (error) {
     next(error);
   }

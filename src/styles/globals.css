@@ -1,0 +1,129 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base styles */
+@layer base {
+  :root {
+    --background: #FAFAFA;
+    --card: #FFFFFF;
+    --text-primary: #1A1A1A;
+    --text-secondary: #666666;
+    --primary: #FF6B35;
+    --primary-dark: #D84315;
+    --primary-light: #FF8F66;
+    --success: #28A745;
+    --warning: #FFC107;
+    --danger: #DC3545;
+  }
+
+  * {
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--text-primary);
+    font-family: 'Inter', sans-serif;
+    font-size: 18px; /* Worker-friendly */
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Focus styles for accessibility */
+  :focus-visible {
+    outline: 2px solid var(--primary-dark);
+    outline-offset: 2px;
+  }
+}
+
+/* Component styles */
+@layer components {
+  /* Button styles */
+  .btn-primary {
+    @apply bg-primary-dark text-white font-semibold py-3 px-6 rounded-button 
+           hover:bg-opacity-90 active:scale-98 transition-all duration-150
+           shadow-button;
+  }
+
+  .btn-secondary {
+    @apply bg-transparent border-2 border-primary-dark text-primary-dark 
+           font-semibold py-3 px-6 rounded-button hover:bg-primary-dark 
+           hover:text-white transition-all duration-150;
+  }
+
+  .btn-ghost {
+    @apply bg-transparent text-primary-dark font-semibold py-2 px-4 
+           hover:underline transition-all duration-150;
+  }
+
+  /* Card styles */
+  .card {
+    @apply bg-card rounded-card p-4 shadow-card 
+           hover:shadow-card-hover transition-shadow duration-200;
+  }
+
+  /* Input styles */
+  .input {
+    @apply w-full bg-gray-50 border-2 border-transparent rounded-button 
+           px-4 py-3 text-body focus:border-primary-dark focus:bg-white 
+           transition-all duration-150;
+  }
+
+  .input-error {
+    @apply border-danger;
+  }
+
+  /* Skeleton loading */
+  .skeleton {
+    @apply bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 
+           bg-[length:400px_100%] animate-shimmer rounded;
+  }
+}
+
+/* Utility styles */
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.2s ease-in-out;
+  }
+
+  .animate-scale-up {
+    animation: scaleUp 0.15s ease-in-out;
+  }
+}
+
+/* Scrollbar styles */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #CCCCCC;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #999999;
+}
+
+/* Selection styles */
+::selection {
+  background-color: var(--primary-light);
+  color: white;
+}

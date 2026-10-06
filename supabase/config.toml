@@ -1,0 +1,15 @@
+# =============================================================================
+# SahiKaarigar — Supabase CLI configuration
+# =============================================================================
+# The browser talks to Supabase directly (the site is served statically from
+# Firebase Hosting), so the server-side pieces live in Edge Functions.
+# =============================================================================
+
+[project]
+id = "gkrgyurjifxtbffslzys"
+
+# Login / registration + worker profile creation.
+# The client sends a Firebase ID token in the body, so JWT verification is done
+# inside the function (against Google's public keys) — not by Supabase Auth.
+[functions.auth]
+verify_jwt = false

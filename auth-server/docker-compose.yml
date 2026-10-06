@@ -1,0 +1,45 @@
+# =============================================================================
+# SuperTokens Core + its PostgreSQL — for LOCAL DEV or SELF-HOSTING.
+#
+#   docker compose up -d      ->  Core on http://localhost:3567
+#
+# The Core holds the auth data + logic and exposes ADMIN APIs, so it must never
+# be reachable from a browser. Keep it on a private network and behind an API key.
+#
+# Tip: you can point the Core at your existing Supabase Postgres instead of the
+# bundled `db` service — just replace POSTGRESQL_CONNECTION_URI below with your
+# Supabase connection string (Dashboard -> Connect -> Session pooler) and drop
+# the `db` service.
+# =============================================================================
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: supertokens
+      POSTGRES_PASSWORD: supertokens
+      POSTGRES_DB: supertokens
+    ports:
+      - '5433:5432'
+    volumes:
+      - supertokens-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U supertokens']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  core:
+    image: supertokens/supertokens-postgresql:latest
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - '3567:3567'
+    environment:
+      POSTGRESQL_CONNECTION_URI: 'postgresql://supertokens:supertokens@db:5432/supertokens'
+      # Must match SUPERTOKENS_API_KEY in .env (use a long random string).
+      API_KEYS: 'REPLACE_WITH_A_LONG_RANDOM_STRING'
+    restart: unless-stopped
+
+volumes:
+  supertokens-db:

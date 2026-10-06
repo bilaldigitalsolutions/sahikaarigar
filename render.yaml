@@ -1,0 +1,41 @@
+# =============================================================================
+# Render Blueprint — deploys auth-server/ as a FREE web service.
+#
+# Assumes the GitHub repo root is `sahikarigar-app/` (so rootDir is auth-server).
+# Render Dashboard -> New -> Blueprint -> pick the repo. It reads this file.
+#
+# Free tier: 512 MB RAM, no card required. Spins down when idle (see the guide).
+# =============================================================================
+services:
+  - type: web
+    name: sahikaarigar-auth
+    runtime: node
+    plan: free
+    region: singapore
+    rootDir: auth-server
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: '20'
+      # 'console' logs the OTP instead of sending an SMS (free, no account).
+      # Switch to messagecentral / msg91 / fast2sms / twilio for real SMS.
+      - key: SMS_PROVIDER
+        value: console
+      - key: APP_NAME
+        value: SahiKaarigar
+      # Set these in the Render dashboard (marked "sync: false" = not in git).
+      - key: SUPERTOKENS_CONNECTION_URI
+        sync: false
+      - key: SUPERTOKENS_API_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      # The static site origin. API_DOMAIN is auto-detected from
+      # RENDER_EXTERNAL_URL, so it usually does not need setting.
+      - key: WEBSITE_DOMAIN
+        value: https://sahi-kaarigar.web.app

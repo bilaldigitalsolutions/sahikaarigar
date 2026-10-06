@@ -102,6 +102,8 @@ app.use(express.json());
 app.get('/health', (_req, res) => {
   res.json({
     ok: true,
+    // Render injects RENDER_GIT_COMMIT — lets you confirm WHICH commit is live.
+    build: (process.env.RENDER_GIT_COMMIT || '').slice(0, 7) || 'dev',
     smsProvider: resolveSmsProvider(),
     supportedSmsProviders: SUPPORTED_SMS_PROVIDERS,
   });

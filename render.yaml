@@ -24,10 +24,14 @@ services:
       #   "Error: Node.js detected but native WebSocket not found."
       - key: NODE_VERSION
         value: '22'
-      # 'console' logs the OTP instead of sending an SMS (free, no account).
-      # Switch to messagecentral / msg91 / fast2sms / twilio for real SMS.
+      # Real SMS via Fast2SMS (India — DLT-free OTP route, UPI, no card).
+      #   route=q ("Quick SMS") works with ONLY FAST2SMS_API_KEY set below.
+      #   Use 'console' to print the OTP in the Render logs instead (free).
       - key: SMS_PROVIDER
-        value: console
+        value: fast2sms
+      # From Fast2SMS dashboard -> Dev API -> API KEY. (sync: false = not in git)
+      - key: FAST2SMS_API_KEY
+        sync: false
       - key: APP_NAME
         value: SahiKaarigar
       # Set these in the Render dashboard (marked "sync: false" = not in git).

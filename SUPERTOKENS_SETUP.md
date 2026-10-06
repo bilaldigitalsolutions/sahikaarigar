@@ -62,7 +62,7 @@ stay on a private network behind an API key (`auth-server/README.md`).
 | `console` | — (dev) | **free** | no | no |
 | `messagecentral` | India | **₹0.30 / OTP** | no (UPI) | **not required** |
 | `msg91` | India | ~₹0.15 / SMS | no (UPI) | required |
-| `fast2sms` | India | ~₹0.15 / SMS | no (UPI) | required |
+| `fast2sms` | India | plan rate; Quick SMS = premium | no (UPI) | **not required** |
 | `twilio` | global | Twilio rate + 20% | **yes** | n/a |
 
 Adding another provider = one function in `src/sms.js` (same `({ phone, otp })`

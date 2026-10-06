@@ -59,15 +59,44 @@ const providers = {
 
   async fast2sms({ phone, otp }) {
     const key = need('FAST2SMS_API_KEY');
+    const otpTemplateId = process.env.FAST2SMS_OTP_TEMPLATE_ID;
+
+    // Route A — the dedicated OTP endpoint (cheapest per SMS).
+    // Needs an "OTP template id" from the Fast2SMS dashboard, and it accepts
+    // OUR otp value, so SuperTokens' code is the one the user receives.
+    if (otpTemplateId) {
+      const res = await fetch('https://www.fast2sms.com/dev/otp/send', {
+        method: 'POST',
+        headers: { authorization: key, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mobile: phone,
+          otp_id: otpTemplateId,
+          otp,
+          otp_length: otp.length,
+          otp_expiry: 15,
+        }),
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+      const body = await readBody(res);
+      if (!res.ok || /"return"\s*:\s*false/.test(body)) {
+        throw new Error(`Fast2SMS OTP HTTP ${res.status}: ${body}`);
+      }
+      return;
+    }
+
+    // Route B — "Quick SMS" (route=q). Needs ONLY the API key: DLT-free, random
+    // sender id, but billed at the premium rate. We send the whole message text
+    // so SuperTokens' own OTP travels inside it.
+    // https://docs.fast2sms.com/reference/quick-sms-post
     const res = await fetch('https://www.fast2sms.com/dev/bulkV2', {
       method: 'POST',
       headers: { authorization: key, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ route: 'otp', variables_values: otp, numbers: phone, flash: 0 }),
+      body: JSON.stringify({ route: 'q', message: buildMessage(otp), numbers: phone }),
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
     const body = await readBody(res);
     if (!res.ok || /"return"\s*:\s*false/.test(body)) {
-      throw new Error(`Fast2SMS HTTP ${res.status}: ${body}`);
+      throw new Error(`Fast2SMS QuickSMS HTTP ${res.status}: ${body}`);
     }
   },
 

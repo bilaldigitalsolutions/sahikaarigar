@@ -27,7 +27,9 @@ services:
       # SMS is AUTO-DETECTED from whichever provider credentials are present,
       # so just add your provider's key in the Render dashboard (Environment
       # tab) and real SMS starts working — nothing to change here.
-      #   Fast2SMS -> FAST2SMS_API_KEY                       (India, DLT-free, UPI)
+      #   StartMessaging -> STARTMESSAGING_API_KEY          (India, DLT-FREE, UPI)
+      #   Fast2SMS -> FAST2SMS_API_KEY (+ FAST2SMS_OTP_TEMPLATE_ID)  (India, UPI;
+      #               the SMS OTP route needs DLT — WhatsApp/Quick-SMS do not)
       #   MSG91    -> MSG91_AUTH_KEY + MSG91_TEMPLATE_ID     (India, needs DLT)
       #   Twilio   -> TWILIO_ACCOUNT_SID/AUTH_TOKEN/FROM     (global, needs card)
       # With no credentials the OTP is printed in the Render logs instead (free).

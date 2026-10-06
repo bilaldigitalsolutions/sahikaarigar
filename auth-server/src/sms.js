@@ -6,8 +6,10 @@
 // same `({ phone, otp })` signature.
 //
 //   console         dev only — prints the OTP, sends nothing, costs nothing
+//   startmessaging  India, DLT-FREE SMS OTP (~Rs.0.25/OTP) — accepts our own code
 //   msg91           India, cheapest, needs DLT registration
-//   fast2sms        India, cheap, needs DLT registration
+//   fast2sms        India, cheap (~Rs.0.25/SMS). Smart-OTP SMS needs DLT;
+//                   route=q (Quick SMS) is DLT-free but ~Rs.5/SMS
 //   messagecentral  India, DLT-free managed OTP (~Rs.0.30 / OTP)
 //   twilio          global, requires a card
 // =============================================================================
@@ -61,9 +63,11 @@ const providers = {
     const key = need('FAST2SMS_API_KEY');
     const otpTemplateId = process.env.FAST2SMS_OTP_TEMPLATE_ID;
 
-    // Route A — the dedicated OTP endpoint (cheapest per SMS).
-    // Needs an "OTP template id" from the Fast2SMS dashboard, and it accepts
-    // OUR otp value, so SuperTokens' code is the one the user receives.
+    // Route A — the dedicated OTP endpoint (cheapest per SMS, ~Rs.0.25).
+    // Needs a "Smart OTP" template id from the Fast2SMS dashboard, and it
+    // accepts OUR otp value, so SuperTokens' code is the one the user receives.
+    // NOTE: an SMS-channel OTP template requires DLT registration (TRAI); a
+    // WhatsApp-channel OTP template does not (only a one-time Meta approval).
     if (otpTemplateId) {
       const res = await fetch('https://www.fast2sms.com/dev/otp/send', {
         method: 'POST',
@@ -96,7 +100,42 @@ const providers = {
     });
     const body = await readBody(res);
     if (!res.ok || /"return"\s*:\s*false/.test(body)) {
-      throw new Error(`Fast2SMS QuickSMS HTTP ${res.status}: ${body}`);
+      // 999 = "complete one transaction of 100 INR or more" — the Quick SMS API
+      // stays locked until the Fast2SMS wallet has had a real top-up.
+      const hint = /"status_code"\s*:\s*999/.test(body)
+        ? ' — Fast2SMS requires a one-time top-up of Rs.100+ before the Quick SMS'
+          + ' API unlocks; or set FAST2SMS_OTP_TEMPLATE_ID to use Smart OTP instead.'
+        : '';
+      throw new Error(`Fast2SMS QuickSMS HTTP ${res.status}: ${body}${hint}`);
+    }
+  },
+
+  // StartMessaging — https://startmessaging.com  (India, DLT-FREE, ~Rs.0.25/OTP)
+  // The DLT-free SMS OTP provider that lets us pass OUR OWN otp value: the
+  // `variables.otp` field is required, so SuperTokens' code is what the user
+  // receives. Sign up (email + one-time KYC), top up via UPI, create an API key
+  // ("sm_live_..."). No DLT entity, sender ID or template approval needed.
+  // https://startmessaging.com/otp-api/
+  async startmessaging({ phone, otp }) {
+    const key = need('STARTMESSAGING_API_KEY');
+    const base = (
+      process.env.STARTMESSAGING_BASE_URL || 'https://api.startmessaging.com'
+    ).replace(/\/+$/, '');
+    const templateId = process.env.STARTMESSAGING_TEMPLATE_ID; // optional
+
+    const res = await fetch(`${base}/otp/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-API-Key': key },
+      body: JSON.stringify({
+        phoneNumber: `+91${phone}`, // E.164, e.g. +919876543210
+        ...(templateId ? { templateId } : {}),
+        variables: { otp, appName: process.env.APP_NAME || 'SahiKaarigar' },
+      }),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    const body = await readBody(res);
+    if (!res.ok || /"success"\s*:\s*false/.test(body)) {
+      throw new Error(`StartMessaging HTTP ${res.status}: ${body}`);
     }
   },
 
@@ -168,6 +207,9 @@ export function resolveSmsProvider() {
   const explicit = (process.env.SMS_PROVIDER || '').trim().toLowerCase();
   if (explicit && explicit !== 'console') return explicit;
 
+  // Auto-detect, in order of preference. startmessaging is first because it is
+  // the only DLT-free SMS OTP route here (no DLT portal, sender ID or template).
+  if (process.env.STARTMESSAGING_API_KEY) return 'startmessaging';
   if (process.env.FAST2SMS_API_KEY) return 'fast2sms';
   if (process.env.MSG91_AUTH_KEY) return 'msg91';
   if (process.env.MESSAGECENTRAL_CUSTOMER_ID) return 'messagecentral';

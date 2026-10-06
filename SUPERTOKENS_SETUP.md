@@ -10,7 +10,10 @@ has required a Cloud Billing account for SMS since Sept 2024).
 > it** through whichever provider you pick. So:
 >
 > * **No card needed** if you use `console` (development) or an Indian provider
->   that takes UPI — `messagecentral` (VerifyNow) is **DLT-free at ~₹0.30/OTP**.
+>   that takes UPI — `fast2sms` is **~₹0.25/OTP** and accepts UPI. Note: sending
+>   OTP **SMS** in India needs TRAI **DLT registration** (free support from
+>   Fast2SMS, but it takes weeks). The DLT-free channels are Fast2SMS **WhatsApp**
+>   OTP (~₹0.25/msg) and the **Quick SMS** route (`route=q`, ~₹5/SMS).
 > * You must run **two** services: the SuperTokens **Core** and this
 >   **auth-server**. SuperTokens Cloud is free under **5,000 MAU** and removes
 >   the Core hosting; the auth-server still needs an always-on Node host
@@ -60,9 +63,10 @@ stay on a private network behind an API key (`auth-server/README.md`).
 | `SMS_PROVIDER` | Country | Cost | Card? | DLT registration? |
 | --- | --- | --- | --- | --- |
 | `console` | — (dev) | **free** | no | no |
-| `messagecentral` | India | **₹0.30 / OTP** | no (UPI) | **not required** |
+| `startmessaging` | India | **₹0.25 / OTP** | no (UPI) | **not needed** — accepts our OTP |
+| `messagecentral` | India | **₹0.30 / OTP** | no (UPI) | **not required** ⚠️ generates its own OTP — not usable with SuperTokens |
 | `msg91` | India | ~₹0.15 / SMS | no (UPI) | required |
-| `fast2sms` | India | plan rate; Quick SMS = premium | no (UPI) | **not required** |
+| `fast2sms` | India | ~₹0.25 / OTP (Quick SMS ≈ ₹5) | no (UPI) | SMS route: **yes** · WhatsApp / Quick SMS: no |
 | `twilio` | global | Twilio rate + 20% | **yes** | n/a |
 
 Adding another provider = one function in `src/sms.js` (same `({ phone, otp })`
@@ -127,11 +131,17 @@ auth-server terminal:
 Type that code into the UI. The full flow (create code → consume → session →
 `/me` → Supabase row) is now testable end-to-end, free and card-free.
 
-Going live with real SMS:
+Going live with real SMS — the **DLT-free** route (recommended):
 
-1. Create an account with **Message Central (VerifyNow)** — DLT-free, ~₹0.30/OTP.
-2. Put `MESSAGECENTRAL_CUSTOMER_ID` / `MESSAGECENTRAL_PASSWORD` in `.env`.
-3. Set `SMS_PROVIDER=messagecentral` and restart.
+1. Sign up at **StartMessaging** (email + one-time KYC) and top up via UPI.
+2. Create an API key (`sm_live_...`) and set `STARTMESSAGING_API_KEY`; set
+   `SMS_PROVIDER=startmessaging` (or leave `SMS_PROVIDER` unset — auto-detected).
+3. That is it: ~₹0.25/OTP, no DLT entity, sender ID or template approval.
+
+Alternative — **Fast2SMS** (UPI): set `FAST2SMS_API_KEY`. The cheap
+`/dev/otp/send` route needs `FAST2SMS_OTP_TEMPLATE_ID` (an **SMS** template
+requires DLT; a **WhatsApp** one does not). With no template id we fall back to
+the DLT-free **Quick SMS** route (`route=q`, ~₹5/SMS, needs a ₹100 top-up).
 
 ```powershell
 # 4. apply the DB migration (adds users.auth_user_id, makes firebase_uid nullable)

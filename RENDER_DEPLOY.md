@@ -232,6 +232,7 @@ Render — no redeploy of the site needed.
 | Browser console: **CORS** error | `WEBSITE_DOMAIN` on Render must be exactly `https://sahi-kaarigar.web.app` (no trailing slash), then redeploy the service. |
 | **Login succeeds but the session disappears** (most common!) | The site (`…web.app`) and the API (`…onrender.com`) are *different sites*, so a cookie session would be a **third-party cookie** and gets blocked. Already fixed: the frontend uses **header-based sessions** (`Session.init({ tokenTransferMethod: 'header' })`) — see below. |
 | `/health` times out | Free-tier cold start — retry once. |
+| **Deploy fails: `Error: Node.js detected but native WebSocket not found`** | Render was running **Node 20**. `@supabase/supabase-js` (>=2.50) needs Node's native `WebSocket`, which only exists from **Node 22**. `render.yaml` sets `NODE_VERSION=22`; make sure it is not overridden in the dashboard. |
 | `502 Bad Gateway` | the service crashed; check Logs (usually a missing env var). |
 | OTP never arrives | `SMS_PROVIDER=console` prints it in the logs instead of texting. For real SMS set an Indian provider; on `msg91`/`fast2sms` the usual cause is missing **DLT registration**. |
 | `Phone number is missing or invalid` | number not 10 digits starting 6–9, or the frontend sent it without `+91`. |

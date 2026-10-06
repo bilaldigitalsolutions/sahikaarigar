@@ -18,8 +18,12 @@ services:
     healthCheckPath: /health
     autoDeploy: true
     envVars:
+      # Node 22+ is REQUIRED. @supabase/supabase-js (>=2.50) needs a native
+      # global `WebSocket`, which Node only ships from v22 onwards. On Node 20
+      # the service crashes at boot with:
+      #   "Error: Node.js detected but native WebSocket not found."
       - key: NODE_VERSION
-        value: '20'
+        value: '22'
       # 'console' logs the OTP instead of sending an SMS (free, no account).
       # Switch to messagecentral / msg91 / fast2sms / twilio for real SMS.
       - key: SMS_PROVIDER

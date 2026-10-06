@@ -1,0 +1,40 @@
+{
+  "name": "SahiKaarigar - Hyderabad ke Best Workers",
+  "short_name": "SahiKaarigar",
+  "description": "Hyderabad ke verified electricians, plumbers, painters aur more ko dhundho aur seedha hire karo.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FAFAFA",
+  "theme_color": "#D84315",
+  "lang": "en-IN",
+  "dir": "ltr",
+  "categories": ["business", "utilities"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Search Workers",
+      "short_name": "Search",
+      "url": "/search"
+    },
+    {
+      "name": "Meri Requests",
+      "short_name": "Requests",
+      "url": "/hires"
+    }
+  ]
+}

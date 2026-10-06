@@ -3,6 +3,7 @@ import { Search, ArrowRight } from 'lucide-react';
 import { Header, Footer, Button } from '@/components';
 import { FeaturedWorkers } from '@/components/worker/FeaturedWorkers';
 import { SKILLS, HYDERABAD_AREAS } from '@/constants';
+import { generateSlug } from '@/utils';
 
 export default function HomePage() {
   return (
@@ -19,10 +20,14 @@ export default function HomePage() {
             Verified electricians, plumbers, painters & more
           </p>
 
-          {/* Search Bar */}
-          <div className="max-w-2xl mx-auto">
+          {/* Search Bar — GET form so the selected skill/area reach /search */}
+          <form action="/search" method="get" className="max-w-2xl mx-auto">
             <div className="flex flex-col sm:flex-row gap-3">
-              <select className="flex-1 px-4 py-3 rounded-button text-text-primary text-body">
+              <select
+                name="skill"
+                aria-label="Skill"
+                className="flex-1 px-4 py-3 rounded-button text-text-primary text-body"
+              >
                 <option value="">Select Skill</option>
                 {SKILLS.map((skill) => (
                   <option key={skill.id} value={skill.id}>
@@ -30,7 +35,11 @@ export default function HomePage() {
                   </option>
                 ))}
               </select>
-              <select className="flex-1 px-4 py-3 rounded-button text-text-primary text-body">
+              <select
+                name="area"
+                aria-label="Area"
+                className="flex-1 px-4 py-3 rounded-button text-text-primary text-body"
+              >
                 <option value="">Select Area</option>
                 {HYDERABAD_AREAS.map((area) => (
                   <option key={area.id} value={area.id}>
@@ -38,14 +47,16 @@ export default function HomePage() {
                   </option>
                 ))}
               </select>
-              <Link href="/search">
-                <Button size="lg" className="w-full sm:w-auto bg-white text-primary-dark hover:bg-gray-100">
-                  <Search size={20} className="mr-2" />
-                  Search
-                </Button>
-              </Link>
+              <Button
+                type="submit"
+                size="lg"
+                className="w-full sm:w-auto bg-white text-primary-dark hover:bg-gray-100"
+              >
+                <Search size={20} className="mr-2" />
+                Search
+              </Button>
             </div>
-          </div>
+          </form>
         </div>
       </section>
 
@@ -59,7 +70,7 @@ export default function HomePage() {
             {SKILLS.slice(0, 6).map((skill) => (
               <Link
                 key={skill.id}
-                href={`/skills/${skill.id}`}
+                href={`/skills/${generateSlug(skill.id)}`}
                 className="flex flex-col items-center gap-3 p-4 rounded-card bg-white shadow-card hover:shadow-card-hover transition-shadow"
               >
                 <span className="text-3xl">{skill.icon}</span>

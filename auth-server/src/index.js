@@ -18,7 +18,7 @@ import Passwordless from 'supertokens-node/recipe/passwordless';
 import Session from 'supertokens-node/recipe/session';
 import { middleware, errorHandler } from 'supertokens-node/framework/express';
 
-import { sendOtpSms, SUPPORTED_SMS_PROVIDERS } from './sms.js';
+import { sendOtpSms, resolveSmsProvider, SUPPORTED_SMS_PROVIDERS } from './sms.js';
 import {
   getOrCreateUserByAuthId,
   upsertWorkerProfile,
@@ -102,7 +102,7 @@ app.use(express.json());
 app.get('/health', (_req, res) => {
   res.json({
     ok: true,
-    smsProvider: (process.env.SMS_PROVIDER || 'console').toLowerCase(),
+    smsProvider: resolveSmsProvider(),
     supportedSmsProviders: SUPPORTED_SMS_PROVIDERS,
   });
 });
@@ -173,7 +173,7 @@ app.use((error, _req, res, _next) => {
 
 app.listen(PORT, () => {
   console.log(`\n✓ SahiKaarigar auth-server on ${API_DOMAIN}`);
-  console.log(`  SMS provider : ${(process.env.SMS_PROVIDER || 'console').toLowerCase()}`);
+  console.log(`  SMS provider : ${resolveSmsProvider()}`);
   console.log(`  Core         : ${process.env.SUPERTOKENS_CONNECTION_URI}`);
   console.log(`  CORS origin  : ${WEBSITE_DOMAIN}\n`);
 });

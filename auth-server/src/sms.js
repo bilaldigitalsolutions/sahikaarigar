@@ -156,11 +156,32 @@ const providers = {
 export const SUPPORTED_SMS_PROVIDERS = Object.keys(providers);
 
 /**
- * Deliver an OTP through the provider selected by `SMS_PROVIDER`.
+ * Which provider should actually deliver the OTP?
+ *
+ * `SMS_PROVIDER` wins when it names a real provider, but a bare `console`
+ * (or nothing at all) means "auto-detect": if any provider's credentials are
+ * present we use that one. This way dropping a single API key into the host's
+ * environment is enough to switch from logs to real SMS — no second setting to
+ * keep in sync (and no Blueprint sync to fight with).
+ */
+export function resolveSmsProvider() {
+  const explicit = (process.env.SMS_PROVIDER || '').trim().toLowerCase();
+  if (explicit && explicit !== 'console') return explicit;
+
+  if (process.env.FAST2SMS_API_KEY) return 'fast2sms';
+  if (process.env.MSG91_AUTH_KEY) return 'msg91';
+  if (process.env.MESSAGECENTRAL_CUSTOMER_ID) return 'messagecentral';
+  if (process.env.TWILIO_ACCOUNT_SID) return 'twilio';
+
+  return 'console';
+}
+
+/**
+ * Deliver an OTP through the resolved provider.
  * @param {{ phone: string, otp: string }} input
  */
 export async function sendOtpSms({ phone, otp }) {
-  const name = (process.env.SMS_PROVIDER || 'console').toLowerCase();
+  const name = resolveSmsProvider();
   const provider = providers[name];
   if (!provider) {
     throw new Error(

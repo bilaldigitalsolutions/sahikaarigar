@@ -24,14 +24,13 @@ services:
       #   "Error: Node.js detected but native WebSocket not found."
       - key: NODE_VERSION
         value: '22'
-      # Real SMS via Fast2SMS (India — DLT-free OTP route, UPI, no card).
-      #   route=q ("Quick SMS") works with ONLY FAST2SMS_API_KEY set below.
-      #   Use 'console' to print the OTP in the Render logs instead (free).
-      - key: SMS_PROVIDER
-        value: fast2sms
-      # From Fast2SMS dashboard -> Dev API -> API KEY. (sync: false = not in git)
-      - key: FAST2SMS_API_KEY
-        sync: false
+      # SMS is AUTO-DETECTED from whichever provider credentials are present,
+      # so just add your provider's key in the Render dashboard (Environment
+      # tab) and real SMS starts working — nothing to change here.
+      #   Fast2SMS -> FAST2SMS_API_KEY                       (India, DLT-free, UPI)
+      #   MSG91    -> MSG91_AUTH_KEY + MSG91_TEMPLATE_ID     (India, needs DLT)
+      #   Twilio   -> TWILIO_ACCOUNT_SID/AUTH_TOKEN/FROM     (global, needs card)
+      # With no credentials the OTP is printed in the Render logs instead (free).
       - key: APP_NAME
         value: SahiKaarigar
       # Set these in the Render dashboard (marked "sync: false" = not in git).

@@ -26,6 +26,14 @@ import {
   normalizeIndianPhone,
   isValidIndianPhone,
 } from './users.js';
+import { searchWorkers, getWorkerById } from './workers.js';
+import { createHireRequest, listHiresForUser, getHireById, hireAction } from './hires.js';
+import {
+  createReview,
+  createPlatformFeedback,
+  listReviewsByWorker,
+  getReviewByHireRequest,
+} from './reviews.js';
 
 const PORT = Number(process.env.PORT || 4000);
 // Render exposes a web service's public URL as RENDER_EXTERNAL_URL, so the
@@ -157,6 +165,144 @@ app.post('/profile', async (req, res, next) => {
     const user = await getOrCreateUserByAuthId(authUserId, phone);
     const updated = await updateUser(user.id, req.body ?? {});
     res.json({ ok: true, user: updated });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Workers — public reads (no session needed, phone is withheld from the list)
+// ---------------------------------------------------------------------------
+app.get('/workers', async (req, res, next) => {
+  try {
+    const result = await searchWorkers({
+      skill: req.query.skill,
+      area: req.query.area,
+      page: req.query.page,
+      limit: req.query.limit,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/workers/:id', async (req, res, next) => {
+  try {
+    const worker = await getWorkerById(req.params.id);
+    if (!worker) {
+      res.status(404).json({ ok: false, code: 'NOT_FOUND', message: 'Kaarigar nahi mila' });
+      return;
+    }
+    const reviews = await listReviewsByWorker(req.params.id, 1, 20);
+    res.json({ ok: true, worker, reviews: reviews.reviews, reviewCount: reviews.pagination.total });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Hires — session required. The session's phone is what proves the user, so a
+// brand-new user is created on the spot (no separate signup form needed).
+// ---------------------------------------------------------------------------
+app.get('/hires', async (req, res, next) => {
+  try {
+    const session = await Session.getSession(req, res, { sessionRequired: true });
+    const { authUserId, phone } = await resolveSession(session);
+    const user = await getOrCreateUserByAuthId(authUserId, phone);
+    const hires = await listHiresForUser(user.id);
+    res.json({ ok: true, ...hires });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/hires', async (req, res, next) => {
+  try {
+    const session = await Session.getSession(req, res, { sessionRequired: true });
+    const { authUserId, phone } = await resolveSession(session);
+    const user = await getOrCreateUserByAuthId(authUserId, phone, req.body?.name);
+    const hire = await createHireRequest({
+      employerId: user.id,
+      workerId: req.body?.workerId,
+      description: req.body?.description,
+      location: req.body?.location,
+      proposedRate: req.body?.proposedRate,
+      scheduledDate: req.body?.scheduledDate,
+    });
+    res.json({ ok: true, hire });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/hires/:id', async (req, res, next) => {
+  try {
+    await Session.getSession(req, res, { sessionRequired: true });
+    const hire = await getHireById(req.params.id);
+    if (!hire) {
+      res.status(404).json({ ok: false, code: 'NOT_FOUND', message: 'Hire request nahi mila' });
+      return;
+    }
+    const review = await getReviewByHireRequest(req.params.id);
+    res.json({ ok: true, hire, review });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// One route for every state change: accept | reject | en_route | arrived |
+// complete | cancel. `hires.js` decides who is allowed to do what.
+app.patch('/hires/:id', async (req, res, next) => {
+  try {
+    const session = await Session.getSession(req, res, { sessionRequired: true });
+    const { authUserId, phone } = await resolveSession(session);
+    const user = await getOrCreateUserByAuthId(authUserId, phone);
+    const hire = await hireAction({
+      hireId: req.params.id,
+      userId: user.id,
+      action: req.body?.action,
+      lat: req.body?.lat,
+      lng: req.body?.lng,
+    });
+    res.json({ ok: true, hire });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Reviews (of the worker) + platform feedback (of SahiKaarigar itself)
+// ---------------------------------------------------------------------------
+app.post('/reviews', async (req, res, next) => {
+  try {
+    const session = await Session.getSession(req, res, { sessionRequired: true });
+    const { authUserId, phone } = await resolveSession(session);
+    const user = await getOrCreateUserByAuthId(authUserId, phone);
+    const review = await createReview({
+      reviewerId: user.id,
+      hireRequestId: req.body?.hireRequestId,
+      rating: req.body?.rating,
+      comment: req.body?.comment,
+    });
+    res.json({ ok: true, review });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/feedback', async (req, res, next) => {
+  try {
+    const session = await Session.getSession(req, res, { sessionRequired: true });
+    const { authUserId, phone } = await resolveSession(session);
+    const user = await getOrCreateUserByAuthId(authUserId, phone);
+    const feedback = await createPlatformFeedback({
+      userId: user.id,
+      hireRequestId: req.body?.hireRequestId,
+      rating: req.body?.rating,
+      comment: req.body?.comment,
+    });
+    res.json({ ok: true, feedback });
   } catch (error) {
     next(error);
   }

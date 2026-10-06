@@ -31,16 +31,22 @@ export function Header() {
               Search Workers
             </Link>
             <Link
-              href="/skills/electrician"
+              href="/search?skill=electrician"
               className="text-text-secondary hover:text-primary-dark transition-colors"
             >
               Electricians
             </Link>
             <Link
-              href="/skills/plumber"
+              href="/search?skill=plumber"
               className="text-text-secondary hover:text-primary-dark transition-colors"
             >
               Plumbers
+            </Link>
+            <Link
+              href="/hires"
+              className="text-text-secondary hover:text-primary-dark transition-colors"
+            >
+              My Requests
             </Link>
           </nav>
 
@@ -126,18 +132,25 @@ export function Header() {
                 Search Workers
               </Link>
               <Link
-                href="/skills/electrician"
+                href="/search?skill=electrician"
                 className="px-4 py-2 text-text-secondary hover:text-primary-dark hover:bg-gray-50 rounded-button transition-colors"
                 onClick={() => setIsMenuOpen(false)}
               >
                 Electricians
               </Link>
               <Link
-                href="/skills/plumber"
+                href="/search?skill=plumber"
                 className="px-4 py-2 text-text-secondary hover:text-primary-dark hover:bg-gray-50 rounded-button transition-colors"
                 onClick={() => setIsMenuOpen(false)}
               >
                 Plumbers
+              </Link>
+              <Link
+                href="/hires"
+                className="px-4 py-2 text-text-secondary hover:text-primary-dark hover:bg-gray-50 rounded-button transition-colors"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                My Requests
               </Link>
               {!user && (
                 <div className="flex gap-2 px-4 pt-2">

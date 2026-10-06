@@ -1,62 +1,8 @@
 import Link from 'next/link';
 import { Search, ArrowRight } from 'lucide-react';
-import { Header, Footer, WorkerCard, Button } from '@/components';
+import { Header, Footer, Button } from '@/components';
+import { FeaturedWorkers } from '@/components/worker/FeaturedWorkers';
 import { SKILLS, HYDERABAD_AREAS } from '@/constants';
-
-// Featured workers (would be fetched from API in production)
-const FEATURED_WORKERS = [
-  {
-    id: '1',
-    user: {
-      id: '1',
-      name: 'Raj Kumar',
-      avatar: '',
-      locationArea: 'Ameerpet',
-      locationCity: 'Hyderabad',
-    },
-    skills: ['electrician', 'wiring'],
-    experience: 5,
-    hourlyRate: 300,
-    availability: 'available' as const,
-    ratingAverage: 4.8,
-    ratingCount: 45,
-    completedJobs: 120,
-  },
-  {
-    id: '2',
-    user: {
-      id: '2',
-      name: 'Ahmed Ali',
-      avatar: '',
-      locationArea: 'Kukatpally',
-      locationCity: 'Hyderabad',
-    },
-    skills: ['plumber', 'pipe fitting'],
-    experience: 3,
-    hourlyRate: 250,
-    availability: 'available' as const,
-    ratingAverage: 4.5,
-    ratingCount: 23,
-    completedJobs: 67,
-  },
-  {
-    id: '3',
-    user: {
-      id: '3',
-      name: 'Priya Singh',
-      avatar: '',
-      locationArea: 'Gachibowli',
-      locationCity: 'Hyderabad',
-    },
-    skills: ['painter', 'wall painting'],
-    experience: 4,
-    hourlyRate: 350,
-    availability: 'available' as const,
-    ratingAverage: 4.9,
-    ratingCount: 67,
-    completedJobs: 156,
-  },
-];
 
 export default function HomePage() {
   return (
@@ -173,11 +119,7 @@ export default function HomePage() {
               View All <ArrowRight size={16} />
             </Link>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {FEATURED_WORKERS.map((worker) => (
-              <WorkerCard key={worker.id} worker={worker} />
-            ))}
-          </div>
+          <FeaturedWorkers limit={3} />
         </div>
       </section>
 

@@ -55,22 +55,22 @@ export function Footer() {
             <h3 className="text-white font-semibold mb-4">Popular Services</h3>
             <ul className="space-y-2">
               <li>
-                <Link href="/skills/electrician" className="hover:text-white transition-colors">
+                <Link href="/search?skill=electrician" className="hover:text-white transition-colors">
                   Electrician
                 </Link>
               </li>
               <li>
-                <Link href="/skills/plumber" className="hover:text-white transition-colors">
+                <Link href="/search?skill=plumber" className="hover:text-white transition-colors">
                   Plumber
                 </Link>
               </li>
               <li>
-                <Link href="/skills/painter" className="hover:text-white transition-colors">
+                <Link href="/search?skill=painter" className="hover:text-white transition-colors">
                   Painter
                 </Link>
               </li>
               <li>
-                <Link href="/skills/carpenter" className="hover:text-white transition-colors">
+                <Link href="/search?skill=carpenter" className="hover:text-white transition-colors">
                   Carpenter
                 </Link>
               </li>

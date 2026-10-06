@@ -78,24 +78,36 @@ export default function DashboardPage() {
               <Card>
                 <div className="flex items-start gap-3">
                   <Clock size={20} className="text-warning mt-0.5 shrink-0" />
-                  <div>
+                  <div className="flex-1">
                     <h2 className="font-semibold mb-1">Profile review me hai</h2>
-                    <p className="text-small text-text-secondary">
+                    <p className="text-small text-text-secondary mb-3">
                       Admin aapki profile check kar raha hai. Approve hone ke baad aap
                       search me dikhne lagoge.
                     </p>
+                    <Link href="/hires">
+                      <Button variant="secondary" size="sm">
+                        Mujhe mili requests dekho
+                      </Button>
+                    </Link>
                   </div>
                 </div>
               </Card>
             ) : (
               <Card>
-                <h2 className="font-semibold mb-2">Kaam shuru karo</h2>
-                <p className="text-small text-text-secondary mb-4">
-                  Apne area ke verified workers dhoondo aur seedha hire karo.
-                </p>
-                <Link href="/search">
-                  <Button>Workers dhoondo</Button>
-                </Link>
+                <div>
+                  <h2 className="font-semibold mb-2">Kaam shuru karo</h2>
+                  <p className="text-small text-text-secondary mb-4">
+                    Apne area ke verified workers dhoondo aur seedha hire karo.
+                  </p>
+                  <div className="flex flex-wrap gap-3">
+                    <Link href="/search">
+                      <Button>Workers dhoondo</Button>
+                    </Link>
+                    <Link href="/hires">
+                      <Button variant="secondary">Meri Requests</Button>
+                    </Link>
+                  </div>
+                </div>
               </Card>
             )}
           </div>

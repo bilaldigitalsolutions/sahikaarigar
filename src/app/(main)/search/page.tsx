@@ -1,60 +1,45 @@
 'use client';
 
-import { useState } from 'react';
-import { Search, SlidersHorizontal } from 'lucide-react';
-import { Header, Footer, WorkerCard, Button, Input, WorkerCardSkeleton } from '@/components';
+import { useCallback, useEffect, useState } from 'react';
+import { Search } from 'lucide-react';
+import { Header, Footer, WorkerCard, Button, WorkerCardSkeleton } from '@/components';
 import { SKILLS, HYDERABAD_AREAS } from '@/constants';
-
-// Mock data (would be fetched from API)
-const MOCK_WORKERS = [
-  {
-    id: '1',
-    user: {
-      id: '1',
-      name: 'Raj Kumar',
-      avatar: '',
-      locationArea: 'Ameerpet',
-      locationCity: 'Hyderabad',
-    },
-    skills: ['electrician', 'wiring'],
-    experience: 5,
-    hourlyRate: 300,
-    availability: 'available' as const,
-    ratingAverage: 4.8,
-    ratingCount: 45,
-    completedJobs: 120,
-  },
-  {
-    id: '2',
-    user: {
-      id: '2',
-      name: 'Ahmed Ali',
-      avatar: '',
-      locationArea: 'Kukatpally',
-      locationCity: 'Hyderabad',
-    },
-    skills: ['plumber', 'pipe fitting'],
-    experience: 3,
-    hourlyRate: 250,
-    availability: 'available' as const,
-    ratingAverage: 4.5,
-    ratingCount: 23,
-    completedJobs: 67,
-  },
-];
+import { searchWorkers, type ApiWorker } from '@/lib/api';
 
 export default function SearchPage() {
   const [selectedSkill, setSelectedSkill] = useState('');
   const [selectedArea, setSelectedArea] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [workers, setWorkers] = useState(MOCK_WORKERS);
+  const [isLoading, setIsLoading] = useState(true);
+  const [workers, setWorkers] = useState<ApiWorker[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async (skill: string, area: string) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const data = await searchWorkers({ skill: skill || undefined, area: area || undefined });
+      setWorkers(data.workers);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Workers load nahi hue. Dobara try karo.');
+      setWorkers([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // First paint: honour ?skill= / ?area= from the URL (Header/Footer links),
+  // otherwise show every approved + available worker.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const skill = params.get('skill') ?? '';
+    const area = params.get('area') ?? '';
+    setSelectedSkill(skill);
+    setSelectedArea(area);
+    void load(skill, area);
+  }, [load]);
 
   const handleSearch = () => {
-    setIsLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false);
-    }, 1000);
+    void load(selectedSkill, selectedArea);
   };
 
   return (
@@ -108,6 +93,12 @@ export default function SearchPage() {
           </p>
         </div>
 
+        {error && (
+          <p className="rounded-button bg-red-50 px-4 py-3 text-small text-danger mb-4" role="alert">
+            {error}
+          </p>
+        )}
+
         {/* Worker List */}
         {isLoading ? (
           <div className="space-y-4">
@@ -115,10 +106,45 @@ export default function SearchPage() {
               <WorkerCardSkeleton key={i} />
             ))}
           </div>
+        ) : workers.length === 0 ? (
+          <div className="rounded-card bg-white border border-gray-100 p-10 text-center">
+            <p className="text-text-secondary mb-4">
+              Is filter pe koi kaarigar nahi mila. Doosra skill ya area try karo.
+            </p>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setSelectedSkill('');
+                setSelectedArea('');
+                void load('', '');
+              }}
+            >
+              Saare workers dikhao
+            </Button>
+          </div>
         ) : (
           <div className="space-y-4">
             {workers.map((worker) => (
-              <WorkerCard key={worker.id} worker={worker} />
+              <WorkerCard
+                key={worker.id}
+                worker={{
+                  id: worker.id,
+                  user: {
+                    id: worker.user?.id ?? worker.id,
+                    name: worker.user?.name ?? 'Kaarigar',
+                    avatar: worker.user?.avatar ?? null,
+                    locationArea: worker.user?.locationArea ?? null,
+                    locationCity: worker.user?.locationCity ?? null,
+                  },
+                  skills: worker.skills,
+                  experience: worker.experience,
+                  hourlyRate: worker.hourlyRate,
+                  availability: worker.availability,
+                  ratingAverage: worker.ratingAverage,
+                  ratingCount: worker.ratingCount,
+                  completedJobs: worker.completedJobs,
+                }}
+              />
             ))}
           </div>
         )}

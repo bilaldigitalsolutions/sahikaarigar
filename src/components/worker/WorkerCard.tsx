@@ -44,7 +44,7 @@ export function WorkerCard({ worker, onHire, showContact = false }: WorkerCardPr
     <Card variant="hover" padding="md">
       <div className="flex items-start gap-4">
         {/* Avatar */}
-        <Link href={`/worker/${worker.id}`}>
+        <Link href={`/worker?id=${worker.id}`}>
           {user.avatar ? (
             <img
               src={user.avatar}
@@ -65,7 +65,7 @@ export function WorkerCard({ worker, onHire, showContact = false }: WorkerCardPr
           <div className="flex items-start justify-between gap-2">
             <div>
               <Link
-                href={`/worker/${worker.id}`}
+                href={`/worker?id=${worker.id}`}
                 className="text-body font-semibold text-text-primary hover:text-primary-dark transition-colors"
               >
                 {user.name}
@@ -148,7 +148,7 @@ export function WorkerCard({ worker, onHire, showContact = false }: WorkerCardPr
             Hire Now
           </Button>
         )}
-        <Link href={`/worker/${worker.id}`} className="flex-1">
+        <Link href={`/worker?id=${worker.id}`} className="flex-1">
           <Button variant="secondary" size="sm" fullWidth>
             View Profile
           </Button>

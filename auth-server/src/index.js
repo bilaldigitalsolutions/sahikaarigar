@@ -165,11 +165,20 @@ app.post('/profile', async (req, res, next) => {
 // SuperTokens turns its own errors (e.g. missing session) into proper responses.
 app.use(errorHandler());
 
-// Fallback: our validation / Supabase errors -> 400 JSON (matches the edge function).
-app.use((error, _req, res, _next) => {
+// Fallback error handler.
+//  - SuperTokens' own /auth/* routes expect `{ status: "GENERAL_ERROR", message }`
+//    (HTTP 200) — that is what makes the browser SDK surface `message` to the
+//    user, e.g. "FAST2SMS_API_KEY is not set", instead of a generic failure.
+//  - Our own routes keep the `{ ok, code, message }` shape.
+app.use((error, req, res, _next) => {
   const message = error instanceof Error ? error.message : 'Unexpected error';
   console.error('auth-server error:', message);
   if (res.headersSent) return;
+
+  if (req.path.startsWith(API_BASE_PATH)) {
+    res.status(200).json({ status: 'GENERAL_ERROR', message });
+    return;
+  }
   res.status(400).json({ ok: false, code: 'BAD_REQUEST', message });
 });
 

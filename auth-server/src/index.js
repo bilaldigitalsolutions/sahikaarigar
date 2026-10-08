@@ -85,7 +85,28 @@ supertokens.init({
             if (!otp) throw new Error('SuperTokens did not supply an OTP to deliver');
             if (!phone) throw new Error('SuperTokens did not supply a phone number to deliver to');
 
+            // Stashed on the request's userContext so createCodePOST below can
+            // echo it back when no real SMS provider is configured (dev only).
+            if (input?.userContext) input.userContext.devOtp = otp;
+
             await sendOtpSms({ phone, otp });
+          },
+        }),
+      },
+      // Dev convenience: with no SMS provider configured the OTP only reaches
+      // the server logs, so we also return it in the createCode response and the
+      // app shows / auto-fills it (see OtpVerifier). As soon as a real provider
+      // is configured (see src/sms.js) the code never leaves the server.
+      override: {
+        apis: (originalImplementation) => ({
+          ...originalImplementation,
+          createCodePOST: async (input) => {
+            const response = await originalImplementation.createCodePOST(input);
+            if (response?.status === 'OK' && resolveSmsProvider() === 'console') {
+              const devOtp = input?.userContext?.devOtp;
+              if (devOtp) return { ...response, userInputCode: String(devOtp) };
+            }
+            return response;
           },
         }),
       },
@@ -98,9 +119,24 @@ const app = express();
 
 // Order matters: SuperTokens' middleware must see its own routes BEFORE the
 // JSON body parser consumes the request body.
+// CORS: allow the configured website domain(s), localhost dev origins (Expo web
+// runs on :8081 / :19006) and native apps, which send no Origin header at all.
+const EXTRA_ORIGINS = (process.env.EXTRA_CORS_ORIGINS || '')
+  .split(',')
+  .map((o) => o.trim().replace(/\/+$/, ''))
+  .filter(Boolean);
+const ALLOWED_ORIGINS = [WEBSITE_DOMAIN, ...EXTRA_ORIGINS];
+const LOCALHOST_RE = /^https?:\/\/(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?$/;
+
 app.use(
   cors({
-    origin: WEBSITE_DOMAIN,
+    origin(origin, callback) {
+      if (!origin) return callback(null, true); // native app / curl
+      if (ALLOWED_ORIGINS.includes(origin) || LOCALHOST_RE.test(origin)) {
+        return callback(null, true);
+      }
+      return callback(null, false);
+    },
     allowedHeaders: ['content-type', ...supertokens.getAllCORSHeaders()],
     credentials: true,
   }),

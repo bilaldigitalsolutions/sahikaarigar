@@ -195,6 +195,33 @@ const providers = {
 export const SUPPORTED_SMS_PROVIDERS = Object.keys(providers);
 
 /**
+ * The env vars each provider cannot work without. Used to decide whether a
+ * provider is actually usable, so a half-configured host degrades gracefully
+ * instead of failing every single OTP request.
+ */
+const REQUIRED_ENV = {
+  startmessaging: ['STARTMESSAGING_API_KEY'],
+  msg91: ['MSG91_AUTH_KEY', 'MSG91_TEMPLATE_ID'],
+  // The Quick-SMS route only needs the key (FAST2SMS_OTP_TEMPLATE_ID is optional).
+  fast2sms: ['FAST2SMS_API_KEY'],
+  messagecentral: ['MESSAGECENTRAL_CUSTOMER_ID', 'MESSAGECENTRAL_PASSWORD'],
+  twilio: ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_FROM'],
+};
+
+/**
+ * Auto-detect order. `startmessaging` is first because it is the only DLT-free
+ * SMS OTP route here (no DLT portal, sender ID or template approval).
+ */
+const AUTO_DETECT_ORDER = ['startmessaging', 'fast2sms', 'msg91', 'messagecentral', 'twilio'];
+
+/** True when every env var the provider needs is present and non-empty. */
+export function isSmsProviderConfigured(name) {
+  const keys = REQUIRED_ENV[name];
+  if (!keys) return false;
+  return keys.every((key) => String(process.env[key] || '').trim().length > 0);
+}
+
+/**
  * Which provider should actually deliver the OTP?
  *
  * `SMS_PROVIDER` wins when it names a real provider, but a bare `console`
@@ -202,20 +229,27 @@ export const SUPPORTED_SMS_PROVIDERS = Object.keys(providers);
  * present we use that one. This way dropping a single API key into the host's
  * environment is enough to switch from logs to real SMS — no second setting to
  * keep in sync (and no Blueprint sync to fight with).
+ *
+ * A provider that is selected but NOT configured (e.g. `SMS_PROVIDER=fast2sms`
+ * with no `FAST2SMS_API_KEY` on the host) falls back to `console` with a loud
+ * warning, instead of throwing `<KEY> is not set` on every OTP request — that
+ * used to make the whole sign-in / hire flow unusable.
  */
 export function resolveSmsProvider() {
   const explicit = (process.env.SMS_PROVIDER || '').trim().toLowerCase();
-  if (explicit && explicit !== 'console') return explicit;
 
-  // Auto-detect, in order of preference. startmessaging is first because it is
-  // the only DLT-free SMS OTP route here (no DLT portal, sender ID or template).
-  if (process.env.STARTMESSAGING_API_KEY) return 'startmessaging';
-  if (process.env.FAST2SMS_API_KEY) return 'fast2sms';
-  if (process.env.MSG91_AUTH_KEY) return 'msg91';
-  if (process.env.MESSAGECENTRAL_CUSTOMER_ID) return 'messagecentral';
-  if (process.env.TWILIO_ACCOUNT_SID) return 'twilio';
+  if (explicit && explicit !== 'console') {
+    if (isSmsProviderConfigured(explicit)) return explicit;
+    console.warn(
+      `[sms] SMS_PROVIDER="${explicit}" is set but ${(REQUIRED_ENV[explicit] || ['its credentials']).join(
+        ' + ',
+      )} is missing — falling back to "console" (OTP goes to the logs). ` +
+        'Add the key in the host dashboard to switch to real SMS.',
+    );
+    return 'console';
+  }
 
-  return 'console';
+  return AUTO_DETECT_ORDER.find(isSmsProviderConfigured) || 'console';
 }
 
 /**

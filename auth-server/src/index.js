@@ -27,6 +27,7 @@ import {
   isValidIndianPhone,
 } from './users.js';
 import { searchWorkers, getWorkerById } from './workers.js';
+import { getWorkerDashboard, setWorkerAvailability } from './worker-dashboard.js';
 import { createHireRequest, listHiresForUser, getHireById, hireAction } from './hires.js';
 import {
   createReview,
@@ -303,6 +304,50 @@ app.patch('/hires/:id', async (req, res, next) => {
       lng: req.body?.lng,
     });
     res.json({ ok: true, hire });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Worker dashboard — the kaarigar's own side of the app. Session required.
+//   GET   /worker/dashboard     profile + availability + job buckets + stats
+//   PATCH /worker/availability  { availability: 'available' | 'busy' | 'offline' }
+// ---------------------------------------------------------------------------
+app.get('/worker/dashboard', async (req, res, next) => {
+  try {
+    const session = await Session.getSession(req, res, { sessionRequired: true });
+    const { authUserId, phone } = await resolveSession(session);
+    const user = await getOrCreateUserByAuthId(authUserId, phone);
+    const dashboard = await getWorkerDashboard(user.id);
+
+    // Not a worker (yet) — an empty payload beats a 403 so the app can simply
+    // hide the tab instead of showing an error.
+    if (!dashboard) {
+      res.json({
+        ok: true,
+        isWorker: false,
+        worker: null,
+        stats: null,
+        requests: [],
+        active: [],
+        completed: [],
+      });
+      return;
+    }
+    res.json({ ok: true, isWorker: true, ...dashboard });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.patch('/worker/availability', async (req, res, next) => {
+  try {
+    const session = await Session.getSession(req, res, { sessionRequired: true });
+    const { authUserId, phone } = await resolveSession(session);
+    const user = await getOrCreateUserByAuthId(authUserId, phone);
+    const worker = await setWorkerAvailability(user.id, req.body?.availability);
+    res.json({ ok: true, worker });
   } catch (error) {
     next(error);
   }

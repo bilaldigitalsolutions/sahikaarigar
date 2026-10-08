@@ -12,7 +12,7 @@
 import { db } from './users.js';
 import { getWorkerProfileIdForUser } from './workers.js';
 
-const HIRE_SELECT =
+export const HIRE_SELECT =
   'id, employer_id, worker_id, description, location, proposed_rate, status, ' +
   'scheduled_date, completed_at, phone_revealed, created_at, updated_at, ' +
   'en_route_at, arrived_at, worker_lat, worker_lng, ' +

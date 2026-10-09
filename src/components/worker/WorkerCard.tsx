@@ -147,11 +147,11 @@ export function WorkerCard({ worker, onHire, showContact = false }: WorkerCardPr
 
           {onHire && availability === 'available' ? (
             <Button size="sm" onClick={() => onHire(worker.id)}>
-              Book Now
+              Hire
             </Button>
           ) : (
             <Link href={profileHref}>
-              <Button size="sm">Book Now</Button>
+              <Button size="sm">Hire</Button>
             </Link>
           )}
         </div>

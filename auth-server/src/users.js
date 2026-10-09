@@ -143,8 +143,7 @@ export async function upsertWorkerProfile(userId, input = {}) {
  * Update the editable profile fields of the signed-in user.
  * Only whitelisted columns are ever written.
  */
-export async function updateUser(userId, input = {}) {
-  const row = {};
+export async function updateUser(userId, input = {}) {  const row = {};
 
   if (typeof input.name === 'string' && input.name.trim().length >= 2) {
     row.name = input.name.trim();
@@ -174,4 +173,83 @@ export async function updateUser(userId, input = {}) {
 
   if (error) throw new Error(error.message);
   return data;
+}
+
+/**
+ * Delete the signed-in user's account and everything it owns.
+ * Play Store policy needs an in-app delete path; the privacy page promises it.
+ *
+ * Deletion order matters — child rows first, `users` last.
+ * (All FKs are `on delete cascade`, but explicit order keeps behaviour stable
+ * even if a constraint is ever relaxed.)
+ *   1. reviews they wrote + reviews on their worker profile
+ *   2. their worker profile (cascades their hire_requests + those reviews)
+ *   3. hire_requests where they are the employer (cascades reviews + platform_feedback)
+ *   4. reports for/against them + their platform_feedback
+ *   5. the users row itself, then the SuperTokens identity so the number
+ *      can never sign back into a ghost row
+ */
+export async function deleteUserAccount({ userId, authUserId }) {
+  const { data: workerProfile } = await db
+    .from('worker_profiles')
+    .select('id')
+    .eq('user_id', userId)
+    .maybeSingle();
+  const workerProfileId = workerProfile?.id ?? null;
+
+  // Reviews they wrote (as an employer/customer).
+  {
+    const { error } = await db.from('reviews').delete().eq('reviewer_id', userId);
+    if (error) throw new Error(error.message);
+  }
+
+  // Their worker profile + everything attached (hires, reviews on it).
+  if (workerProfileId) {
+    const { error: reviewsError } = await db
+      .from('reviews')
+      .delete()
+      .eq('worker_id', workerProfileId);
+    if (reviewsError) throw new Error(reviewsError.message);
+
+    const { error: profileError } = await db
+      .from('worker_profiles')
+      .delete()
+      .eq('id', workerProfileId);
+    if (profileError) throw new Error(profileError.message);
+  }
+
+  // Hires where they are the employer (reviews/feedback cascade off these).
+  {
+    const { error } = await db.from('hire_requests').delete().eq('employer_id', userId);
+    if (error) throw new Error(error.message);
+  }
+
+  // Reports for or against them + their platform feedback.
+  {
+    const { error } = await db
+      .from('reports')
+      .delete()
+      .or(`reporter_id.eq.${userId},reported_user_id.eq.${userId}`);
+    if (error && error.code !== 'PGRST116') throw new Error(error.message);
+  }
+  {
+    const { error } = await db.from('platform_feedback').delete().eq('user_id', userId);
+    if (error) throw new Error(error.message);
+  }
+
+  // The user row itself.
+  {
+    const { error } = await db.from('users').delete().eq('id', userId);
+    if (error) throw new Error(error.message);
+  }
+
+  // The SuperTokens identity, so the number signs up fresh afterwards.
+  try {
+    const { default: supertokens } = await import('supertokens-node');
+    if (authUserId) {
+      await supertokens.deleteUser(authUserId);
+    }
+  } catch (error) {
+    throw new Error(`Account rows deleted, but SuperTokens cleanup failed: ${error.message}`);
+  }
 }

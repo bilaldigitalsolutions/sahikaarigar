@@ -23,6 +23,7 @@ import {
   getOrCreateUserByAuthId,
   upsertWorkerProfile,
   updateUser,
+  deleteUserAccount,
   normalizeIndianPhone,
   isValidIndianPhone,
 } from './users.js';
@@ -203,6 +204,27 @@ app.post('/profile', async (req, res, next) => {
     const user = await getOrCreateUserByAuthId(authUserId, phone);
     const updated = await updateUser(user.id, req.body ?? {});
     res.json({ ok: true, user: updated });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Delete the signed-in user's account and everything attached to it
+// (worker profile, hires, reviews, reports, feedback + the SuperTokens
+// identity). Play policy needs an in-app delete path; the privacy page
+// promises it ("Contact page se humse sampark karo" wala para ab live hai).
+app.delete('/account', async (req, res, next) => {
+  try {
+    const session = await Session.getSession(req, res, { sessionRequired: true });
+    const { authUserId, phone } = await resolveSession(session);
+    const user = await getOrCreateUserByAuthId(authUserId, phone);
+    await deleteUserAccount({ userId: user.id, authUserId });
+    try {
+      await Session.revokeAllSessionsForUser(authUserId);
+    } catch {
+      // best-effort: rows + identity are already gone
+    }
+    res.json({ ok: true, deleted: true });
   } catch (error) {
     next(error);
   }

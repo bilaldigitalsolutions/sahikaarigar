@@ -51,24 +51,17 @@ export function Skeleton({
   );
 }
 
-// Worker Card Skeleton
+// Worker Card Skeleton (matches the vertical, centered WorkerCard)
 export function WorkerCardSkeleton() {
   return (
-    <div className="card p-4">
-      <div className="flex items-start gap-4">
-        <Skeleton variant="circular" width={64} height={64} />
-        <div className="flex-1">
-          <Skeleton width="60%" height={20} className="mb-2" />
-          <Skeleton width="40%" height={16} className="mb-2" />
-          <Skeleton width="30%" height={16} />
-        </div>
-      </div>
-      <div className="mt-4">
-        <Skeleton variant="text" lines={2} />
-      </div>
-      <div className="mt-4 flex gap-2">
-        <Skeleton width={80} height={32} className="rounded-button" />
-        <Skeleton width={80} height={32} className="rounded-button" />
+    <div className="flex flex-col items-center rounded-card border border-gray-100 bg-card p-5 shadow-card">
+      <Skeleton variant="circular" width={96} height={96} className="mb-3" />
+      <Skeleton width="55%" height={20} className="mb-2" />
+      <Skeleton width="70%" height={16} className="mb-2" />
+      <Skeleton width="45%" height={16} />
+      <div className="mt-5 flex w-full items-center justify-between border-t border-gray-100 pt-4">
+        <Skeleton width={70} height={20} />
+        <Skeleton width={96} height={36} className="rounded-button" />
       </div>
     </div>
   );

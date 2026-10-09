@@ -6,6 +6,30 @@ import { Header, Footer, WorkerCard, Button, WorkerCardSkeleton } from '@/compon
 import { SKILLS, HYDERABAD_AREAS } from '@/constants';
 import { searchWorkers, type ApiWorker } from '@/lib/api';
 
+/**
+ * Map a free-text query (e.g. from the home hero search) to a known skill id.
+ * Handles labels, slugs, and simple plurals like "plumbers" -> "plumber".
+ */
+function normalizeSkill(value: string): string {
+  const raw = value.trim().toLowerCase();
+  if (!raw) return '';
+
+  const stem = (text: string) => text.slice(0, 5);
+  const candidates = [raw, raw.replace(/s$/, '')];
+
+  for (const candidate of candidates) {
+    const match = SKILLS.find(
+      (skill) =>
+        skill.id === candidate ||
+        skill.label.toLowerCase() === candidate ||
+        stem(skill.id) === stem(candidate)
+    );
+    if (match) return match.id;
+  }
+
+  return value.trim();
+}
+
 export default function SearchPage() {
   const [selectedSkill, setSelectedSkill] = useState('');
   const [selectedArea, setSelectedArea] = useState('');
@@ -31,7 +55,7 @@ export default function SearchPage() {
   // otherwise show every approved + available worker.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const skill = params.get('skill') ?? '';
+    const skill = normalizeSkill(params.get('skill') ?? '');
     const area = params.get('area') ?? '';
     setSelectedSkill(skill);
     setSelectedArea(area);

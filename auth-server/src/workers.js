@@ -45,6 +45,7 @@ export function mapWorker(row) {
     lat: row.lat ?? null,
     lng: row.lng ?? null,
     isApproved: row.is_approved ?? false,
+    createdAt: row.created_at ?? null,
     user: mapPublicUser(row.user),
   };
 }

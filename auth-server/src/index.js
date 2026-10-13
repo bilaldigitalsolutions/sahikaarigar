@@ -23,6 +23,7 @@ import {
   getOrCreateUserByAuthId,
   upsertWorkerProfile,
   updateUser,
+  savePushToken,
   deleteUserAccount,
   normalizeIndianPhone,
   isValidIndianPhone,
@@ -37,6 +38,7 @@ import {
   getReviewByHireRequest,
 } from './reviews.js';
 import { isAdmin, listPendingWorkers, setWorkerApproval } from './admin.js';
+import { notifyHireUpdate, notifyWorkerOfNewHire } from './push.js';
 
 const PORT = Number(process.env.PORT || 4000);
 // Render exposes a web service's public URL as RENDER_EXTERNAL_URL, so the
@@ -180,6 +182,26 @@ app.get('/me', async (req, res, next) => {
   }
 });
 
+// The mobile app calls this after login so hire status changes can reach the
+// user's device through the free Expo Push API (see src/push.js). Sending an
+// empty token clears the row (e.g. after the user denies notifications).
+app.post('/me/push-token', async (req, res, next) => {
+  try {
+    const session = await Session.getSession(req, res, { sessionRequired: true });
+    const { authUserId, phone } = await resolveSession(session);
+    const user = await getOrCreateUserByAuthId(authUserId, phone);
+    const token = typeof req.body?.token === 'string' ? req.body.token.trim() : '';
+    if (token && !token.startsWith('ExponentPushToken[')) {
+      res.status(400).json({ ok: false, code: 'BAD_REQUEST', message: 'Invalid push token' });
+      return;
+    }
+    await savePushToken(user.id, token || null);
+    res.json({ ok: true, saved: Boolean(token) });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.post('/register-worker', async (req, res, next) => {
   try {
     const session = await Session.getSession(req, res, { sessionRequired: true });
@@ -290,6 +312,8 @@ app.post('/hires', async (req, res, next) => {
       proposedRate: req.body?.proposedRate,
       scheduledDate: req.body?.scheduledDate,
     });
+    // Fire-and-forget: the kaarigar gets a push about the new request.
+    void notifyWorkerOfNewHire(hire);
     res.json({ ok: true, hire });
   } catch (error) {
     next(error);
@@ -325,6 +349,8 @@ app.patch('/hires/:id', async (req, res, next) => {
       lat: req.body?.lat,
       lng: req.body?.lng,
     });
+    // Fire-and-forget: the OTHER party gets a push about the status change.
+    void notifyHireUpdate(hire, req.body?.action);
     res.json({ ok: true, hire });
   } catch (error) {
     next(error);

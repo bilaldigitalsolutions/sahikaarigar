@@ -176,6 +176,18 @@ export async function updateUser(userId, input = {}) {  const row = {};
 }
 
 /**
+ * Store (or clear) the user's Expo push token — used by the mobile app so
+ * hire status changes can ping their device (see src/push.js).
+ */
+export async function savePushToken(userId, token) {
+  const { error } = await db
+    .from('users')
+    .update({ push_token: token })
+    .eq('id', userId);
+  if (error) throw new Error(error.message);
+}
+
+/**
  * Delete the signed-in user's account and everything it owns.
  * Play Store policy needs an in-app delete path; the privacy page promises it.
  *

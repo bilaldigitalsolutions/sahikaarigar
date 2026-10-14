@@ -85,10 +85,30 @@ jobs:
       - name: Decode keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         run: |
-          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/keystore.jks"
-          test -s "$RUNNER_TEMP/keystore.jks"
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::KEYSTORE_BASE64 secret set nahi hai — repo Settings → Secrets and variables → Actions me add karo."
+            exit 1
+          fi
+          # Windows se copy ki base64 me CRLF/newlines/spaces aa sakte hain,
+          # jinse "base64: invalid input" aata hai — decode se pehle saari
+          # whitespace hata do ([:space:] = \n \r tab space).
+          printf '%s' "$KEYSTORE_BASE64" | tr -d '[:space:]' | base64 --decode > "$RUNNER_TEMP/keystore.jks"
+          if [ ! -s "$RUNNER_TEMP/keystore.jks" ]; then
+            echo "::error::Keystore decode ho gayi par file khali hai — KEYSTORE_BASE64 value check karo."
+            exit 1
+          fi
           echo "Keystore decoded ($(wc -c < "$RUNNER_TEMP/keystore.jks") bytes)"
+          # Quick sanity: keystore padh bhi sakti hai? Galat value abhi pakdi
+          # jaayegi, 10 minute baad gradle signing par nahi.
+          if [ -n "$KEYSTORE_PASSWORD" ]; then
+            if keytool -list -keystore "$RUNNER_TEMP/keystore.jks" -storepass "$KEYSTORE_PASSWORD" > /dev/null 2>&1; then
+              echo "Keystore verification PASSED (keytool ne password sahi bataya)"
+            else
+              echo "::warning::keytool se verify nahi ho paayi — file theek hai par password/type galat ho sakta hai. Gradle step par dhyan do."
+            fi
+          fi
 
       # Expo prebuild release par debug signing lagata hai — ye script build.gradle
       # me release signingConfig inject karti hai (env vars se).

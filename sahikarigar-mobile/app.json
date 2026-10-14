@@ -1,0 +1,75 @@
+{
+  "expo": {
+    "name": "Sahi Kaarigar",
+    "slug": "sahi-kaarigar",
+    "owner": "mohammadbilalmd",
+    "version": "1.0.1",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "sahikarigar",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.sahikarigar.app"
+    },
+    "android": {
+      "package": "com.sahikarigar.app",
+      "versionCode": 7,
+      "adaptiveIcon": {
+        "backgroundColor": "#16A34A",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ]
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "./plugins/withMappls",
+      "./plugins/withAndroidArchitectures",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#16A34A",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 120
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "SahiKaarigar aapke aas-paas ke kaarigar dhundne ke liye location use karta hai."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "SahiKaarigar aapke kaam ke photos portfolio me lagane ke liye gallery access karta hai."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#16A34A",
+          "defaultChannel": "default"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "21330609-53d2-4042-ae5e-74da585318e8"
+      }
+    }
+  }
+}

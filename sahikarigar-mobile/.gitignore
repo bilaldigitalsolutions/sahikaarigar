@@ -1,0 +1,54 @@
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# local env files
+.env*.local
+.env
+
+# signing credentials (never commit these)
+credentials.json
+keystores/
+*.keystore
+*.jks
+
+# typescript
+*.tsbuildinfo
+
+# test builds (download from EAS instead)
+*.apk
+*.aab
+
+# generated native folders
+/ios
+/android
+build*.json
+# local build/poll scratch files
+*.log
+poll-build.ps1

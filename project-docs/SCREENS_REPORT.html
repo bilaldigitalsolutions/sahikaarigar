@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SahiKaarigar — UI Screens Report</title>
+<style>
+:root{--brand:#D84315;--brand-d:#BF360C;--brand-l:#FF7043;--ink:#111827;--muted:#6b7280;--line:#e5e7eb;--bg:#f6f7f9;--ok:#15803d;--okbg:#dcfce7;--warn:#b45309;--warnbg:#fef3c7;--bad:#b91c1c;--badbg:#fee2e2;--info:#1d4ed8;--infobg:#dbeafe}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.top{background:linear-gradient(135deg,var(--brand-d),var(--brand-l));color:#fff;padding:34px 22px 30px}
+.top .in{max-width:1040px;margin:0 auto}
+.top h1{margin:0 0 6px;font-size:30px;letter-spacing:-.5px}
+.top p{margin:0;opacity:.92}
+.wrap{max-width:1040px;margin:-18px auto 70px;padding:0 22px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:12px;margin:0 0 26px}
+.stat{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:0 4px 14px rgba(0,0,0,.05)}
+.stat b{display:block;font-size:26px;color:var(--brand-d)}
+.stat span{color:var(--muted);font-size:13px}
+h2{font-size:21px;margin:34px 0 12px;padding-bottom:8px;border-bottom:2px solid var(--line)}
+h3{margin:0 0 4px;font-size:17px}
+a{color:var(--info)}
+code{background:#f3f4f6;border:1px solid var(--line);border-radius:6px;padding:1px 6px;font:13px/1.5 ui-monospace,Consolas,monospace}
+table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);font-size:14px;vertical-align:top}
+th{background:#fafafa;font-weight:600;color:#374151}
+tr:last-child td{border-bottom:0}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin:0 0 14px;box-shadow:0 3px 12px rgba(0,0,0,.04)}
+.card .hd{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.badge{font-size:12px;font-weight:600;border-radius:999px;padding:3px 10px}
+.b-route{background:#eef2ff;color:#3730a3;font-family:ui-monospace,Consolas,monospace}
+.b-pub{background:var(--okbg);color:var(--ok)}
+.b-guest{background:var(--infobg);color:var(--info)}
+.b-prot{background:var(--warnbg);color:var(--warn)}
+.b-file{background:#f3f4f6;color:#374151;font-family:ui-monospace,Consolas,monospace}
+ul.tight{margin:6px 0 0;padding-left:20px}
+ul.tight li{margin:2px 0}
+.note{border-left:4px solid var(--info);background:#eff6ff;padding:10px 14px;border-radius:0 10px 10px 0;margin:12px 0}
+.warn{border-left:4px solid var(--warn);background:var(--warnbg);padding:10px 14px;border-radius:0 10px 10px 0;margin:12px 0}
+.bad{border-left:4px solid var(--bad);background:var(--badbg);padding:10px 14px;border-radius:0 10px 10px 0;margin:12px 0}
+.flow{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 18px;font-family:ui-monospace,Consolas,monospace;font-size:13.5px;white-space:pre;overflow:auto}
+.muted{color:var(--muted)}
+footer.end{margin-top:40px;color:var(--muted);font-size:13px;text-align:center}
+</style>
+</head>
+<body>
+<div class="top"><div class="in">
+  <h1>🔧 SahiKaarigar — UI Screens Report</h1>
+  <p>Poori app ke screens/pages — kitne hain, aur har ek me kya-kya hai. (static export = 8 pages)</p>
+</div></div>
+<div class="wrap">
+  <div class="stats">
+    <div class="stat"><b>8</b><span>Built pages (7 routes + 404)</span></div>
+    <div class="stat"><b>7</b><span>App routes (Next.js App Router)</span></div>
+    <div class="stat"><b>3</b><span>Auth / register screens</span></div>
+    <div class="stat"><b>4</b><span>Shared layout pieces</span></div>
+    <div class="stat"><b>6</b><span>Missing screens (dead links) ⚠️</span></div>
+  </div>
+  <h2>1. Screen map — flow</h2>
+  <div class="flow">/  (Home — public)
+ │  Header  +  Footer   (har page pe)
+ ├─ /search ..................... public
+ ├─ /login ...................... guest ──► /dashboard
+ ├─ /register/worker ............ guest ──► [OTP] ──► [worker form] ──► /dashboard
+ ├─ /register/employer .......... guest ──► [OTP] ──► [naam] ────────► /dashboard
+ ├─ /dashboard .................. protected
+ ├─ /profile .................... protected ──► /dashboard
+ └─ /404 ........................ not-found
+
+ WorkerCard ──► /worker/[id]   ❌ MISSING screen
+ Header/Footer ──► /skills/[skill]  ❌ MISSING   (electrician, plumber, painter, carpenter)
+ Footer ──► /about, /privacy, /terms, /contact   ❌ MISSING</div>
+
+  <h2>2. Saare screens — ek nazar me</h2>
+  <table>
+    <thead><tr><th>#</th><th>Route</th><th>File</th><th>Access</th><th>Kya hai</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td><code>/</code></td><td><code>src/app/page.tsx</code></td><td><span class="badge b-pub">Public</span></td><td>Landing / home</td></tr>
+      <tr><td>2</td><td><code>/search</code></td><td><code>src/app/(main)/search/page.tsx</code></td><td><span class="badge b-pub">Public</span></td><td>Workers search + filters</td></tr>
+      <tr><td>3</td><td><code>/login</code></td><td><code>src/app/login/page.tsx</code></td><td><span class="badge b-guest">Guest</span></td><td>Phone + OTP login</td></tr>
+      <tr><td>4</td><td><code>/register/worker</code></td><td><code>src/app/register/worker/page.tsx</code></td><td><span class="badge b-guest">Guest</span></td><td>Worker signup (OTP → profile)</td></tr>
+      <tr><td>5</td><td><code>/register/employer</code></td><td><code>src/app/register/employer/page.tsx</code></td><td><span class="badge b-guest">Guest</span></td><td>Employer signup (OTP → naam)</td></tr>
+      <tr><td>6</td><td><code>/dashboard</code></td><td><code>src/app/dashboard/page.tsx</code></td><td><span class="badge b-prot">Login</span></td><td>Account home (role-wise)</td></tr>
+      <tr><td>7</td><td><code>/profile</code></td><td><code>src/app/profile/page.tsx</code></td><td><span class="badge b-prot">Login</span></td><td>Meri profile</td></tr>
+      <tr><td>8</td><td><code>/404</code></td><td><code>out/404.html</code></td><td><span class="badge b-pub">Public</span></td><td>Not-found page</td></tr>
+    </tbody>
+  </table>
+
+  <h2>3. Har screen me kya hai (detail)</h2>
+  <div class="card">
+    <div class="hd"><span class="badge b-route">/</span><h3>Home / Landing</h3><span class="badge b-file">src/app/page.tsx</span><span class="badge b-pub">Public</span></div>
+    <ul class="tight">
+      <li><b>Header</b> (sticky) — logo 🔧 SahiKaarigar, nav (Search Workers · Electricians · Plumbers), notification bell, user menu, Login/Register</li>
+      <li><b>Hero</b> — “Hyderabad ke Best Workers Dhundho” + search bar: <b>Skill</b> select (12 skills) + <b>Area</b> select (20 Hyderabad areas) + Search → <code>/search</code></li>
+      <li><b>Popular Categories</b> section</li>
+      <li><b>How It Works</b> — 3 steps: Search Workers → View Profile → Hire Now</li>
+      <li><b>Top Rated Workers</b> — 3 <code>WorkerCard</code>s (mock data: Raj Kumar, Ahmed Ali, Priya Singh)</li>
+      <li><b>CTA</b> — “Join Hyderabad’s Growing Worker Community” → Register as Worker / Hire a Worker</li>
+      <li><b>Footer</b></li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <div class="hd"><span class="badge b-route">/search</span><h3>Search Workers</h3><span class="badge b-file">src/app/(main)/search/page.tsx</span><span class="badge b-pub">Public</span></div>
+    <ul class="tight">
+      <li><b>Filters</b> — Skill select (All + 12), Area select (All + 20), Search button (1s fake loading)</li>
+      <li><b>Result count</b> — “N workers found”</li>
+      <li><b>List</b> — <code>WorkerCard</code>s; loading pe 3 <code>WorkerCardSkeleton</code></li>
+      <li><b>Load More</b> button (abhi no-op)</li>
+    </ul>
+    <div class="warn">⚠️ Abhi <b>mock data</b> hai — real API/search wired nahi hai.</div>
+  </div>
+
+  <div class="card">
+    <div class="hd"><span class="badge b-route">/login</span><h3>Login (phone + OTP)</h3><span class="badge b-file">src/app/login/page.tsx</span><span class="badge b-guest">Guest</span></div>
+    <ul class="tight">
+      <li>Shield icon + “Login karo” + “Mobile number daalo, OTP se seedha login”</li>
+      <li><b>3 states:</b> loading (“Check kar rahe hain…”), already-logged-in (“Aap pehle se login ho” → Dashboard), warna → <code>SuperTokensPhonePanel</code></li>
+      <li><b>SuperTokensPhonePanel</b> — Step 1: Mobile input (10 digit) + “OTP Bhejo”. Step 2: 6-digit OTP input + Verify + “Naya OTP (30s)” resend + “Number badlo”</li>
+      <li>OTP verify hone pe <code>refresh()</code> → Supabase row → redirect <code>/dashboard</code></li>
+      <li>Neeche links: “Worker hu” / “Kaam karwana hai”</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <div class="hd"><span class="badge b-route">/register/worker</span><h3>Worker signup</h3><span class="badge b-file">src/app/register/worker/page.tsx</span><span class="badge b-guest">Guest</span></div>
+    <ul class="tight">
+      <li><b>Step 1</b> — <code>SuperTokensPhonePanel</code> (mobile verify + OTP)</li>
+      <li><b>Step 2</b> — green banner “✅ Number verify ho gaya: +91…”, phir <code>WorkerRegisterForm</code>:
+        <br>Poora Naam · <b>Skills</b> chips (12) · Experience (0–50) · Rate/ghanta (₹50–10,000) · <b>Service Areas</b> chips (20) · Description (optional, 500 chars)</li>
+      <li>Submit → <code>registerWorkerViaSuperTokens()</code> → <code>/dashboard?registered=1</code></li>
+      <li>Note: “Profile admin review ke baad live hogi”</li>
+      <li>Neeche link: “Employer bano”</li>
+    </ul>
+  </div>
+  <div class="card">
+    <div class="hd"><span class="badge b-route">/register/employer</span><h3>Employer signup</h3><span class="badge b-file">src/app/register/employer/page.tsx</span><span class="badge b-guest">Guest</span></div>
+    <ul class="tight">
+      <li>UserPlus icon + “Kaam karwana hai?” + “Mobile verify karo, phir workers ko hire karo”</li>
+      <li><b>Step 1</b> — <code>SuperTokensPhonePanel</code> (mobile verify + OTP)</li>
+      <li><b>Step 2</b> — verified banner + <b>“Aapka naam”</b> input (min 2, max 50) → “Account banao”</li>
+      <li>Submit → <code>updateProfile({ name })</code> → <code>/dashboard</code> (role = <b>employer</b>)</li>
+      <li>Neeche link: “Worker ho? Yahan register karo”</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <div class="hd"><span class="badge b-route">/dashboard</span><h3>Dashboard (account home)</h3><span class="badge b-file">src/app/dashboard/page.tsx</span><span class="badge b-prot">Login zaroori</span></div>
+    <ul class="tight">
+      <li><b>Loading</b> → “Loading…”; <b>logged out</b> → “Pehle login karo” + Login / Register buttons</li>
+      <li><b>Logged in</b> → profile summary card: avatar initial, naam, phone, role badge, <b>Logout</b></li>
+      <li><b>Role = worker</b> → “Profile review me hai” card (admin approve karega, tabhi search me dikhega)</li>
+      <li><b>Role = employer</b> → “Kaam shuru karo” + “Workers dhoondo” → <code>/search</code></li>
+      <li>URL <code>?registered=1</code> handle karta hai (worker signup ke baad)</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <div class="hd"><span class="badge b-route">/profile</span><h3>Meri Profile</h3><span class="badge b-file">src/app/profile/page.tsx</span><span class="badge b-prot">Login zaroori</span></div>
+    <ul class="tight">
+      <li><b>Logged out</b> → “Aap login nahi ho” + Login button</li>
+      <li><b>Logged in</b> → “Meri Profile” card: <b>Naam</b>, <b>Mobile</b>, <b>Role</b>, <b>Area</b> (agar set ho)</li>
+      <li>Buttons: <b>Dashboard</b> + <b>Logout</b></li>
+    </ul>
+    <div class="warn">⚠️ Abhi <b>read-only</b> hai — profile <b>edit</b> ka form nahi hai (API <code>/profile</code> server pe exist karta hai, UI baaki hai).</div>
+  </div>
+
+  <div class="card">
+    <div class="hd"><span class="badge b-route">/404</span><h3>Not Found</h3><span class="badge b-file">out/404.html</span><span class="badge b-pub">Public</span></div>
+    <ul class="tight">
+      <li>Next.js ka default not-found page (galat URL pe)</li>
+    </ul>
+  </div>
+
+  <h2>4. Shared layout (har page pe common)</h2>
+  <table>
+    <thead><tr><th>Component</th><th>File</th><th>Kya karta hai</th></tr></thead>
+    <tbody>
+      <tr><td><b>RootLayout</b></td><td><code>src/app/layout.tsx</code></td><td>Inter font, <b>SEO metadata</b> (title template, OG, Twitter, robots, manifest, theme <code>#D84315</code>), poore app ko <code>AuthProvider</code> me wrap karta hai</td></tr>
+      <tr><td><b>Header</b></td><td><code>components/layout/Header.tsx</code></td><td>Sticky top bar: logo, nav (Search/Electricians/Plumbers), bell, user menu, Login/Register, mobile hamburger</td></tr>
+      <tr><td><b>Footer</b></td><td><code>components/layout/Footer.tsx</code></td><td>Brand blurb, Quick Links, Popular Services, Privacy/Terms/Contact</td></tr>
+      <tr><td><b>BottomNav</b></td><td><code>components/layout/BottomNav.tsx</code></td><td>Mobile bottom tabs (worker: Requests/Available/Profile · employer: Home/Search/My Hires/Profile)</td></tr>
+      <tr><td><b>AuthProvider</b></td><td><code>components/providers/SuperTokensAuthProvider.tsx</code></td><td><code>useAuth()</code> — user, loading, isLoggedIn, refresh, logout (SuperTokens session + Supabase row)</td></tr>
+      <tr><td><b>UI kit</b></td><td><code>components/ui/*</code></td><td>Button, Card, Input, Skeleton (WorkerCardSkeleton)</td></tr>
+      <tr><td><b>WorkerCard</b></td><td><code>components/worker/WorkerCard.tsx</code></td><td>Worker ka card: avatar, naam, rating, area, skills, rate, availability badge, Hire/Call/WhatsApp/View Profile</td></tr>
+    </tbody>
+  </table>
+  <div class="bad">⚠️ <b>BottomNav kahin use nahi ho raha</b> — file bani hui hai par kisi page/layout me import nahi hai (mobile bottom navigation abhi dead hai).</div>
+  <h2>5. ⚠️ Missing screens (dead links)</h2>
+  <p class="muted">Ye links app me jagah-jagah hain, par inke liye <b>koi page nahi</b> hai — click karne pe 404 aayega.</p>
+  <table>
+    <thead><tr><th>Kahan se link</th><th>Route</th><th>Kya hona chahiye</th></tr></thead>
+    <tbody>
+      <tr><td>Header + Footer</td><td><code>/skills/electrician</code>, <code>/skills/plumber</code>, <code>/skills/painter</code>, <code>/skills/carpenter</code></td><td>Skill-wise worker listing (SEO landing pages)</td></tr>
+      <tr><td>WorkerCard (“View Profile”, naam, avatar)</td><td><code>/worker/[id]</code></td><td>Worker ka full profile (ratings, reviews, Hire)</td></tr>
+      <tr><td>Footer</td><td><code>/about</code>, <code>/privacy</code>, <code>/terms</code>, <code>/contact</code></td><td>Static pages</td></tr>
+    </tbody>
+  </table>
+
+  <h2>6. 🗑️ Unused / legacy code (disk pe hai, bundle me nahi)</h2>
+  <table>
+    <thead><tr><th>File</th><th>Kyun pada hai</th></tr></thead>
+    <tbody>
+      <tr><td><code>components/auth/PhoneAuthPanel.tsx</code></td><td>Purana <b>Firebase</b> phone panel — export band, rollback ke liye rakha</td></tr>
+      <tr><td><code>components/providers/AuthProvider.tsx</code></td><td>Purana <b>Firebase</b> provider — SuperTokens ne replace kiya</td></tr>
+      <tr><td><code>lib/firebase.ts</code>, <code>lib/auth-api.ts</code></td><td>Firebase-era helpers (ab use nahi)</td></tr>
+      <tr><td><code>components/layout/BottomNav.tsx</code></td><td>Banaya gaya par <b>kahin mount nahi</b></td></tr>
+      <tr><td><code>app/api/auth/verify</code>, <code>app/api/workers</code></td><td>Firebase-era API routes</td></tr>
+    </tbody>
+  </table>
+
+  <h2>7. Quick reference (constants)</h2>
+  <table>
+    <thead><tr><th>Cheez</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td>Skills</td><td><b>12</b> — Electrician ⚡, Plumber 🔧, Painter 🎨, Carpenter 🪑, AC Repair ❄️, Cleaning 🧹, Driver 🚗, Mason 🧱, Welder 🔧, Mechanic 🔩, Gardener 🌱, Cook 🍳</td></tr>
+      <tr><td>Hyderabad areas</td><td><b>20</b> — Ameerpet, Kukatpally, Gachibowli, Hitech City, Madhapur, Jubilee Hills, Banjara Hills, Secunderabad, …</td></tr>
+      <tr><td>Phone rule</td><td><code>/^[6-9]\d{9}$/</code> (10 digit, 6–9 se shuru)</td></tr>
+      <tr><td>Naam</td><td>2–50 characters</td></tr>
+      <tr><td>Rate / ghanta</td><td>₹50 – ₹10,000</td></tr>
+      <tr><td>Experience</td><td>0 – 50 saal</td></tr>
+      <tr><td>Roles</td><td><code>employer</code> (default) · <code>worker</code></td></tr>
+    </tbody>
+  </table>
+
+  <h2>8. Gaps / next screens (agar banane ho)</h2>
+  <ul class="tight">
+    <li><b>Worker detail page</b> <code>/worker/[id]</code> — WorkerCard se link already hai</li>
+    <li><b>Skill landing pages</b> <code>/skills/[skill]</code> — Header/Footer links + SEO ke liye</li>
+    <li><b>Static pages</b> — <code>/about</code>, <code>/privacy</code>, <code>/terms</code>, <code>/contact</code></li>
+    <li><b>Profile edit</b> — <code>/profile</code> abhi read-only (API ready hai)</li>
+    <li><b>Real search</b> — <code>/search</code> + Home abhi mock data pe</li>
+    <li><b>BottomNav mount</b> — mobile bottom nav abhi dead</li>
+    <li><b>Admin panel</b> — worker approval ke liye (BottomNav me <code>/admin</code> ka zikr hai)</li>
+  </ul>
+
+  <div class="note"><b>Note:</b> Ye report <code>src/app</code> ke actual source se banayi gayi hai (static export = 8 pages). Files/paths current codebase ke hisaab se sahi hain.</div>
+
+  <footer class="end">SahiKaarigar — UI Screens Report · generated from <code>sahikarigar-app/src</code></footer>
+</div>
+</body>
+</html>
+
+
+
+

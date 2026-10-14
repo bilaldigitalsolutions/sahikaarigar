@@ -1,65 +1,20 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# =============================================================================
+# Secrets & credentials — inko kabhi commit mat karo (GitHub Push Protection
+# bhi inhe block karta hai).
+# =============================================================================
+*service-account*.json
+*adminsdk*.json
+firebase-adminsdk-*.json
+credentials.json
+*.keystore
+*.jks
+keystores/
+*.p8
+*.p12
+*.mobileprovision
 
-# dependencies
-/node_modules
-/.pnp
-.pnp.js
-.yarn/install-state.gz
-
-# testing
-/coverage
-
-# next.js
-/.next/
-/out/
-
-# production
-/build
-
-# misc
-.DS_Store
-*.pem
-
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# local env files
-.env*.local
+# Environment files (real values wale) — .env.example templates allowed
 .env
-
-# vercel
-.vercel
-
-# typescript
-*.tsbuildinfo
-next-env.d.ts
-
-# IDE
-.vscode
-.idea
-
-# OS
-Thumbs.db
-
-# Firebase Admin service account key - NEVER commit these files!
-firebase-service-account.json
-*-service-account.json
-*-adminsdk-*.json
-
-# Firebase deploy cache / debug logs
-.firebase
-firebase-debug.log
-firestore-debug.log
-
-# Production env files (contain secrets)
+.env.local
+.env.*.local
 .env.sahi-kaarigar
-.env.production
-
-# auth-server/ is a separate npm project (SuperTokens passwordless OTP)
-auth-server/node_modules
-auth-server/.env
-
-# Supabase CLI local state (project ref, not a secret, but machine-specific)
-supabase/.temp

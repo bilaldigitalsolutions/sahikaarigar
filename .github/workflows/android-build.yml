@@ -1,0 +1,121 @@
+name: Android APK Build (Free)
+
+# =============================================================================
+# EAS free plan khatam hone ki wajah se CI par APK banate hain:
+#   checkout → node → npm ci → expo prebuild → signing inject → gradle → upload
+# Secrets (repo Settings → Secrets and variables → Actions):
+#   KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD
+# =============================================================================
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: android-build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build release APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Repo ka layout dono tarah ka ho sakta hai — ya toh GitHub repo root
+      # hi mobile app hai (sahikarigar-mobile), ya uske andar ek folder hai.
+      # Dono cases handle karne ke liye app directory detect kar lete hain.
+      - name: Detect app directory
+        run: |
+          if [ -f "package.json" ] && [ -d "android" -o -f "app.json" ] && grep -q '"expo"' package.json 2>/dev/null; then
+            echo "APP_DIR=." >> "$GITHUB_ENV"
+          elif [ -f "sahikarigar-mobile/package.json" ]; then
+            echo "APP_DIR=sahikarigar-mobile" >> "$GITHUB_ENV"
+          else
+            echo "::error::sahikarigar-mobile app directory nahi mili" && exit 1
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ${{ env.APP_DIR }}/package-lock.json
+
+      # Release APK sirf arm64-v8a (see plugins/WithAndroidArchitectures), isliye
+      # itna disk space kaafi hai — phir bhi safety ke liye extra tools hata dete hain.
+      - name: Free up disk space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          android: false
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+
+      - name: Install dependencies
+        working-directory: ${{ env.APP_DIR }}
+        run: npm ci
+
+      # android/ folder gitignored hai — CI par yahin se generate hota hai.
+      - name: Expo prebuild (generate android project)
+        working-directory: ${{ env.APP_DIR }}
+        env:
+          CI: "1"
+          EXPO_NO_TELEMETRY: "1"
+        run: npx expo prebuild --platform android --no-install
+
+      - name: Setup Java (Zulu 17)
+        uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: "17"
+          cache: gradle
+          cache-dependency-path: ${{ env.APP_DIR }}/android/**/*.gradle*
+
+      # Keystore ko secret se decode karke runner ke temp folder me rakhte hain
+      # (repo me kabhi nahi jaata). env indirection se secret command line par
+      # nahi dikhta.
+      - name: Decode keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/keystore.jks"
+          test -s "$RUNNER_TEMP/keystore.jks"
+          echo "Keystore decoded ($(wc -c < "$RUNNER_TEMP/keystore.jks") bytes)"
+
+      # Expo prebuild release par debug signing lagata hai — ye script build.gradle
+      # me release signingConfig inject karti hai (env vars se).
+      - name: Inject release signing config
+        working-directory: ${{ env.APP_DIR }}
+        run: node scripts/inject-signing.js
+
+      - name: Build release APK (gradle)
+        working-directory: ${{ env.APP_DIR }}/android
+        env:
+          MYAPP_UPLOAD_STORE_FILE: ${{ runner.temp }}/keystore.jks
+          MYAPP_UPLOAD_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          MYAPP_UPLOAD_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          MYAPP_UPLOAD_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          # EXPO_PUBLIC_* vars Metro bundle time par inline hote hain —
+          # eas.json ke barabar values yahan set karo.
+          EXPO_PUBLIC_AUTH_API_URL: https://sahikaarigar-auth.onrender.com
+          EXPO_PUBLIC_APP_NAME: Sahi Kaarigar
+          EXPO_PUBLIC_DEMO_MODE: "0"
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SahiKaarigar-APK
+          path: ${{ env.APP_DIR }}/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 7

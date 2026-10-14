@@ -1,0 +1,56 @@
+# =============================================================================
+# Render Blueprint — deploys auth-server/ as a FREE web service.
+#
+# Assumes the GitHub repo root is `sahikarigar-app/` (so rootDir is auth-server).
+# Render Dashboard -> New -> Blueprint -> pick the repo. It reads this file.
+#
+# Free tier: 512 MB RAM, no card required. Spins down when idle (see the guide).
+# =============================================================================
+services:
+  - type: web
+    name: sahikaarigar-auth
+    runtime: node
+    plan: free
+    region: singapore
+    rootDir: auth-server
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      # Node 22+ is REQUIRED. @supabase/supabase-js (>=2.50) needs a native
+      # global `WebSocket`, which Node only ships from v22 onwards. On Node 20
+      # the service crashes at boot with:
+      #   "Error: Node.js detected but native WebSocket not found."
+      - key: NODE_VERSION
+        value: '22'
+      # SMS is AUTO-DETECTED from whichever provider credentials are present,
+      # so just add your provider's key in the Render dashboard (Environment
+      # tab) and real SMS starts working — nothing to change here.
+      #   StartMessaging -> STARTMESSAGING_API_KEY          (India, DLT-FREE, UPI)
+      #   Fast2SMS -> FAST2SMS_API_KEY (+ FAST2SMS_OTP_TEMPLATE_ID)  (India, UPI;
+      #               the SMS OTP route needs DLT — WhatsApp/Quick-SMS do not)
+      #   MSG91    -> MSG91_AUTH_KEY + MSG91_TEMPLATE_ID     (India, needs DLT)
+      #   Twilio   -> TWILIO_ACCOUNT_SID/AUTH_TOKEN/FROM     (global, needs card)
+      #   Admin    -> ADMIN_PHONES (comma separated) — who may approve workers
+      # With no credentials the OTP is printed in the Render logs instead (free).
+      - key: APP_NAME
+        value: SahiKaarigar
+      # Explicitly set the SMS provider so the backend never falls back to
+      # "console" (which prints the OTP in logs and shows "Development OTP"
+      # in the app). startmessaging = India, DLT-FREE, ~Rs.0.25/OTP.
+      - key: SMS_PROVIDER
+        value: startmessaging
+      # Set these in the Render dashboard (marked "sync: false" = not in git).
+      - key: SUPERTOKENS_CONNECTION_URI
+        sync: false
+      - key: SUPERTOKENS_API_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      # The static site origin. API_DOMAIN is auto-detected from
+      # RENDER_EXTERNAL_URL, so it usually does not need setting.
+      - key: WEBSITE_DOMAIN
+        value: https://sahi-kaarigar.web.app

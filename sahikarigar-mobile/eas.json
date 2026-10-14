@@ -1,0 +1,48 @@
+{
+  "cli": {
+    "version": ">= 24.0.0",
+    "appVersionSource": "local"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "credentialsSource": "local",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_AUTH_API_URL": "https://sahikaarigar-auth.onrender.com",
+        "EXPO_PUBLIC_APP_NAME": "Sahi Kaarigar",
+        "EXPO_PUBLIC_DEMO_MODE": "0"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "credentialsSource": "local",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_AUTH_API_URL": "https://sahikaarigar-auth.onrender.com",
+        "EXPO_PUBLIC_APP_NAME": "Sahi Kaarigar",
+        "EXPO_PUBLIC_DEMO_MODE": "0"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "credentialsSource": "local",
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "env": {
+        "EXPO_PUBLIC_AUTH_API_URL": "https://sahikaarigar-auth.onrender.com",
+        "EXPO_PUBLIC_APP_NAME": "Sahi Kaarigar",
+        "EXPO_PUBLIC_DEMO_MODE": "0"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="hi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sahi Kaarigar — Render Deploy Guide (5 steps)</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 32px 16px;
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    background: #0f172a; color: #e2e8f0; line-height: 1.6;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 30px; margin: 0 0 6px; color: #fff; }
+  .sub { color: #94a3b8; margin-bottom: 28px; font-size: 16px; }
+  .step {
+    background: #1e293b; border: 1px solid #334155; border-radius: 14px;
+    padding: 20px 22px; margin-bottom: 18px;
+  }
+  .step-head { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
+  .num {
+    flex: 0 0 auto; width: 40px; height: 40px; border-radius: 50%;
+    background: #2563eb; color: #fff; font-weight: 700; font-size: 19px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .step-title { font-size: 19px; font-weight: 700; color: #fff; }
+  .hint { color: #94a3b8; font-size: 15px; margin: 0 0 10px; }
+  .key {
+    display: inline-block; background: #0f172a; border: 1px solid #475569;
+    border-radius: 6px; padding: 3px 9px; font-family: Consolas, monospace;
+    font-size: 14px; color: #93c5fd;
+  }
+  .valrow { display: flex; gap: 10px; align-items: stretch; }
+  .val {
+    flex: 1 1 auto; background: #020617; border: 1px solid #475569;
+    border-radius: 8px; padding: 11px 13px; font-family: Consolas, monospace;
+    font-size: 13px; color: #4ade80; word-break: break-all; min-width: 0;
+  }
+  button.copy {
+    flex: 0 0 auto; background: #16a34a; color: #fff; border: 0;
+    border-radius: 8px; padding: 0 18px; font-size: 15px; font-weight: 600;
+    cursor: pointer;
+  }
+  button.copy:hover { background: #15803d; }
+  button.copy.done { background: #0ea5e9; }
+  .warn {
+    background: #422006; border: 1px solid #a16207; border-radius: 10px;
+    padding: 13px 16px; color: #fde68a; font-size: 15px; margin-top: 12px;
+  }
+  .big-btn {
+    display: inline-block; background: #000; color: #fff; border: 2px solid #fff;
+    border-radius: 8px; padding: 13px 26px; font-size: 18px; font-weight: 700;
+  }
+  .mock {
+    background: #fff; color: #111; border-radius: 10px; padding: 18px;
+    font-size: 13px; margin: 12px 0;
+  }
+  .mock table { width: 100%; border-collapse: collapse; }
+  .mock td { padding: 7px 6px; vertical-align: middle; }
+  .mock .kcell {
+    background: #e5e7eb; border-radius: 6px; font-family: Consolas, monospace;
+    font-size: 12px; color: #374151; width: 42%;
+  }
+  .mock .vcell {
+    background: #f0fdf4; border: 1px solid #86efac; border-radius: 6px;
+    color: #15803d; height: 34px;
+  }
+  .arrow { color: #f59e0b; font-weight: 700; font-size: 15px; }
+  ol.todo { margin: 10px 0 0 18px; padding: 0; }
+  ol.todo li { margin-bottom: 7px; }
+  .done { color: #4ade80; font-weight: 600; }
+  code { background: #0f172a; padding: 2px 6px; border-radius: 4px; font-size: 13px; color: #93c5fd; }
+  a { color: #60a5fa; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🚀 Render par deploy — 5 chhote steps</h1>
+  <p class="sub">
+    Aap <strong>bilaldigitalsolutions/sahikaarigar</strong> ka Blueprint screen already khol chuke ho.
+    Bas neeche wale 4 values us screen ke 4 box me paste karo, phir Deploy dabao.
+  </p>
+
+  <div class="step">
+    <div class="step-head">
+      <div class="num">1</div>
+      <div class="step-title">Pehla box — <span class="key">SUPERTOKENS_CONNECTION_URI</span></div>
+    </div>
+    <p class="hint">Render screen par sabse upar wala khaali box. "Copy" dabao, phir us box me paste (Ctrl+V) karo.</p>
+    <div class="valrow">
+      <div class="val" id="v1">https://st-dev-271164e0-c128-11f1-b480-73f00f77afdd.aws.supertokens.io</div>
+      <button class="copy" data-src="v1">Copy</button>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-head">
+      <div class="num">2</div>
+      <div class="step-title">Doosra box — <span class="key">SUPERTOKENS_API_KEY</span></div>
+    </div>
+    <p class="hint">Dusra khaali box.</p>
+    <div class="valrow">
+      <div class="val" id="v2">sI0O2A7N68wra9W4AlwRvw4Yc6</div>
+      <button class="copy" data-src="v2">Copy</button>
+    </div>
+    <div class="warn">
+      ⚠️ Dhyan se — isme <strong>sI0</strong> hai. Pehla akshar <strong>chhota L nahi</strong>,
+      <strong>bada I (capital i)</strong> hai. Copy button hi use karo, haath se type mat karo —
+      ek akshar galat hua to pura login band ho jayega.
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-head">
+      <div class="num">3</div>
+      <div class="step-title">Teesra box — <span class="key">SUPABASE_URL</span></div>
+    </div>
+    <p class="hint">Teesra khaali box.</p>
+    <div class="valrow">
+      <div class="val" id="v3">https://gkrgyurjifxtbffslzys.supabase.co</div>
+      <button class="copy" data-src="v3">Copy</button>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-head">
+      <div class="num">4</div>
+      <div class="step-title">Chautha box — <span class="key">SUPABASE_SERVICE_ROLE_KEY</span></div>
+    </div>
+    <p class="hint">Sabse neeche wala khaali box (lamba hai, poori line paste karo).</p>
+    <div class="valrow">
+      <div class="val" id="v4">eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdrcmd5dXJqaWZ4dGJmZnNsenlzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTExNzIyMSwiZXhwIjoyMTA2NjkzMjIxfQ.ec-XhVXUHJXPkhf5J8n3RrZh1-y1manLWRq0B6VM4vg</div>
+      <button class="copy" data-src="v4">Copy</button>
+    </div>
+    <div class="warn">
+      🔒 Ye Supabase ki <strong>service_role</strong> key hai — bahut powerful.
+      Sirf Render ke env var me daalni hai. Kisi aur jagah (code, chat, screenshot) me mat daalna.
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-head">
+      <div class="num">5</div>
+      <div class="step-title">Ab <strong>Deploy Blueprint</strong> button dabao</div>
+    </div>
+    <p class="hint">Screen par sabse neeche, left side me kala button. Bas usi par click karo.</p>
+    <div class="mock">
+      <table>
+        <tr><td class="kcell">SUPERTOKENS_CONNECTION_URI</td><td class="vcell">✔ bhara hua</td><td class="arrow">← step 1</td></tr>
+        <tr><td class="kcell">SUPERTOKENS_API_KEY</td><td class="vcell">✔ bhara hua</td><td class="arrow">← step 2</td></tr>
+        <tr><td class="kcell">SUPABASE_URL</td><td class="vcell">✔ bhara hua</td><td class="arrow">← step 3</td></tr>
+        <tr><td class="kcell">SUPABASE_SERVICE_ROLE_KEY</td><td class="vcell">✔ bhara hua</td><td class="arrow">← step 4</td></tr>
+      </table>
+      <div style="margin-top:16px;">
+        <span class="big-btn">Deploy Blueprint</span>
+        <span class="arrow"> ← ye dabao (5)</span>
+        <span style="margin-left:18px;color:#6b7280;">Cancel (ise mat dabao)</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-head">
+      <div class="num">✔</div>
+      <div class="step-title">Deploy ke baad — sirf 2 minute wait</div>
+    </div>
+    <ol class="todo">
+      <li>Render khud <code>npm install</code> chalayega. <strong>1–3 minute</strong> lagega.</li>
+      <li>Upar <strong>Logs</strong> tab kholo. Aisi line dikhni chahiye:<br>
+          <code>✓ SahiKaarigar auth-server on https://sahikaarigar-auth.onrender.com</code></li>
+      <li>Naye browser tab me kholo:<br>
+          <code>https://sahikaarigar-auth.onrender.com/health</code><br>
+          Aisa dikhna chahiye → <code>{"ok":true,"smsProvider":"console",...}</code></li>
+      <li><strong>Woh URL mujhe bhej do.</strong> Baaki sab (Firebase par live karna + test) main kar dunga.</li>
+    </ol>
+  </div>
+
+  <div class="step">
+    <div class="step-head">
+      <div class="num">!</div>
+      <div class="step-title">Kuch galat ho gaya? (screen band / Cancel dab gaya)</div>
+    </div>
+    <p class="hint">Koi baat nahi, wapas aise pahuncho:</p>
+    <ol class="todo">
+      <li><a href="https://dashboard.render.com" target="_blank">dashboard.render.com</a> kholo</li>
+      <li>Upar right me <strong>New +</strong> dabao</li>
+      <li><strong>Blueprint</strong> choose karo</li>
+      <li>Repo <strong>bilaldigitalsolutions/sahikaarigar</strong> select karo → <strong>Connect</strong></li>
+      <li>Phir wahi 4 box aayenge → upar wale step 1–5 dohra do</li>
+    </ol>
+  </div>
+
+  <p class="sub" style="margin-top:26px;">
+    <span class="done">Already ho chuka hai:</span><br>
+    ✅ SuperTokens Core bana &amp; verify hua<br>
+    ✅ DB migration lag gayi<br>
+    ✅ Code GitHub par push ho gaya<br>
+    ✅ Local end-to-end test pass<br><br>
+    <span style="color:#94a3b8;">Sirf Render deploy baaki hai — uske baad main live site par auth chalu kar dunga.</span>
+  </p>
+
+</div>
+<script>
+  function fallback(text, done) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); done(); }
+    catch (e) { alert('Copy nahi hua — text select karke Ctrl+C karo'); }
+    document.body.removeChild(ta);
+  }
+  document.querySelectorAll('button.copy').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var text = document.getElementById(btn.dataset.src).textContent.trim();
+      var done = function () {
+        btn.textContent = 'Copied ✓';
+        btn.classList.add('done');
+        setTimeout(function () { btn.textContent = 'Copy'; btn.classList.remove('done'); }, 1500);
+      };
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(done, function () { fallback(text, done); });
+      } else {
+        fallback(text, done);
+      }
+    });
+  });
+</script>
+</body>
+</html>

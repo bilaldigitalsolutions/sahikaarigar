@@ -79,6 +79,13 @@ jobs:
           cache: gradle
           cache-dependency-path: ${{ env.APP_DIR }}/android/**/*.gradle*
 
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          api-level: 34
+          ndk-version: r27b
+          cmdline-tools-version: latest
+
       # Keystore ko secret se decode karke runner ke temp folder me rakhte hain
       # (repo me kabhi nahi jaata). env indirection se secret command line par
       # nahi dikhta.
@@ -119,6 +126,7 @@ jobs:
       - name: Build release APK (gradle)
         working-directory: ${{ env.APP_DIR }}/android
         env:
+          ANDROID_HOME: ${{ env.ANDROID_HOME }}
           MYAPP_UPLOAD_STORE_FILE: ${{ runner.temp }}/keystore.jks
           MYAPP_UPLOAD_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           MYAPP_UPLOAD_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}

@@ -82,9 +82,9 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
-          api-level: 34
-          ndk-version: r27b
+          packages: 'platforms;android-34 build-tools;34.0.0'
           cmdline-tools-version: latest
+          accept-android-sdk-licenses: true
 
       # Keystore ko secret se decode karke runner ke temp folder me rakhte hain
       # (repo me kabhi nahi jaata). env indirection se secret command line par

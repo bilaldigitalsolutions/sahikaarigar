@@ -131,6 +131,7 @@ jobs:
           MYAPP_UPLOAD_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           MYAPP_UPLOAD_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           MYAPP_UPLOAD_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx1536m -Dorg.gradle.daemon=false"
           # EXPO_PUBLIC_* vars Metro bundle time par inline hote hain —
           # eas.json ke barabar values yahan set karo.
           EXPO_PUBLIC_AUTH_API_URL: https://sahikaarigar-auth.onrender.com

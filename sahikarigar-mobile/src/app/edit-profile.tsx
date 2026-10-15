@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, StyleSheet, Text } from 'react-native';
+import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
 
 import { Button, Header, Input, LocationPicker, Screen, type PlaceResult } from '@/components';
 import { VALIDATION } from '@/constants';
@@ -9,45 +9,53 @@ import { updateProfile } from '@/lib/api';
 import { colors, fontSize, fontWeight, spacing } from '@/theme';
 
 /**
- * Edit the signed-in account — the screen you land on after registering, so a
- * profile can be corrected later (name, address, area, city).
- *
- * Only the fields the auth-server's `POST /profile` accepts are editable here;
- * the phone number is identity and can never be changed from this form.
+ * Edit the signed-in account — name, area (single LocationPicker), read-only
+ * city, address/landmark. Phone number is identity and never editable here.
  */
 export default function EditProfileScreen() {
   const router = useRouter();
   const { user, refreshUser } = useAuth();
 
+  // Pre-fill from the actual user — never a "User" default; empty stays empty.
   const [name, setName] = useState(user?.name ?? '');
   const [address, setAddress] = useState(user?.address ?? '');
   const [area, setArea] = useState(user?.locationArea ?? '');
-  const [city, setCity] = useState(user?.locationCity ?? '');
   const [busy, setBusy] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [areaError, setAreaError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
 
-  const clearError = () => {
+  const clearErrors = () => {
+    if (nameError) setNameError(null);
+    if (areaError) setAreaError(null);
     if (error) setError(null);
+    if (saved) setSaved(false);
   };
 
   const onSave = async () => {
+    let valid = true;
     if (name.trim().length < VALIDATION.NAME_MIN_LENGTH) {
-      setError('Enter your full name.');
-      return;
+      setNameError('Enter your full name.');
+      valid = false;
     }
+    if (area.trim().length < 3) {
+      setAreaError('Select your area from the picker below.');
+      valid = false;
+    }
+    if (!valid) return;
+
     setBusy(true);
     setError(null);
+    setSaved(false);
     try {
-      // Empty fields are skipped rather than sent, so a blank box never wipes a
-      // value the server already has (the API ignores empty strings too).
       await updateProfile({
         name: name.trim(),
+        locationArea: area.trim(),
         ...(address.trim() ? { address: address.trim() } : {}),
-        ...(area.trim() ? { locationArea: area.trim() } : {}),
-        ...(city.trim() ? { locationCity: city.trim() } : {}),
       });
       await refreshUser();
-      router.back();
+      setSaved(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save your profile.');
     } finally {
@@ -74,8 +82,9 @@ export default function EditProfileScreen() {
           value={name}
           onChangeText={(text) => {
             setName(text);
-            clearError();
+            clearErrors();
           }}
+          error={nameError ?? undefined}
           containerStyle={styles.mt}
         />
 
@@ -87,35 +96,25 @@ export default function EditProfileScreen() {
           containerStyle={styles.mt}
         />
 
-        <Input
-          label="Area"
-          placeholder="e.g. Madhapur, LB Nagar"
-          value={area}
-          onChangeText={(text) => {
-            setArea(text);
-            clearError();
-          }}
-          containerStyle={styles.mt}
-        />
-
-        <LocationPicker
-          placeholder="Search area — Madhapur, Kukatpally…"
-          value={area}
-          onSelect={(place: PlaceResult) => {
-            setArea(place.description);
-            clearError();
-          }}
-          icon="location-outline"
-        />
+        <View style={styles.mt}>
+          <Text style={styles.label}>Area</Text>
+          <LocationPicker
+            placeholder="Search area — Madhapur, Kukatpally…"
+            value={area}
+            onSelect={(place: PlaceResult) => {
+              setArea(place.description);
+              clearErrors();
+            }}
+            icon="location-outline"
+          />
+          {areaError ? <Text style={styles.errorText}>{areaError}</Text> : null}
+        </View>
 
         <Input
           label="City"
-          placeholder="Hyderabad"
-          value={city}
-          onChangeText={(text) => {
-            setCity(text);
-            clearError();
-          }}
+          value="Hyderabad"
+          editable={false}
+          hint="Abhi hum sirf Hyderabad me hain"
           containerStyle={styles.mt}
         />
 
@@ -125,7 +124,7 @@ export default function EditProfileScreen() {
           value={address}
           onChangeText={(text) => {
             setAddress(text);
-            clearError();
+            clearErrors();
           }}
           multiline
           numberOfLines={3}
@@ -133,9 +132,10 @@ export default function EditProfileScreen() {
         />
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
+        {saved ? <Text style={styles.savedText}>Profile updated!</Text> : null}
 
         <Button
-          label="Save changes"
+          label="Save Changes"
           onPress={onSave}
           loading={busy}
           size="lg"
@@ -157,6 +157,13 @@ const styles = StyleSheet.create({
     lineHeight: 19,
   },
   mt: { marginTop: spacing.lg },
-  errorText: { color: colors.danger, fontSize: fontSize.caption, marginTop: spacing.md },
+  label: {
+    fontSize: fontSize.caption,
+    fontWeight: fontWeight.medium,
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
+  },
+  errorText: { color: colors.danger, fontSize: fontSize.caption, marginTop: spacing.sm },
+  savedText: { color: colors.success, fontSize: fontSize.caption, marginTop: spacing.md },
   saveBtn: { marginTop: spacing.xl },
 });

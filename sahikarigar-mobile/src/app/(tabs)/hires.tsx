@@ -10,7 +10,8 @@ import {
   View,
 } from 'react-native';
 
-import { EmptyState, HireCard, Screen } from '@/components';
+import { EmptyState, HireCard, Screen, Button } from '@/components';
+import { useAuth } from '@/contexts/AuthContext';
 import { listHires, type ApiHire } from '@/lib/api';
 import { colors, fontSize, fontWeight, radius, spacing } from '@/theme';
 
@@ -33,6 +34,7 @@ const STATUS_FILTERS: { id: StatusFilter; label: string }[] = [
 
 export default function HiresScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const [tab, setTab] = useState<'employer' | 'worker'>('employer');
   const [filter, setFilter] = useState<StatusFilter>('all');
   const [data, setData] = useState<HireData | null>(null);
@@ -74,6 +76,16 @@ export default function HiresScreen() {
       <View style={styles.header}>
         <Text style={styles.heading}>My Bookings</Text>
       </View>
+
+      {!user ? (
+        <View style={styles.guestBox}>
+          <Text style={styles.guestTitle}>Login karke apni bookings dekho</Text>
+          <Text style={styles.guestText}>
+            Guest mode me browse kar sakte ho — bookings dekhne ke liye login zaroori hai.
+          </Text>
+          <Button label="Login / Sign up" onPress={() => router.push('/(auth)/login')} />
+        </View>
+      ) : null}
 
       <View style={styles.segment}>
         <Segment label="As Employer" active={tab === 'employer'} onPress={() => setTab('employer')} />
@@ -219,4 +231,16 @@ const styles = StyleSheet.create({
   filterTextActive: { color: colors.primaryDark, fontWeight: fontWeight.semibold },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   list: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg },
+  guestBox: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+    padding: spacing.lg,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+    backgroundColor: colors.primaryTint,
+    gap: spacing.sm,
+  },
+  guestTitle: { fontSize: fontSize.body, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+  guestText: { fontSize: fontSize.caption, color: colors.textSecondary, lineHeight: 18 },
 });

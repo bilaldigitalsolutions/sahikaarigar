@@ -16,6 +16,16 @@ export default function CreateHireScreen() {
   const workerId = String(params.workerId);
   const { user, isDemo } = useAuth();
 
+  // Guest employers land here from browsing — require login before any hire
+  // data is collected, and come straight back to THIS worker after OTP.
+  if (!user && !isDemo) {
+    router.replace({
+      pathname: '/(auth)/login',
+      params: { next: `/hire/${workerId}` },
+    });
+    return null;
+  }
+
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState('');
   const [rate, setRate] = useState('');

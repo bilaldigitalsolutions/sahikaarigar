@@ -9,7 +9,7 @@ import { formatPhone } from '@/utils';
 
 export default function VerifyScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ skill?: string; area?: string }>();
+  const params = useLocalSearchParams<{ skill?: string; area?: string; next?: string }>();
   const { confirmOtp, resend, busy, pendingPhone, devOtp } = useAuth();
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -22,6 +22,14 @@ export default function VerifyScreen() {
     setError(null);
     try {
       await confirmOtp(code.trim());
+
+      // A Hire-time login carries `next` (e.g. /hire/<workerId>) — resume the
+      // exact booking the guest started instead of dropping them on Home.
+      const next = params.next ? String(params.next) : undefined;
+      if (next && next.startsWith('/')) {
+        router.replace(next as never);
+        return;
+      }
 
       // Every login lands on the Role Selection screen ("Aap kaun hain?")
       // first — it forwards any search intent onward after the pick.

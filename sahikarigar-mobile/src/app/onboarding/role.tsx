@@ -5,21 +5,21 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { BrandLogo, Screen } from '@/components';
-import { useAuth } from '@/contexts/AuthContext';
 import { useMode } from '@/contexts/ModeContext';
 import { setHasSeenOnboarding } from '@/lib/storage';
 import { colors, fontSize, fontWeight, radius, spacing } from '@/theme';
 export default function RoleStep() {
   const router = useRouter();
-  const { user } = useAuth();
-  const { role, roleChosen, hasWorkerProfile, setRole } = useMode();
+  const { role, roleChosen, setRole } = useMode();
   const done = async (r: 'worker' | 'employer') => {
     setRole(r);
     await setHasSeenOnboarding(true);
     if (r === 'worker') {
-      router.replace(hasWorkerProfile ? '/(tabs)' : '/register-worker');
+      // Workers must log in — backend profile + dashboard need a session.
+      router.replace('/(auth)/login' as never);
     } else {
-      router.replace(user ? '/(tabs)' : '/(auth)/login');
+      // Employers browse as guests; login is asked only at Hire time.
+      router.replace('/(tabs)' as never);
     }
   };
   return (

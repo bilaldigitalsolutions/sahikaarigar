@@ -9,22 +9,22 @@ export default function TabsLayout() {
   const { user } = useAuth();
   const { role, ready } = useMode();
 
-  if (!user) return <Redirect href="/(auth)/login" />;
   // Wait for the stored role before picking a tab set (avoids a flash).
   if (!ready) return null;
+
+  // Guest mode: employers browse Home + Search + Worker profiles without a
+  // session. Login is enforced only at Hire time and on account screens.
+  const isWorker = role === 'worker';
+  const isEmployer = role === 'employer';
+
+  // Workers must be signed in — dashboard, jobs and availability need a session.
+  if (isWorker && !user) return <Redirect href="/(auth)/login" />;
   // Worker role picked but registration not finished yet — complete it first.
   // (First-time role picking happens in /onboarding/role before login; the
   // legacy /role-selection route is kept for deep links from older builds.)
-  if (role === 'worker' && user.role !== 'worker') {
+  if (isWorker && user && user.role !== 'worker') {
     return <Redirect href="/register-worker" />;
   }
-
-  // Role-based tab bar (driven by the locally chosen role, persisted in
-  // AsyncStorage `user_role` — see ModeContext):
-  //   employer -> Home (Browse) · My Hires · Profile
-  //   worker   -> Home (Dashboard) · Job Requests · My Jobs · Availability · Profile
-  const isWorker = role === 'worker';
-  const isEmployer = role === 'employer';
 
   return (
     <Tabs

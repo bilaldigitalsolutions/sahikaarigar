@@ -38,11 +38,13 @@ export default function HomeScreen() {
 
   const load = useCallback(async () => {
     try {
+      // Guests browse workers without a session; hires need login (enforced at
+      // Hire time + tabs). listHires throws without a session — tolerate it.
       const [hiresResult, workersResult] = await Promise.all([
-        listHires(),
+        listHires().catch(() => ({ asWorker: [] as never[] })),
         searchWorkers({ limit: 6 }),
       ]);
-      setHires(hiresResult.asWorker ?? []);
+      setHires((hiresResult as { asWorker?: never[] }).asWorker ?? []);
       setWorkers(workersResult.workers);
     } catch {
       setWorkers([]);
@@ -53,6 +55,11 @@ export default function HomeScreen() {
   }, []);
 
   const loadDashboard = useCallback(async () => {
+    if (!user) {
+      setDashboard(null);
+      setLoadingExtra(false);
+      return;
+    }
     try {
       const result = await getWorkerDashboard();
       setDashboard(result);
@@ -61,7 +68,7 @@ export default function HomeScreen() {
     } finally {
       setLoadingExtra(false);
     }
-  }, []);
+  }, [user]);
 
   // Refetch on every tab focus so the worker dashboard stays live.
   useFocusEffect(
@@ -107,6 +114,11 @@ export default function HomeScreen() {
   const openSearch = () => router.push('/(tabs)/search');
 
   const onSelectArea = async (place: PlaceResult) => {
+    if (!user) {
+      // Guests pick areas locally — onboarding `user_location` already covers
+      // browse; the profile area syncs after login.
+      return;
+    }
     try {
       await updateProfile({ locationArea: place.description });
       await refreshUser();

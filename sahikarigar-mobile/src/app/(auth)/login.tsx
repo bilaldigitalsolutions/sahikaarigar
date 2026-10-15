@@ -10,15 +10,19 @@ import { isValidPhone, normalizeIndianPhone } from '@/utils';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ skill?: string; area?: string }>();
+  const params = useLocalSearchParams<{ skill?: string; area?: string; next?: string }>();
   const { signIn, busy } = useAuth();
   const [phone, setPhone] = useState('');
   const [error, setError] = useState<string | null>(null);
 
+  /** Where to land after OTP — a deep link (e.g. a hire page) wins. */
+  const next = params.next ? String(params.next) : undefined;
+
   /** Forward the search intent (if any) on to the OTP screen. */
-  const searchParams: { skill?: string; area?: string } = {};
+  const searchParams: { skill?: string; area?: string; next?: string } = {};
   if (params.skill) searchParams.skill = String(params.skill);
   if (params.area) searchParams.area = String(params.area);
+  if (next) searchParams.next = next;
 
   const onSubmit = async () => {
     const normalized = normalizeIndianPhone(phone);

@@ -34,7 +34,23 @@ export default function ProfileScreen() {
     };
   }, []);
 
-  if (!user) return null;
+  // Guest employers can open Profile from the tab bar — show a login prompt
+  // instead of crashing on `user.*` below.
+  if (!user) {
+    return (
+      <Screen scroll>
+        <Text style={styles.heading}>Profile</Text>
+        <Card style={styles.card}>
+          <Text style={styles.ctaTitle}>Login karke profile dekho</Text>
+          <Text style={styles.ctaText}>
+            Guest mode me browse kar sakte ho — profile, bookings aur hire ke liye login zaroori hai.
+            {savedArea ? ` Saved area: ${savedArea}.` : ''}
+          </Text>
+          <Button label="Login / Sign up" onPress={() => router.push('/(auth)/login')} style={styles.ctaBtn} />
+        </Card>
+      </Screen>
+    );
+  }
 
   const onToggleMode = (next: boolean) => {
     setMode(next ? 'worker' : 'customer');

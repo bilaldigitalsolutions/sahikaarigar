@@ -104,12 +104,14 @@ export function ModeProvider({ children }: { children: ReactNode }) {
     (next: AppMode | AppRole) => {
       // Accept both naming styles: 'customer' is the legacy word for 'employer'.
       const role: AppRole = next === 'worker' ? 'worker' : 'employer';
+      // Update synchronously (immediate) so the tab layout resolves the correct
+      // role on the next render, avoiding a race with AsyncStorage read backlog.
       setStoredRole(role);
       AsyncStorage.setItem(ROLE_KEY, role).catch(() => {});
       // Best-effort cleanup of the legacy key so the two never disagree.
       AsyncStorage.removeItem(LEGACY_MODE_KEY).catch(() => {});
     },
-    [],
+    [storedRole],
   );
 
   // Until a role is explicitly chosen fall back to the backend role so deep

@@ -1,14 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Alert, Linking, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, Linking, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { Avatar, Badge, Button, Card, Screen } from '@/components';
 import { LEGAL_URLS, areaLabel } from '@/constants';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMode } from '@/contexts/ModeContext';
+import { getLocation } from '@/lib/storage';
 import { colors, fontSize, fontWeight, spacing } from '@/theme';
 import { formatPhone } from '@/utils';
 import { deleteAccount } from '@/lib/api';
+import { useEffect, useState } from 'react';
 
 const ROLE_LABEL: Record<string, string> = {
   worker: 'Kaarigar',
@@ -19,7 +21,18 @@ const ROLE_LABEL: Record<string, string> = {
 export default function ProfileScreen() {
   const router = useRouter();
   const { user, signOut } = useAuth();
-  const { mode, canSwitch, setMode } = useMode();
+  const { mode, canSwitch, setMode, role } = useMode();
+  const [savedArea, setSavedArea] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    getLocation().then((loc) => {
+      if (active) setSavedArea(loc);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   if (!user) return null;
 
@@ -112,6 +125,24 @@ export default function ProfileScreen() {
           </View>
         </Card>
       ) : null}
+
+      <Card style={styles.card}>
+        <Pressable
+          style={styles.changeRoleRow}
+          onPress={() => router.push('/onboarding/role' as never)}
+          accessibilityRole="button"
+        >
+          <View style={styles.changeRoleInfo}>
+            <Text style={styles.ctaTitle}>
+              Change Role — {role === 'worker' ? 'Kaarigar' : 'Employer'}
+            </Text>
+            <Text style={styles.ctaText}>
+              Aap kaun hain? screen se dobara chuno.{savedArea ? ` Saved area: ${savedArea}.` : ''}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+        </Pressable>
+      </Card>
 
       {user.role === 'employer' ? (
         <Card style={styles.card}>
@@ -231,6 +262,8 @@ const styles = StyleSheet.create({
   ctaTitle: { fontSize: fontSize.body, fontWeight: fontWeight.semibold, color: colors.textPrimary },
   ctaText: { fontSize: fontSize.caption, color: colors.textSecondary, marginTop: spacing.xs },
   ctaBtn: { marginTop: spacing.md },
+  changeRoleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  changeRoleInfo: { flex: 1 },
   signOut: { marginTop: spacing.sm },
   legalNote: {
     fontSize: fontSize.caption,

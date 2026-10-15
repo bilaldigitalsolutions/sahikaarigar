@@ -68,6 +68,9 @@ function RootNavigator() {
     >
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="index" />
+      <Stack.Screen name="onboarding/location" />
+      <Stack.Screen name="onboarding/role" />
       <Stack.Screen name="role-selection" />
       <Stack.Screen name="welcome" />
       <Stack.Screen name="worker/[id]" options={{ headerShown: false }} />

@@ -7,14 +7,14 @@ import { colors } from '@/theme';
 
 export default function TabsLayout() {
   const { user } = useAuth();
-  const { role, ready, roleChosen } = useMode();
+  const { role, ready } = useMode();
 
   if (!user) return <Redirect href="/(auth)/login" />;
   // Wait for the stored role before picking a tab set (avoids a flash).
   if (!ready) return null;
-  // First launch after login — send the user to pick a role.
-  if (!roleChosen) return <Redirect href="/role-selection" />;
   // Worker role picked but registration not finished yet — complete it first.
+  // (First-time role picking happens in /onboarding/role before login; the
+  // legacy /role-selection route is kept for deep links from older builds.)
   if (role === 'worker' && user.role !== 'worker') {
     return <Redirect href="/register-worker" />;
   }

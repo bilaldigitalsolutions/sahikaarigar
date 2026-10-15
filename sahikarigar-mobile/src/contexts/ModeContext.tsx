@@ -27,6 +27,7 @@ import {
 } from 'react';
 
 import { useAuth } from './AuthContext';
+import { getRole, setRole as persistRole } from '@/lib/storage';
 
 /** The active UI role — drives tabs + home content. */
 export type AppRole = 'worker' | 'employer';
@@ -71,24 +72,15 @@ export function ModeProvider({ children }: { children: ReactNode }) {
   // server promotes users.role to 'worker' inside upsertWorkerProfile.)
   const hasWorkerProfile = user?.role === 'worker';
 
-  // Restore the role picked in an earlier session (migrating the legacy
-  // `sahikarigar.appMode` value if that's all there is).
+  // Restore the role picked in an earlier session (raw string in
+  // `user_role`, legacy `sahikarigar.appMode` migrated by storage helper).
   useEffect(() => {
     let active = true;
     (async () => {
       try {
-        const [role, legacyMode] = await Promise.all([
-          AsyncStorage.getItem(ROLE_KEY),
-          AsyncStorage.getItem(LEGACY_MODE_KEY),
-        ]);
+        const role = await getRole();
         if (!active) return;
-        if (role === 'worker' || role === 'employer') {
-          setStoredRole(role);
-        } else if (legacyMode === 'worker') {
-          setStoredRole('worker');
-        } else if (legacyMode === 'customer') {
-          setStoredRole('employer');
-        }
+        if (role) setStoredRole(role);
       } catch {
         // Storage unavailable — keep the default (employer) below.
       } finally {
@@ -100,19 +92,15 @@ export function ModeProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const setRole = useCallback(
-    (next: AppMode | AppRole) => {
-      // Accept both naming styles: 'customer' is the legacy word for 'employer'.
-      const role: AppRole = next === 'worker' ? 'worker' : 'employer';
-      // Update synchronously (immediate) so the tab layout resolves the correct
-      // role on the next render, avoiding a race with AsyncStorage read backlog.
-      setStoredRole(role);
-      AsyncStorage.setItem(ROLE_KEY, role).catch(() => {});
-      // Best-effort cleanup of the legacy key so the two never disagree.
-      AsyncStorage.removeItem(LEGACY_MODE_KEY).catch(() => {});
-    },
-    [storedRole],
-  );
+  // Persist synchronously into state AND AsyncStorage in one tick, so the tab
+  // layout and onboarding resolve the fresh role on the very next render
+  // instead of waiting on a storage read.
+  const setRole = useCallback((next: AppMode | AppRole) => {
+    // Accept both naming styles: 'customer' is the legacy word for 'employer'.
+    const role: AppRole = next === 'worker' ? 'worker' : 'employer';
+    setStoredRole((prev) => (prev === role ? prev : role));
+    void persistRole(role);
+  }, []);
 
   // Until a role is explicitly chosen fall back to the backend role so deep
   // links / restores never crash; the Role Selection screen overrides this.

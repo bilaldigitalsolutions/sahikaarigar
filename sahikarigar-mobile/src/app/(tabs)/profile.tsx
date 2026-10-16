@@ -1,16 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Alert, Linking, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, Linking, Pressable, StyleSheet, Switch, Text, View, Modal } from 'react-native';
 
 import { Avatar, Badge, Button, Card, Screen } from '@/components';
 import { LEGAL_URLS, areaLabel } from '@/constants';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMode } from '@/contexts/ModeContext';
 import { getLocation } from '@/lib/storage';
-import { colors, fontSize, fontWeight, spacing } from '@/theme';
+import { colors, fontSize, fontWeight, radius, spacing } from '@/theme';
 import { formatPhone } from '@/utils';
 import { deleteAccount } from '@/lib/api';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 const ROLE_LABEL: Record<string, string> = {
   worker: 'Kaarigar',
@@ -23,6 +23,11 @@ export default function ProfileScreen() {
   const { user, signOut } = useAuth();
   const { mode, canSwitch, setMode, role } = useMode();
   const [savedArea, setSavedArea] = useState<string | null>(null);
+  const [showHelp, setShowHelp] = useState(false);
+
+  const onHelpSheetOpen = (): void => {
+    setShowHelp(true);
+  };
 
   useEffect(() => {
     let active = true;
@@ -225,6 +230,63 @@ export default function ProfileScreen() {
           <Text style={styles.helpRow}><Text style={styles.helpKey}>Address:</Text> Hyderabad, Telangana</Text>
           <Text style={styles.helpRow}><Text style={styles.helpKey}>Response Time:</Text> 48 hours</Text>
         </Text>
+
+      <Card style={styles.helpCard}>
+        <Text style={styles.helpTitle}>Help &amp; Support</Text>
+        <Pressable style={styles.helpOption} onPress={onHelpSheetOpen}>
+          <Ionicons name="logo-whatsapp" size={20} color={colors.primaryDark} />
+          <View style={styles.helpOptionText}>
+            <Text style={styles.helpOptionLabel}>WhatsApp Support</Text>
+            <Text style={styles.helpOptionDesc}>Support ASAP</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+        </Pressable>
+        <Pressable style={styles.helpOption} onPress={onHelpSheetOpen}>
+          <Ionicons name="call" size={20} color={colors.primaryDark} />
+          <View style={styles.helpOptionText}>
+            <Text style={styles.helpOptionLabel}>Call Support</Text>
+            <Text style={styles.helpOptionDesc}>+91 9949363310</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+        </Pressable>
+        <Pressable style={styles.helpOption} onPress={onHelpSheetOpen}>
+          <Ionicons name="mail" size={20} color={colors.primaryDark} />
+          <View style={styles.helpOptionText}>
+            <Text style={styles.helpOptionLabel}>Email Support</Text>
+            <Text style={styles.helpOptionDesc}>support@sahikaarigar.com</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+        </Pressable>
+      </Card>
+
+      <Modal
+        visible={showHelp}
+        transparent
+        animationType="fade"
+      >
+        <View style={styles.helpOverlay}>
+          <View style={styles.helpModal}>
+            <Text style={styles.helpModalTitle}>Help &amp; Support</Text>
+            <Text style={styles.helpModalMessage}>
+              Kaun ka kaunsi chahiye? WhatsApp par tap karo — camp ki sahayata. Call karo — direct support. Email karo — abhi reply aayegi.
+            </Text>
+            <View style={styles.helpModalButtons}>
+              <Pressable style={styles.helpModalButton} onPress={() => Linking.openURL('https://wa.me/919949363310').catch(() => {})}>
+                <Ionicons name="logo-whatsapp" size={18} color={colors.primaryDark} />
+                <Text style={styles.helpModalButtonText}>WhatsApp</Text>
+              </Pressable>
+              <Pressable style={styles.helpModalButton} onPress={() => Linking.openURL('tel:+919949363310').catch(() => {})}>
+                <Ionicons name="call" size={18} color={colors.primaryDark} />
+                <Text style={styles.helpModalButtonText}>Call</Text>
+              </Pressable>
+              <Pressable style={styles.helpModalButton} onPress={() => Linking.openURL('mailto:support@sahikaarigar.com').catch(() => {})}>
+                <Ionicons name="mail" size={18} color={colors.primaryDark} />
+                <Text style={styles.helpModalButtonText}>Email</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
       </Card>
 
       <Button
@@ -351,6 +413,75 @@ const styles = StyleSheet.create({
     fontWeight: fontWeight.medium,
     color: colors.textSecondary,
     width: 72,
+  },
+  helpOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.md,
+  },
+  helpOptionText: {
+    flex: 1,
+  },
+  helpOptionLabel: {
+    fontSize: fontSize.body,
+    fontWeight: fontWeight.semibold,
+    color: colors.textSecondary,
+  },
+  helpOptionDesc: {
+    fontSize: fontSize.caption,
+    color: colors.textSecondary,
+    marginTop: 1,
+  },
+  helpSheet: {
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: spacing.md,
+  },
+  helpOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  helpModal: {
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: spacing.md,
+    width: '85%',
+  },
+  helpModalTitle: {
+    fontSize: fontSize.title,
+    fontWeight: fontWeight.semibold,
+    color: colors.textPrimary,
+    textAlign: 'center',
+    marginBottom: spacing.md,
+  },
+  helpModalMessage: {
+    fontSize: fontSize.small,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: spacing.lg,
+  },
+  helpModalButtons: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  helpModalButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.primaryTint,
+    borderRadius: radius.button,
+    paddingVertical: spacing.md,
+  },
+  helpModalButtonText: {
+    fontSize: fontSize.small,
+    fontWeight: fontWeight.semibold,
+    color: colors.primaryDark,
   },
   deleteBtn: { marginTop: spacing.lg },
 });

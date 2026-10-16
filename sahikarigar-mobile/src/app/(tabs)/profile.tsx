@@ -213,6 +213,20 @@ export default function ProfileScreen() {
         </Text>
       </View>
 
+      <Text style={styles.helpNote}>
+        Meri Zimmedari: Aapka complaint resolve ho, par agar koi problem aaye toh daye zaroor bataye.
+      </Text>
+      <Card style={styles.helpCard}>
+        <Text style={styles.helpTitle}>Grievance Officer</Text>
+        <Text style={styles.helpBody}>
+          <Text style={styles.helpRow}><Text style={styles.helpKey}>Name:</Text> Mohammad Bilal</Text>
+          <Text style={styles.helpRow}><Text style={styles.helpKey}>Email:</Text> grievance@sahikaarigar.com</Text>
+          <Text style={styles.helpRow}><Text style={styles.helpKey}>Phone:</Text> +91 9949363310</Text>
+          <Text style={styles.helpRow}><Text style={styles.helpKey}>Address:</Text> Hyderabad, Telangana</Text>
+          <Text style={styles.helpRow}><Text style={styles.helpKey}>Response Time:</Text> 48 hours</Text>
+        </Text>
+      </Card>
+
       <Button
         label="Delete Account"
         variant="danger"
@@ -301,5 +315,42 @@ const styles = StyleSheet.create({
     textDecorationLine: 'underline',
   },
   legalDot: { fontSize: fontSize.caption, color: colors.textSecondary },
+  helpNote: {
+    fontSize: fontSize.caption,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginTop: spacing.lg,
+    lineHeight: 20,
+  },
+  helpCard: {
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    padding: spacing.md,
+    marginTop: spacing.md,
+  },
+  helpTitle: {
+    fontSize: fontSize.body,
+    fontWeight: fontWeight.semibold,
+    color: colors.textPrimary,
+    marginBottom: spacing.xs,
+  },
+  helpBody: {
+    fontSize: fontSize.caption,
+    color: colors.textSecondary,
+    lineHeight: 18,
+  },
+  helpRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  helpKey: {
+    fontSize: fontSize.caption,
+    fontWeight: fontWeight.medium,
+    color: colors.textSecondary,
+    width: 72,
+  },
   deleteBtn: { marginTop: spacing.lg },
 });

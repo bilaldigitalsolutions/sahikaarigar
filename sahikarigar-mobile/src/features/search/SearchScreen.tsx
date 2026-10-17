@@ -27,6 +27,7 @@ import { searchWorkers, type ApiWorker } from '@/lib/api';
 import { DEMO_MODE } from '@/lib/config';
 import { DEMO_WORKERS } from '@/lib/demoData';
 import { getDeviceCoords, type DeviceCoords } from '@/lib/location';
+import { trackEvent } from '@/lib/observability';
 import { colors, fontSize, fontWeight, radius, spacing } from '@/theme';
 import { calculateDistance, formatCurrency } from '@/utils';
 
@@ -94,6 +95,7 @@ export function SearchScreen() {
         if (!cancelled) {
           setWorkers(result.workers);
           setError(null);
+          trackEvent('search_performed', { skill: skill ?? undefined, resultCount: result.workers.length });
         }
       })
       .catch((e) => {

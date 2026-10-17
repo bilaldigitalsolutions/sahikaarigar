@@ -10,8 +10,9 @@ Project URL: `https://kgnryuxrxfbztfzlsyz.supabase.co`
 
 ## 1. Run the SQL migrations
 
-Open your Supabase project → **SQL Editor** → **New query**, then run the two
-migration files **in order**:
+Open your Supabase project → **SQL Editor** → **New query**, then run the
+migration files in `supabase/migrations` **in filename order**. For the admin
+verification features, ensure `0007_admin_review.sql` has also been applied:
 
 1. `supabase/migrations/0001_init_schema.sql`
    - Creates the tables `users`, `worker_profiles`, `hire_requests`,
@@ -23,6 +24,12 @@ migration files **in order**:
    - Enables Row Level Security and denies all `anon` / `authenticated` access
 2. `supabase/migrations/0002_storage.sql`
    - Creates the public `avatars` and `portfolio` Storage buckets
+3. Apply all intervening migrations (`0003_grants.sql` through
+   `0006_review_and_otp_fields.sql`) in filename order.
+4. `supabase/migrations/0007_admin_review.sql`
+   - Adds pending/approved/rejected worker verification state
+   - Creates the private `aadhaar-documents` bucket; Aadhaar images are only
+     exposed to admins through short-lived signed URLs
 
 > Both files are idempotent — you can safely re-run them.
 
@@ -210,5 +217,3 @@ The API roles have no table privileges — usually because the project was creat
 with *"Automatically expose new tables"* unchecked. Run
 `supabase/migrations/0003_grants.sql`, or simply `npm run db:migrate` (it runs
 every migration in order).
-
-

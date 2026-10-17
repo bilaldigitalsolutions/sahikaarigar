@@ -11,6 +11,7 @@ import type { HireAction, HireStatus, User } from '@/types';
 
 import { initAuth } from './auth';
 import { DEMO_MODE, requireAuthApiUrl } from './config';
+import { reportError, trackEvent } from './observability';
 import {
   addLocalReview,
   applyLocalAction,
@@ -55,7 +56,10 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     | null;
 
   if (!response.ok || !data?.ok) {
-    throw new Error((data?.message as string) || 'Request failed. Please try again.');
+    const err = new Error((data?.message as string) || 'Request failed. Please try again.');
+    // API failures go to Sentry with path + status — never PII, never bodies.
+    reportError(err, { where: 'apiFetch', path, status: response.status });
+    throw err;
   }
   return data as unknown as T;
 }
@@ -243,6 +247,7 @@ export async function registerWorker(payload: {
       user: Record<string, unknown>;
       workerProfile: ApiWorker | null;
     }>('/register-worker', { method: 'POST', body: JSON.stringify(payload) });
+    trackEvent('worker_registered', { skills: payload.profile.skills.length });
     return { user: mapUser(data.user), workerProfile: data.workerProfile };
   } catch (e) {
     if (!(e instanceof NetworkError)) throw e;
@@ -286,7 +291,9 @@ export async function createHire(payload: {
   name?: string;
 }): Promise<{ hire: ApiHire }> {
   try {
-    return await apiFetch('/hires', { method: 'POST', body: JSON.stringify(payload) });
+    const result = await apiFetch<{ hire: ApiHire }>('/hires', { method: 'POST', body: JSON.stringify(payload) });
+    trackEvent('hire_created', { proposedRate: payload.proposedRate });
+    return result;
   } catch (e) {
     if (!(e instanceof NetworkError)) throw e;
     return { hire: createLocalHire(payload) };
@@ -299,10 +306,13 @@ export async function hireAction(
   coords?: { lat?: number; lng?: number },
 ): Promise<{ hire: ApiHire }> {
   try {
-    return await apiFetch(`/hires/${encodeURIComponent(id)}`, {
+    const result = await apiFetch<{ hire: ApiHire }>(`/hires/${encodeURIComponent(id)}`, {
       method: 'PATCH',
       body: JSON.stringify({ action, ...(coords ?? {}) }),
     });
+    if (action === 'accept') trackEvent('hire_accepted');
+    if (action === 'complete') trackEvent('hire_completed');
+    return result;
   } catch (e) {
     if (!(e instanceof NetworkError)) throw e;
     const hire = getLocalHire(id);
@@ -384,7 +394,9 @@ export async function createReview(payload: {
   likes?: string[];
 }): Promise<{ review: ApiReview }> {
   try {
-    return await apiFetch('/reviews', { method: 'POST', body: JSON.stringify(payload) });
+    const result = await apiFetch<{ review: ApiReview }>('/reviews', { method: 'POST', body: JSON.stringify(payload) });
+    trackEvent('feedback_submitted', { rating: payload.rating });
+    return result;
   } catch (e) {
     if (!(e instanceof NetworkError)) throw e;
     const hire = getLocalHire(payload.hireRequestId);

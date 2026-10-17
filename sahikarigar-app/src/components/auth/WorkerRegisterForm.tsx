@@ -14,6 +14,8 @@ export interface WorkerFormData {
   hourlyRate: number;
   serviceAreas: string[];
   description: string;
+  aadhaarPhoto: File;
+  profilePhoto?: File;
 }
 
 interface WorkerRegisterFormProps {
@@ -33,6 +35,8 @@ export function WorkerRegisterForm({
   const [hourlyRate, setHourlyRate] = useState('');
   const [areas, setAreas] = useState<string[]>([]);
   const [description, setDescription] = useState('');
+  const [aadhaarPhoto, setAadhaarPhoto] = useState<File | null>(null);
+  const [profilePhoto, setProfilePhoto] = useState<File | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   function toggleSkill(id: Skill) {
@@ -71,6 +75,13 @@ export function WorkerRegisterForm({
     }
 
     if (areas.length === 0) next.areas = 'Kam se kam ek area chuno jahan kaam karoge.';
+    if (!aadhaarPhoto) next.aadhaarPhoto = 'Verification ke liye Aadhaar ki photo upload karo.';
+    if (aadhaarPhoto && aadhaarPhoto.size > 5 * 1024 * 1024) {
+      next.aadhaarPhoto = 'Aadhaar photo 5 MB se chhoti honi chahiye.';
+    }
+    if (profilePhoto && profilePhoto.size > 5 * 1024 * 1024) {
+      next.profilePhoto = 'Profile photo 5 MB se chhoti honi chahiye.';
+    }
 
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -87,6 +98,8 @@ export function WorkerRegisterForm({
       hourlyRate: Number(hourlyRate),
       serviceAreas: areas,
       description: description.trim(),
+      aadhaarPhoto: aadhaarPhoto!,
+      profilePhoto: profilePhoto ?? undefined,
     });
   }
 
@@ -200,6 +213,37 @@ export function WorkerRegisterForm({
           placeholder="Jaise: Fan, light aur wiring ka 5 saal ka tajurba."
           className="w-full bg-gray-50 border-2 border-transparent rounded-button px-4 py-3 text-body focus:border-primary-dark focus:bg-white transition-all resize-none"
         />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label htmlFor="aadhaar-photo" className="block text-body font-medium text-text-primary mb-2">
+            Aadhaar photo (sirf admin dekh sakta hai)
+          </label>
+          <input
+            id="aadhaar-photo"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={(event) => setAadhaarPhoto(event.target.files?.[0] ?? null)}
+            className="block w-full text-small text-text-secondary"
+          />
+          {aadhaarPhoto && <p className="mt-1 text-caption text-text-secondary">{aadhaarPhoto.name}</p>}
+          {errors.aadhaarPhoto && <p className="mt-1 text-small text-danger">{errors.aadhaarPhoto}</p>}
+        </div>
+        <div>
+          <label htmlFor="profile-photo" className="block text-body font-medium text-text-primary mb-2">
+            Profile photo (optional)
+          </label>
+          <input
+            id="profile-photo"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={(event) => setProfilePhoto(event.target.files?.[0] ?? null)}
+            className="block w-full text-small text-text-secondary"
+          />
+          {profilePhoto && <p className="mt-1 text-caption text-text-secondary">{profilePhoto.name}</p>}
+          {errors.profilePhoto && <p className="mt-1 text-small text-danger">{errors.profilePhoto}</p>}
+        </div>
       </div>
 
       {serverError && (

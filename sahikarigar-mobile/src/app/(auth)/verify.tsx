@@ -4,6 +4,7 @@ import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } fro
 
 import { Button, Input, Screen } from '@/components';
 import { useAuth } from '@/contexts/AuthContext';
+import { trackEvent } from '@/lib/observability';
 import { colors, fontSize, fontWeight, radius, spacing } from '@/theme';
 import { formatPhone } from '@/utils';
 
@@ -22,6 +23,7 @@ export default function VerifyScreen() {
     setError(null);
     try {
       await confirmOtp(code.trim());
+      trackEvent('user_signup');
 
       // A Hire-time login carries `next` (e.g. /hire/<workerId>) — resume the
       // exact booking the guest started instead of dropping them on Home.

@@ -21,6 +21,7 @@
     "emulate": "firebase emulators:start --only hosting"
   },
   "dependencies": {
+    "@sentry/browser": "^11.8.0",
     "@supabase/supabase-js": "^2.45.4",
     "@upstash/redis": "^1.25.0",
     "clsx": "^2.1.0",

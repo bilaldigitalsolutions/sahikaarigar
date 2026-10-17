@@ -14,9 +14,14 @@ import {
   configureNotificationHandler,
   requestNotificationPermission,
 } from '@/lib/notifications';
+import { initObservability, reportError, setObservabilityUser } from '@/lib/observability';
 import { colors, fontSize, fontWeight, spacing } from '@/theme';
 
 SplashScreen.preventAutoHideAsync();
+
+// Crash reporting boots first — every later init is wrapped so a failure lands
+// in Sentry instead of a silent blank screen.
+initObservability();
 
 // Show hire status banners even while the app is open.
 configureNotificationHandler();
@@ -38,7 +43,16 @@ function AppLoading() {
 }
 
 function RootNavigator() {
-  const { initializing } = useAuth();
+  const { initializing, user } = useAuth();
+
+  // Tag crash reports with the signed-in account (id + role only, never PII).
+  useEffect(() => {
+    try {
+      setObservabilityUser(user ? { id: user.id, role: user.role } : null);
+    } catch (e) {
+      reportError(e, { where: 'RootNavigator.setObservabilityUser' });
+    }
+  }, [user]);
 
   // Hide the native splash the first frame we can render (loading screen).
   useEffect(() => {

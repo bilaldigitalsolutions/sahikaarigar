@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 const SECTIONS: { title: string; body: string }[] = [
   {
     title: '1. Kaunsa data collect karte hain',
-    body: 'Login ke liye mobile number (OTP), aur account ke liye naam. Workers ke liye extra: skills, experience, hourly rate aur service areas. Bas itna hi - hum aapki location ya contacts access nahi karte.',
+    body: 'Login ke liye mobile number (OTP), aur account ke liye naam. Workers ke liye skills, experience, hourly rate aur service areas ke saath verification ke liye Aadhaar image aur optional profile photo collect hoti hai. Aadhaar image private storage me rakhi jaati hai aur sirf worker verification ke liye admin dekh sakte hain; yeh public profile par nahi dikhai jaati. Hum aapke contacts access nahi karte.',
   },
   {
     title: '2. Phone number privacy',
@@ -29,7 +29,7 @@ const SECTIONS: { title: string; body: string }[] = [
   },
   {
     title: '5. Security',
-    body: 'Data secure cloud database (Supabase) me store hota hai, aur worker profiles admin approval ke baad hi live hote hain.',
+    body: 'Data Supabase me store hota hai. Aadhaar images private bucket me rakhi jaati hain aur admin review ke liye temporary, expiring link se dikhai jaati hain. Worker profiles admin approval ke baad hi live hote hain.',
   },
   {
     title: '6. Aapke rights',

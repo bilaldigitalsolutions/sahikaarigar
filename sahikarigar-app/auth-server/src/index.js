@@ -25,6 +25,7 @@ import {
   updateUser,
   savePushToken,
   deleteUserAccount,
+  uploadWorkerImages,
   normalizeIndianPhone,
   isValidIndianPhone,
 } from './users.js';
@@ -37,7 +38,17 @@ import {
   listReviewsByWorker,
   getReviewByHireRequest,
 } from './reviews.js';
-import { isAdmin, listPendingWorkers, setWorkerApproval } from './admin.js';
+import {
+  getAdminStats,
+  getAdminSession,
+  loginAdmin,
+  listAdminHires,
+  listAdminUsers,
+  listAdminWorkers,
+  setAdminHireStatus,
+  setUserActive,
+  setWorkerApproval,
+} from './admin.js';
 import { notifyHireUpdate, notifyWorkerOfNewHire } from './push.js';
 
 const PORT = Number(process.env.PORT || 4000);
@@ -120,6 +131,7 @@ supertokens.init({
 });
 
 const app = express();
+app.set('trust proxy', 1);
 
 // Order matters: SuperTokens' middleware must see its own routes BEFORE the
 // JSON body parser consumes the request body.
@@ -141,12 +153,12 @@ app.use(
       }
       return callback(null, false);
     },
-    allowedHeaders: ['content-type', ...supertokens.getAllCORSHeaders()],
+    allowedHeaders: ['content-type', 'authorization', ...supertokens.getAllCORSHeaders()],
     credentials: true,
   }),
 );
 app.use(middleware());
-app.use(express.json());
+app.use(express.json({ limit: '15mb' }));
 
 app.get('/health', (_req, res) => {
   res.json({
@@ -207,7 +219,15 @@ app.post('/register-worker', async (req, res, next) => {
     const session = await Session.getSession(req, res, { sessionRequired: true });
     const { authUserId, phone } = await resolveSession(session);
     const user = await getOrCreateUserByAuthId(authUserId, phone, req.body?.name);
-    const workerProfile = await upsertWorkerProfile(user.id, req.body?.profile ?? {});
+    const profile = req.body?.profile ?? {};
+    const images = await uploadWorkerImages(user.id, {
+      aadhaarPhotoDataUrl: profile.aadhaarPhotoDataUrl,
+      profilePhotoDataUrl: profile.profilePhotoDataUrl,
+    });
+    const workerProfile = await upsertWorkerProfile(user.id, {
+      ...profile,
+      aadhaarPhotoPath: images.aadhaarPhotoPath,
+    });
     // upsertWorkerProfile promotes the row to role='worker' in the database;
     // reflect that in the response so the client can route on `user.role`
     // without waiting for the next /me round-trip.
@@ -239,7 +259,7 @@ app.delete('/account', async (req, res, next) => {
   try {
     const session = await Session.getSession(req, res, { sessionRequired: true });
     const { authUserId, phone } = await resolveSession(session);
-    const user = await getOrCreateUserByAuthId(authUserId, phone);
+    const user = await getOrCreateUserByAuthId(authUserId, phone, undefined, { allowInactive: true });
     await deleteUserAccount({ userId: user.id, authUserId });
     try {
       await Session.revokeAllSessionsForUser(authUserId);
@@ -322,7 +342,9 @@ app.post('/hires', async (req, res, next) => {
 
 app.get('/hires/:id', async (req, res, next) => {
   try {
-    await Session.getSession(req, res, { sessionRequired: true });
+    const session = await Session.getSession(req, res, { sessionRequired: true });
+    const { authUserId, phone } = await resolveSession(session);
+    await getOrCreateUserByAuthId(authUserId, phone);
     const hire = await getHireById(req.params.id);
     if (!hire) {
       res.status(404).json({ ok: false, code: 'NOT_FOUND', message: 'Hire request nahi mila' });
@@ -445,21 +467,97 @@ app.post('/feedback', async (req, res, next) => {
 // search until an admin approves it here.
 // ---------------------------------------------------------------------------
 async function requireAdmin(req, res) {
-  const session = await Session.getSession(req, res, { sessionRequired: true });
-  const { authUserId, phone } = await resolveSession(session);
-  const user = await getOrCreateUserByAuthId(authUserId, phone);
-  if (!isAdmin(user)) {
-    res.status(403).json({ ok: false, code: 'FORBIDDEN', message: 'Aap admin nahi ho' });
+  const authorization = req.get('Authorization') || '';
+  const tokenMatch = authorization.match(/^Bearer\s+(.+)$/i);
+  const admin = tokenMatch ? getAdminSession(tokenMatch[1]) : null;
+  if (!admin) {
+    res.status(401).json({
+      ok: false,
+      code: 'UNAUTHORIZED',
+      message: 'Admin email/password se login karein.',
+    });
     return null;
   }
-  return user;
+  return admin;
 }
+
+const failedAdminLogins = new Map();
+const ADMIN_LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const ADMIN_LOGIN_MAX_FAILURES = 5;
+
+app.post('/admin/login', (req, res, next) => {
+  try {
+    const clientKey = req.ip || req.socket.remoteAddress || 'unknown';
+    const now = Date.now();
+    const attempt = failedAdminLogins.get(clientKey);
+    if (attempt && now - attempt.startedAt > ADMIN_LOGIN_WINDOW_MS) {
+      failedAdminLogins.delete(clientKey);
+    }
+    const activeAttempt = failedAdminLogins.get(clientKey);
+    if (activeAttempt && activeAttempt.count >= ADMIN_LOGIN_MAX_FAILURES) {
+      res.status(429).json({
+        ok: false,
+        code: 'TOO_MANY_REQUESTS',
+        message: 'Too many failed admin login attempts. Try again in 15 minutes.',
+      });
+      return;
+    }
+    if (failedAdminLogins.size > 1000) {
+      for (const [key, value] of failedAdminLogins) {
+        if (now - value.startedAt > ADMIN_LOGIN_WINDOW_MS) failedAdminLogins.delete(key);
+      }
+    }
+
+    const email = req.body?.email;
+    const password = req.body?.password;
+    if (typeof email !== 'string' || typeof password !== 'string') {
+      res.status(400).json({
+        ok: false,
+        code: 'BAD_REQUEST',
+        message: 'Email aur password required hain.',
+      });
+      return;
+    }
+    const session = loginAdmin(email, password);
+    if (!session) {
+      const failed = failedAdminLogins.get(clientKey);
+      failedAdminLogins.set(clientKey, {
+        startedAt: failed?.startedAt ?? now,
+        count: (failed?.count ?? 0) + 1,
+      });
+      res.status(401).json({
+        ok: false,
+        code: 'UNAUTHORIZED',
+        message: 'Email ya password galat hai.',
+      });
+      return;
+    }
+    failedAdminLogins.delete(clientKey);
+    res.json({ ok: true, ...session });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/admin/session', async (req, res, next) => {
+  try {
+    const admin = await requireAdmin(req, res);
+    if (!admin) return;
+    res.json({ ok: true, admin: { email: admin.email || null, role: 'admin' } });
+  } catch (error) {
+    next(error);
+  }
+});
 
 app.get('/admin/workers', async (req, res, next) => {
   try {
     const admin = await requireAdmin(req, res);
     if (!admin) return;
-    const result = await listPendingWorkers(req.query.page, req.query.limit);
+    const result = await listAdminWorkers(
+      req.query.status || 'pending',
+      req.query.page,
+      req.query.limit,
+    );
     res.json({ ok: true, ...result });
   } catch (error) {
     next(error);
@@ -470,12 +568,83 @@ app.patch('/admin/workers/:id', async (req, res, next) => {
   try {
     const admin = await requireAdmin(req, res);
     if (!admin) return;
+    if (typeof req.body?.approved !== 'boolean') {
+      res.status(400).json({ ok: false, code: 'BAD_REQUEST', message: 'approved boolean chahiye' });
+      return;
+    }
+    if (req.body?.adminNotes !== undefined && typeof req.body.adminNotes !== 'string') {
+      res.status(400).json({ ok: false, code: 'BAD_REQUEST', message: 'adminNotes string chahiye' });
+      return;
+    }
     const worker = await setWorkerApproval(
       req.params.id,
       req.body?.approved,
       req.body?.adminNotes,
     );
     res.json({ ok: true, worker });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/admin/stats', async (req, res, next) => {
+  try {
+    const admin = await requireAdmin(req, res);
+    if (!admin) return;
+    res.json({ ok: true, stats: await getAdminStats() });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/admin/users', async (req, res, next) => {
+  try {
+    const admin = await requireAdmin(req, res);
+    if (!admin) return;
+    const result = await listAdminUsers(
+      req.query.role,
+      req.query.search,
+      req.query.page,
+      req.query.limit,
+    );
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.patch('/admin/users/:id', async (req, res, next) => {
+  try {
+    const admin = await requireAdmin(req, res);
+    if (!admin) return;
+    if (typeof req.body?.isActive !== 'boolean') {
+      res.status(400).json({ ok: false, code: 'BAD_REQUEST', message: 'isActive boolean chahiye' });
+      return;
+    }
+    const user = await setUserActive(req.params.id, req.body.isActive);
+    res.json({ ok: true, user });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/admin/hires', async (req, res, next) => {
+  try {
+    const admin = await requireAdmin(req, res);
+    if (!admin) return;
+    const result = await listAdminHires(req.query.status, req.query.page, req.query.limit);
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.patch('/admin/hires/:id', async (req, res, next) => {
+  try {
+    const admin = await requireAdmin(req, res);
+    if (!admin) return;
+    const hire = await setAdminHireStatus(req.params.id, req.body?.status);
+    res.json({ ok: true, hire });
   } catch (error) {
     next(error);
   }
@@ -498,7 +667,11 @@ app.use((error, req, res, _next) => {
     res.status(200).json({ status: 'GENERAL_ERROR', message });
     return;
   }
-  res.status(400).json({ ok: false, code: 'BAD_REQUEST', message });
+  res.status(Number(error?.statusCode) || 400).json({
+    ok: false,
+    code: Number(error?.statusCode) === 403 ? 'FORBIDDEN' : 'BAD_REQUEST',
+    message,
+  });
 });
 
 app.listen(PORT, () => {

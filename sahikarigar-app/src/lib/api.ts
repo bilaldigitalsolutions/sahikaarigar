@@ -31,6 +31,74 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return data as T;
 }
 
+const ADMIN_SESSION_KEY = 'sahikarigar-admin-session';
+
+export interface AdminSession {
+  email: string;
+  role: 'admin';
+}
+
+function getStoredAdminToken(): string | null {
+  return typeof window === 'undefined' ? null : window.sessionStorage.getItem(ADMIN_SESSION_KEY);
+}
+
+export function clearAdminSession(): void {
+  if (typeof window !== 'undefined') window.sessionStorage.removeItem(ADMIN_SESSION_KEY);
+}
+
+async function adminApiFetch<T>(
+  path: string,
+  init?: RequestInit,
+  token = getStoredAdminToken(),
+): Promise<T> {
+  if (!AUTH_API_URL) {
+    throw new Error('Auth server configure nahi hai (NEXT_PUBLIC_AUTH_API_URL).');
+  }
+  const response = await fetch(`${AUTH_API_URL}${path}`, {
+    ...init,
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(init?.headers ?? {}),
+    },
+  });
+  const data = (await response.json().catch(() => null)) as
+    | { ok?: boolean; message?: string; token?: string; admin?: AdminSession }
+    | null;
+  if (!response.ok || !data?.ok) {
+    if (response.status === 401 && token) {
+      clearAdminSession();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('sahikarigar-admin-unauthorized'));
+      }
+    }
+    throw new Error(data?.message || 'Admin request fail ho gayi. Dobara try karo.');
+  }
+  return data as T;
+}
+
+export async function adminLogin(payload: {
+  email: string;
+  password: string;
+}): Promise<{ admin: AdminSession }> {
+  const data = await adminApiFetch<{ token: string; admin: AdminSession }>(
+    '/admin/login',
+    { method: 'POST', body: JSON.stringify(payload) },
+    null,
+  );
+  window.sessionStorage.setItem(ADMIN_SESSION_KEY, data.token);
+  return { admin: data.admin };
+}
+
+export function getAdminSession(): Promise<{ admin: AdminSession }> {
+  return adminApiFetch('/admin/session');
+}
+
+export function adminLogout(): void {
+  clearAdminSession();
+}
+
 // -----------------------------------------------------------------------------
 // Types (mirror the shapes mapped in auth-server/src/*.js)
 // -----------------------------------------------------------------------------
@@ -215,10 +283,12 @@ export function getBrowserLocation(): Promise<{ lat?: number; lng?: number }> {
 }
 
 // -----------------------------------------------------------------------------
-// Admin — worker approval
+// Admin
 // -----------------------------------------------------------------------------
 
-export interface ApiPendingWorker {
+export type VerificationStatus = 'pending' | 'approved' | 'rejected';
+
+export interface ApiAdminWorker {
   id: string;
   userId: string;
   skills: string[];
@@ -228,31 +298,129 @@ export interface ApiPendingWorker {
   availability: ApiAvailability;
   serviceAreas: string[];
   isApproved: boolean;
+  verificationStatus: VerificationStatus;
   adminNotes?: string | null;
+  aadhaarPhotoUrl?: string | null;
   createdAt: string;
   user: {
     id: string;
     name: string;
     phone?: string | null;
+    avatar?: string | null;
     locationArea?: string | null;
     locationCity?: string | null;
   } | null;
 }
 
+export type ApiPendingWorker = ApiAdminWorker;
+
+export function listAdminWorkers(status: VerificationStatus, page = 1): Promise<{
+  workers: ApiAdminWorker[];
+  pagination: { total: number; page: number; pages: number; limit: number };
+}> {
+  return adminApiFetch(`/admin/workers?status=${encodeURIComponent(status)}&page=${page}`);
+}
+
 export function listPendingWorkers(): Promise<{
   workers: ApiPendingWorker[];
-  pagination: { total: number; page: number; pages: number };
+  pagination: { total: number; page: number; pages: number; limit: number };
 }> {
-  return apiFetch('/admin/workers');
+  return listAdminWorkers('pending');
 }
 
 export function setWorkerApproval(
   id: string,
   approved: boolean,
   adminNotes?: string,
-): Promise<{ worker: { id: string; isApproved: boolean; adminNotes: string | null } }> {
-  return apiFetch(`/admin/workers/${encodeURIComponent(id)}`, {
+): Promise<{
+  worker: {
+    id: string;
+    isApproved: boolean;
+    verificationStatus: VerificationStatus;
+    adminNotes: string | null;
+  };
+}> {
+  return adminApiFetch(`/admin/workers/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     body: JSON.stringify({ approved, adminNotes }),
+  });
+}
+
+export interface ApiAdminStats {
+  totalUsers: number;
+  totalHires: number;
+  pendingVerifications: number;
+}
+
+export function getAdminStats(): Promise<{ stats: ApiAdminStats }> {
+  return adminApiFetch('/admin/stats');
+}
+
+export interface ApiAdminUser {
+  id: string;
+  name: string;
+  phone: string;
+  role: 'worker' | 'employer';
+  avatar: string | null;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export function listAdminUsers(
+  role: 'worker' | 'employer',
+  search = '',
+  page = 1,
+): Promise<{
+  users: ApiAdminUser[];
+  pagination: { total: number; page: number; pages: number; limit: number };
+}> {
+  const query = new URLSearchParams({ role, page: String(page) });
+  if (search.trim()) query.set('search', search.trim());
+  return adminApiFetch(`/admin/users?${query.toString()}`);
+}
+
+export function setAdminUserActive(
+  id: string,
+  isActive: boolean,
+): Promise<{ user: { id: string; isActive: boolean } }> {
+  return adminApiFetch(`/admin/users/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ isActive }),
+  });
+}
+
+export type AdminHireStatus = HireStatus;
+
+export interface ApiAdminHire {
+  id: string;
+  employerId: string;
+  workerId: string;
+  description: string;
+  location: string;
+  proposedRate: number;
+  status: AdminHireStatus;
+  scheduledDate?: string | null;
+  completedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  employer: { id: string; name: string; phone: string | null } | null;
+  worker: { id: string; name: string; phone: string | null } | null;
+}
+
+export function listAdminHires(status = 'all', page = 1): Promise<{
+  hires: ApiAdminHire[];
+  pagination: { total: number; page: number; pages: number; limit: number };
+}> {
+  const query = new URLSearchParams({ status, page: String(page) });
+  return adminApiFetch(`/admin/hires?${query.toString()}`);
+}
+
+export function setAdminHireStatus(
+  id: string,
+  status: AdminHireStatus,
+): Promise<{ hire: { id: string; status: AdminHireStatus; updatedAt: string } }> {
+  return adminApiFetch(`/admin/hires/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
   });
 }

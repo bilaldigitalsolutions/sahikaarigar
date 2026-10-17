@@ -44,7 +44,12 @@ function asNumber(value) {
 /**
  * Find the `users` row for this SuperTokens user, creating it on first sign-in.
  */
-export async function getOrCreateUserByAuthId(authUserId, phone, name) {
+export async function getOrCreateUserByAuthId(
+  authUserId,
+  phone,
+  name,
+  { allowInactive = false } = {},
+) {
   const { data: existing, error } = await db
     .from('users')
     .select('*')
@@ -56,6 +61,11 @@ export async function getOrCreateUserByAuthId(authUserId, phone, name) {
   const cleanName = typeof name === 'string' ? name.trim() : '';
 
   if (existing) {
+    if (!existing.is_active && !allowInactive) {
+      const error = new Error('Account suspended hai. Admin se sampark karein.');
+      error.statusCode = 403;
+      throw error;
+    }
     if (cleanName.length >= 2 && cleanName !== existing.name) {
       const { data: updated, error: updateError } = await db
         .from('users')
@@ -128,6 +138,9 @@ export async function upsertWorkerProfile(userId, input = {}) {
         lat: asNumber(input.lat),
         lng: asNumber(input.lng),
         is_approved: false,
+        verification_status: 'pending',
+        admin_notes: null,
+        ...(input.aadhaarPhotoPath ? { aadhaar_photo_path: input.aadhaarPhotoPath } : {}),
         availability: 'available',
       },
       { onConflict: 'user_id' },
@@ -137,6 +150,54 @@ export async function upsertWorkerProfile(userId, input = {}) {
 
   if (error) throw new Error(error.message);
   return data;
+}
+
+function decodeImageDataUrl(value, label) {
+  if (typeof value !== 'string') return null;
+  const match = value.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
+  if (!match) throw new Error(`${label} must be a JPEG, PNG, or WebP image`);
+  const buffer = Buffer.from(match[2], 'base64');
+  if (buffer.length === 0 || buffer.length > 5 * 1024 * 1024) {
+    throw new Error(`${label} must be smaller than 5 MB`);
+  }
+  return { buffer, contentType: match[1] };
+}
+
+/** Store worker profile photos privately/publicly as appropriate. */
+export async function uploadWorkerImages(
+  userId,
+  { aadhaarPhotoDataUrl, profilePhotoDataUrl } = {},
+) {
+  const images = {};
+  const aadhaar = decodeImageDataUrl(aadhaarPhotoDataUrl, 'Aadhaar photo');
+  if (aadhaar) {
+    const path = `${userId}/aadhaar`;
+    const { error } = await db.storage.from('aadhaar-documents').upload(path, aadhaar.buffer, {
+      contentType: aadhaar.contentType,
+      upsert: true,
+    });
+    if (error) throw new Error(`Aadhaar photo upload failed: ${error.message}`);
+    images.aadhaarPhotoPath = path;
+  }
+
+  const profilePhoto = decodeImageDataUrl(profilePhotoDataUrl, 'Profile photo');
+  if (profilePhoto) {
+    const path = `${userId}/profile`;
+    const { error } = await db.storage.from('avatars').upload(path, profilePhoto.buffer, {
+      contentType: profilePhoto.contentType,
+      upsert: true,
+    });
+    if (error) throw new Error(`Profile photo upload failed: ${error.message}`);
+    const { data } = db.storage.from('avatars').getPublicUrl(path);
+    const { error: userError } = await db
+      .from('users')
+      .update({ avatar: data.publicUrl })
+      .eq('id', userId);
+    if (userError) throw new Error(userError.message);
+    images.profilePhotoUrl = data.publicUrl;
+  }
+
+  return images;
 }
 
 /**
@@ -191,23 +252,35 @@ export async function savePushToken(userId, token) {
  * Delete the signed-in user's account and everything it owns.
  * Play Store policy needs an in-app delete path; the privacy page promises it.
  *
- * Deletion order matters — child rows first, `users` last.
+ * Deletion order matters — media first, child rows next, `users` last.
  * (All FKs are `on delete cascade`, but explicit order keeps behaviour stable
  * even if a constraint is ever relaxed.)
- *   1. reviews they wrote + reviews on their worker profile
- *   2. their worker profile (cascades their hire_requests + those reviews)
- *   3. hire_requests where they are the employer (cascades reviews + platform_feedback)
- *   4. reports for/against them + their platform_feedback
- *   5. the users row itself, then the SuperTokens identity so the number
+ *   1. private Aadhaar + profile image files
+ *   2. reviews they wrote + reviews on their worker profile
+ *   3. their worker profile (cascades their hire_requests + those reviews)
+ *   4. hire_requests where they are the employer (cascades reviews + platform_feedback)
+ *   5. reports for/against them + their platform_feedback
+ *   6. the users row itself, then the SuperTokens identity so the number
  *      can never sign back into a ghost row
  */
 export async function deleteUserAccount({ userId, authUserId }) {
   const { data: workerProfile } = await db
     .from('worker_profiles')
-    .select('id')
+    .select('id, aadhaar_photo_path')
     .eq('user_id', userId)
     .maybeSingle();
   const workerProfileId = workerProfile?.id ?? null;
+
+  const storedImages = [
+    ...(workerProfile?.aadhaar_photo_path
+      ? [{ bucket: 'aadhaar-documents', path: workerProfile.aadhaar_photo_path }]
+      : []),
+    { bucket: 'avatars', path: `${userId}/profile` },
+  ];
+  for (const { bucket, path } of storedImages) {
+    const { error } = await db.storage.from(bucket).remove([path]);
+    if (error) throw new Error(`Account image cleanup failed: ${error.message}`);
+  }
 
   // Reviews they wrote (as an employer/customer).
   {

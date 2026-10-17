@@ -28,6 +28,20 @@ export default function RegisterWorkerPage() {
     setSubmitting(true);
 
     try {
+      const toDataUrl = (file: File): Promise<string> =>
+        new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            if (typeof reader.result === 'string') resolve(reader.result);
+            else reject(new Error('Photo read nahi ho payi.'));
+          };
+          reader.onerror = () => reject(new Error('Photo read nahi ho payi.'));
+          reader.readAsDataURL(file);
+        });
+      const [aadhaarPhotoDataUrl, profilePhotoDataUrl] = await Promise.all([
+        toDataUrl(data.aadhaarPhoto),
+        data.profilePhoto ? toDataUrl(data.profilePhoto) : Promise.resolve(undefined),
+      ]);
       await registerWorkerViaSuperTokens({
         name: data.name,
         profile: {
@@ -36,6 +50,8 @@ export default function RegisterWorkerPage() {
           description: data.description || undefined,
           hourlyRate: data.hourlyRate,
           serviceAreas: data.serviceAreas,
+          aadhaarPhotoDataUrl,
+          profilePhotoDataUrl,
         },
       });
 

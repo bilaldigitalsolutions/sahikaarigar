@@ -1,0 +1,2 @@
+﻿src/app/_(tabs)/_layout.tsx(5,8): error TS2304: Cannot find name 'roleChosen'.
+src/app/_(tabs)/_layout.tsx(5,20): error TS1108: A 'return' statement can only be used within a function body.

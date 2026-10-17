@@ -11,7 +11,8 @@
 // =============================================================================
 
 import supertokens from 'supertokens-node';
-import { Passwordless } from 'supertokens-node/recipe/passwordless';
+import pkg from 'supertokens-node/recipe/passwordless';
+const { Passwordless } = pkg;
 import Session from 'supertokens-node/recipe/session';
 
 import { db, getOrCreateUserByAuthId, normalizeIndianPhone } from './users.js';

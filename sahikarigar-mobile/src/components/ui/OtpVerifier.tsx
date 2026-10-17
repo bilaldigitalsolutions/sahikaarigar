@@ -125,6 +125,9 @@ export function OtpVerifier({
             autoFocus
             returnKeyType="done"
             onSubmitEditing={verify}
+            autoComplete="off"
+            textContentType="none"
+            importantForAutofill="no"
           />
 
           {devOtp && DEMO_MODE ? (

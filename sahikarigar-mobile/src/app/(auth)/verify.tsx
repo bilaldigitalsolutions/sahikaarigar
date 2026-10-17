@@ -81,6 +81,9 @@ export default function VerifyScreen() {
           autoFocus
           returnKeyType="done"
           onSubmitEditing={onVerify}
+          autoComplete="off"
+          textContentType="none"
+          importantForAutofill="no"
         />
 
         {devOtp ? (

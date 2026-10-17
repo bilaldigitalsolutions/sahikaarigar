@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { BrandLogo, Screen } from '@/components';
@@ -21,14 +21,17 @@ export default function RoleSelectionScreen() {
   const { user } = useAuth();
   const { role, roleChosen, hasWorkerProfile, setRole } = useMode();
 
-  if (!user) return <Redirect href="/(auth)/login" />;
-
   // A search intent from before login — forward it to the employer home.
   const skill = params.skill ? String(params.skill) : undefined;
   const area = params.area ? String(params.area) : undefined;
 
   const chooseEmployer = () => {
     setRole('employer');
+    if (!user) {
+      // Guest employer — browse without login.
+      router.replace('/(tabs)');
+      return;
+    }
     if (skill || area) {
       router.replace({
         pathname: '/(tabs)/search',
@@ -41,6 +44,11 @@ export default function RoleSelectionScreen() {
 
   const chooseWorker = () => {
     setRole('worker');
+    if (!user) {
+      // Workers must log in first.
+      router.replace('/(auth)/login');
+      return;
+    }
     if (hasWorkerProfile) {
       // Registration already done — straight to the kaarigar dashboard.
       router.replace('/(tabs)');

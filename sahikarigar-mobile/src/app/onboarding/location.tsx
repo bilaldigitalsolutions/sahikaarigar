@@ -35,7 +35,26 @@ export default function LocationStep() {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') { setPerm('denied'); return; }
       setPerm('granted');
-      await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      if (pos?.coords) {
+        try {
+          const rev = await Location.reverseGeocodeAsync({
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+          });
+          if (rev.length > 0) {
+            const first = rev[0];
+            const area =
+              first.street ||
+              first.city ||
+              first.region ||
+              first.name ||
+              DEF;
+            await pick(area);
+            return;
+          }
+        } catch {}
+      }
       await pick(DEF);
     } catch { await pick(DEF); } finally { setBusy(false); }
   };

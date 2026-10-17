@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import {
   Avatar,
@@ -103,6 +103,16 @@ export default function HomeScreen() {
     };
   }, []);
 
+  // Guest employer: hardware back goes to role-selection (onboarding), never to login.
+  useEffect(() => {
+    if (user) return undefined;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      router.replace('/onboarding/role' as never);
+      return true;
+    });
+    return () => sub.remove();
+  }, [user, router]);
+
   // Home shows the recently registered kaarigar (Search has its own
   // "Top Rated" filter).
   /** Recently registered kaarigar — newest signups first. */
@@ -146,7 +156,11 @@ export default function HomeScreen() {
       <View style={styles.header}>
         <View style={styles.brandRow}>
           <View style={styles.brandLeft}>
-            {router.canGoBack() ? (
+            {!user ? (
+              <Pressable onPress={() => router.replace('/onboarding/role' as never)} hitSlop={10} accessibilityLabel="Back">
+                <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
+              </Pressable>
+            ) : router.canGoBack() ? (
               <Pressable onPress={() => router.back()} hitSlop={10} accessibilityLabel="Back">
                 <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
               </Pressable>

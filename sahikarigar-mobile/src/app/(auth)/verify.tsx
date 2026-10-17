@@ -4,12 +4,14 @@ import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } fro
 
 import { Button, Input, Screen } from '@/components';
 import { useAuth } from '@/contexts/AuthContext';
+import { useMode } from '@/contexts/ModeContext';
 import { trackEvent } from '@/lib/observability';
 import { colors, fontSize, fontWeight, radius, spacing } from '@/theme';
 import { formatPhone } from '@/utils';
 
 export default function VerifyScreen() {
   const router = useRouter();
+  const { role, ready } = useMode();
   const params = useLocalSearchParams<{ skill?: string; area?: string; next?: string }>();
   const { confirmOtp, resend, busy, pendingPhone, devOtp } = useAuth();
   const [code, setCode] = useState('');
@@ -33,8 +35,13 @@ export default function VerifyScreen() {
         return;
       }
 
-      // Every login lands on the Role Selection screen ("Aap kaun hain?")
-      // first — it forwards any search intent onward after the pick.
+      // If a role was already picked (one-time onboarding), go straight to tabs.
+      // Otherwise send to role selection ("Aap kaun hain?").
+      if (ready && role) {
+        router.replace('/(tabs)');
+        return;
+      }
+
       const skill = params.skill ? String(params.skill) : undefined;
       const area = params.area ? String(params.area) : undefined;
       router.replace({
@@ -82,6 +89,8 @@ export default function VerifyScreen() {
           returnKeyType="done"
           onSubmitEditing={onVerify}
           autoComplete="off"
+          autoCapitalize="none"
+          spellCheck={false}
           textContentType="none"
           importantForAutofill="no"
         />

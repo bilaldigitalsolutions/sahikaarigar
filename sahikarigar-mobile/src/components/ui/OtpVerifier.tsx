@@ -102,6 +102,8 @@ export function OtpVerifier({
             // Block Android autofill — the OS injects the signed-in user's
             // phone number here, overriding the defaultPhone from AuthContext.
             autoComplete="off"
+            autoCapitalize="none"
+            spellCheck={false}
             textContentType="none"
             importantForAutofill="no"
           />
@@ -126,6 +128,8 @@ export function OtpVerifier({
             returnKeyType="done"
             onSubmitEditing={verify}
             autoComplete="off"
+            autoCapitalize="none"
+            spellCheck={false}
             textContentType="none"
             importantForAutofill="no"
           />

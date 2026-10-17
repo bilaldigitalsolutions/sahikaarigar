@@ -160,7 +160,7 @@ export function SearchScreen() {
       router.back();
       return;
     }
-    router.replace(user ? '/(tabs)' : '/welcome');
+    router.replace('/(tabs)');
   };
 
   const resultLabel = skill ? skillLabel(skill).toLowerCase() : 'workers';

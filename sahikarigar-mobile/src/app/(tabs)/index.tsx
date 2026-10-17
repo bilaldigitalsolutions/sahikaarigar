@@ -102,12 +102,11 @@ export default function HomeScreen() {
     };
   }, []);
 
-  // Guest employer: hardware back goes to role-selection (onboarding), never to login.
+  // Guest employer: hardware back stays on Home (never forces login/onboarding).
   useEffect(() => {
     if (user) return undefined;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      router.replace('/onboarding/role' as never);
-      return true;
+      return true; // consume the event, stay on Home
     });
     return () => sub.remove();
   }, [user, router]);
@@ -538,8 +537,8 @@ const styles = StyleSheet.create({
     height: 52,
     marginTop: spacing.lg,
     paddingHorizontal: spacing.lg,
-    borderWidth: 1.5,
-    borderColor: colors.primary,
+    borderWidth: 1,
+    borderColor: colors.border,
     borderRadius: radius.pill,
     backgroundColor: colors.white,
   },

@@ -537,6 +537,17 @@ app.use((error, req, res, _next) => {
   res.status(400).json({ ok: false, code: 'BAD_REQUEST', message });
 });
 
+// Route logger — print all registered routes on server start (debug only).
+console.log("=== REGISTERED ROUTES ===");
+app._router.stack.forEach(function(r){
+  if (r.route && r.route.path){
+    console.log(Object.keys(r.route.methods).join(', ').toUpperCase(), r.route.path);
+  } else if (r.name === 'router') {
+    console.log('Router mounted:', r.regexp);
+  }
+});
+console.log("========================");
+
 app.listen(PORT, () => {
   console.log(`\n✓ SahiKaarigar auth-server on ${API_DOMAIN}`);
   console.log(`  SMS provider : ${resolveSmsProvider()}`);

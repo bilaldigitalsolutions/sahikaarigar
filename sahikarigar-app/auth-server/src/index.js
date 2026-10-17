@@ -56,7 +56,7 @@ const PORT = Number(process.env.PORT || 4000);
 // deployment works without hand-setting API_DOMAIN.
 const API_DOMAIN =
   process.env.API_DOMAIN || process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
-const WEBSITE_DOMAIN = (process.env.WEBSITE_DOMAIN || 'http://localhost:3000').replace(/\/+$/, '');
+const WEBSITE_DOMAIN = (process.env.WEBSITE_DOMAIN || 'https://sahi-kaarigar.web.app').replace(/\/+$/, '');
 const API_BASE_PATH = process.env.API_BASE_PATH || '/auth';
 const APP_NAME = process.env.APP_NAME || 'SahiKaarigar';
 

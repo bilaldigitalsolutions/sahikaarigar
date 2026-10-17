@@ -10,7 +10,11 @@
 //   2. a phone number listed in the ADMIN_PHONES env var (comma separated).
 // =============================================================================
 
-import { db } from './users.js';
+import supertokens from 'supertokens-node';
+import { Passwordless } from 'supertokens-node/recipe/passwordless';
+import Session from 'supertokens-node/recipe/session';
+
+import { db, getOrCreateUserByAuthId, normalizeIndianPhone } from './users.js';
 
 const ADMIN_PHONES = (process.env.ADMIN_PHONES || '')
   .split(',')
@@ -86,4 +90,51 @@ export async function setWorkerApproval(workerId, approved, adminNotes) {
   if (!data) throw new Error('Worker profile nahi mila');
 
   return { id: data.id, isApproved: data.is_approved, adminNotes: data.admin_notes ?? null };
+}
+
+/** Admin login: verify OTP via SuperTokens, create session, confirm admin status. */
+export async function loginAdmin({ phone, otp, res }) {
+  const cleanPhone = normalizeIndianPhone(phone);
+
+  // Verify OTP via SuperTokens passwordless recipe.
+  const response = await Passwordless.consumeCode({
+    contactMethod: 'phone',
+    phone: cleanPhone,
+    code: otp,
+  });
+
+  const authUserId = response.user.id;
+
+  // Pull the phone from SuperTokens user record (same pattern as resolveSession).
+  const stUser = await supertokens.getUser(authUserId, {});
+  const userPhone = normalizeIndianPhone(stUser?.phoneNumbers?.[0] ?? '');
+
+  // Get-or-create the user row in our DB.
+  const user = await getOrCreateUserByAuthId(authUserId, userPhone);
+
+  if (!isAdmin(user)) {
+    throw new Error('Aap admin nahi ho');
+  }
+
+  // Create SuperTokens session so the cookie is set on the response.
+  await Session.createSession(res, authUserId, {});
+
+  return { authUserId, user };
+}
+
+/** Validate an existing session and confirm the user is an admin. */
+export async function getAdminSession(req, res) {
+  const session = await Session.getSession(req, res, { sessionRequired: true });
+  const { authUserId } = await resolveSession(session);
+
+  const stUser = await supertokens.getUser(authUserId, {});
+  const phone = normalizeIndianPhone(stUser?.phoneNumbers?.[0] ?? '');
+
+  const user = await getOrCreateUserByAuthId(authUserId, phone);
+
+  if (!isAdmin(user)) {
+    throw new Error('Aap admin nahi ho');
+  }
+
+  return user;
 }

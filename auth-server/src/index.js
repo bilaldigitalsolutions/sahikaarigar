@@ -39,7 +39,7 @@ import {
   getReviewByHireRequest,
 } from './reviews.js';
 import { createReport } from './reports.js';
-import { isAdmin, listPendingWorkers, setWorkerApproval } from './admin.js';
+import { isAdmin, listPendingWorkers, setWorkerApproval, loginAdmin, getAdminSession } from './admin.js';
 import { notifyHireUpdate, notifyWorkerOfNewHire } from './push.js';
 
 const PORT = Number(process.env.PORT || 4000);
@@ -468,6 +468,31 @@ app.post('/feedback', async (req, res, next) => {
     next(error);
   }
 });
+
+// ---------------------------------------------------------------------------
+// Admin login / session.
+// ---------------------------------------------------------------------------
+
+app.post('/admin/login', async (req, res, next) => {
+  try {
+    const { phone, otp } = req.body;
+    const result = await loginAdmin({ phone, otp, res });
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/admin/session', async (req, res, next) => {
+  try {
+    const user = await getAdminSession(req, res);
+    res.json({ ok: true, user, isAdmin: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
 // Admin — worker approval. New profiles start unapproved, so nothing appears in

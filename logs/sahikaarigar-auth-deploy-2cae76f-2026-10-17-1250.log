@@ -1,0 +1,82 @@
+2026-10-17T07:20:48.145991924Z ==> Downloading cache...
+2026-10-17T07:20:48.172704Z ==> Cloning from https://github.com/bilaldigitalsolutions/sahikaarigar
+2026-10-17T07:20:53.063008595Z ==> Checking out commit 2cae76fdd9ebdb96c95e466aae37b16dfeff7cc9 in branch main
+2026-10-17T07:20:55.079899228Z ==> Downloaded 39MB in 5s. Extraction took 2s.
+2026-10-17T07:20:56.399515807Z ==> Requesting Node.js version 22
+2026-10-17T07:20:56.501376642Z ==> Using Node.js version 22.23.3 via environment variable NODE_VERSION
+2026-10-17T07:20:56.501392946Z ==> Docs on specifying a Node.js version: https://render.com/docs/node-version
+2026-10-17T07:20:56.501529175Z ==> Installing Node.js version 22.23.3...
+2026-10-17T07:20:57.502852496Z ==> Running build command 'npm install'...
+2026-10-17T07:20:58.236090274Z 
+2026-10-17T07:20:58.236105074Z up to date, audited 165 packages in 673ms
+2026-10-17T07:20:58.23611048Z 
+2026-10-17T07:20:58.236149128Z 32 packages are looking for funding
+2026-10-17T07:20:58.236161157Z   run `npm fund` for details
+2026-10-17T07:20:58.241511282Z 
+2026-10-17T07:20:58.241517125Z 2 high severity vulnerabilities
+2026-10-17T07:20:58.241518496Z 
+2026-10-17T07:20:58.241520081Z To address all issues (including breaking changes), run:
+2026-10-17T07:20:58.241521642Z   npm audit fix --force
+2026-10-17T07:20:58.241522851Z 
+2026-10-17T07:20:58.241524162Z Run `npm audit` for details.
+2026-10-17T07:20:59.452616237Z ==> Uploading build...
+2026-10-17T07:21:05.003476448Z ==> Uploaded in 4.0s. Compression took 1.5s
+2026-10-17T07:21:05.006241188Z ==> Build successful 🎉
+2026-10-17T07:21:06.851351845Z ==> Deploying...
+2026-10-17T07:21:07.095107536Z ==> Setting WEB_CONCURRENCY=1 by default, based on available CPUs in the instance
+2026-10-17T07:21:19.383264467Z ==> Running 'npm start'
+2026-10-17T07:21:20.784458915Z 
+2026-10-17T07:21:20.784490126Z > sahikaarigar-auth-server@1.0.0 start
+2026-10-17T07:21:20.784496246Z > node src/index.js
+2026-10-17T07:21:20.784498876Z 
+2026-10-17T07:21:28.394481922Z === REGISTERED ROUTES ===
+2026-10-17T07:21:28.394770148Z GET /health
+2026-10-17T07:21:28.394793278Z GET /me
+2026-10-17T07:21:28.394959432Z POST /me/push-token
+2026-10-17T07:21:28.395000823Z POST /register-worker
+2026-10-17T07:21:28.395691618Z POST /profile
+2026-10-17T07:21:28.395700918Z DELETE /account
+2026-10-17T07:21:28.395703768Z GET /workers
+2026-10-17T07:21:28.395706088Z GET /workers/:id
+2026-10-17T07:21:28.395708338Z GET /hires
+2026-10-17T07:21:28.395710508Z POST /hires
+2026-10-17T07:21:28.395712688Z GET /hires/:id
+2026-10-17T07:21:28.395715018Z PATCH /hires/:id
+2026-10-17T07:21:28.395717848Z GET /worker/dashboard
+2026-10-17T07:21:28.395720828Z PATCH /worker/availability
+2026-10-17T07:21:28.395723018Z POST /reviews
+2026-10-17T07:21:28.395725198Z POST /reports
+2026-10-17T07:21:28.395727449Z POST /feedback
+2026-10-17T07:21:28.395729709Z GET /admin/workers
+2026-10-17T07:21:28.395736409Z PATCH /admin/workers/:id
+2026-10-17T07:21:28.395739099Z ========================
+2026-10-17T07:21:28.397928726Z 
+2026-10-17T07:21:28.397939576Z ✓ SahiKaarigar auth-server on https://sahikaarigar-auth.onrender.com
+2026-10-17T07:21:28.398131341Z [sms] SMS_PROVIDER="fast2sms" is set but FAST2SMS_API_KEY is missing — falling back to "console" (OTP goes to the logs). Add the key in the host dashboard to switch to real SMS.
+2026-10-17T07:21:28.399458449Z   SMS provider : console
+2026-10-17T07:21:28.399472729Z   Core         : https://st-dev-271164e0-c128-11f1-b480-73f00f77afdd.aws.supertokens.io
+2026-10-17T07:21:28.39948339Z   CORS origin  : https://sahi-kaarigar.web.app
+2026-10-17T07:21:28.39948868Z 
+2026-10-17T07:21:36.885368573Z [sms] SMS_PROVIDER="fast2sms" is set but FAST2SMS_API_KEY is missing — falling back to "console" (OTP goes to the logs). Add the key in the host dashboard to switch to real SMS.
+2026-10-17T07:21:36.890391611Z [sms] SMS_PROVIDER="fast2sms" is set but FAST2SMS_API_KEY is missing — falling back to "console" (OTP goes to the logs). Add the key in the host dashboard to switch to real SMS.
+2026-10-17T07:21:38.08120299Z ==> Your service is live 🎉
+2026-10-17T07:21:38.289875946Z ==> 
+2026-10-17T07:21:38.29267491Z ==> ///////////////////////////////////////////////////////////
+2026-10-17T07:21:38.295490884Z ==> 
+2026-10-17T07:21:38.299109979Z ==> Available at your primary URL https://sahikaarigar-auth.onrender.com
+2026-10-17T07:21:38.301585655Z ==> 
+2026-10-17T07:21:38.304097481Z ==> ///////////////////////////////////////////////////////////
+2026-10-17T07:21:41.891061589Z [sms] SMS_PROVIDER="fast2sms" is set but FAST2SMS_API_KEY is missing — falling back to "console" (OTP goes to the logs). Add the key in the host dashboard to switch to real SMS.
+2026-10-17T07:21:46.891233916Z [sms] SMS_PROVIDER="fast2sms" is set but FAST2SMS_API_KEY is missing — falling back to "console" (OTP goes to the logs). Add the key in the host dashboard to switch to real SMS.
+2026-10-17T07:21:51.892818004Z [sms] SMS_PROVIDER="fast2sms" is set but FAST2SMS_API_KEY is missing — falling back to "console" (OTP goes to the logs). Add the key in the host dashboard to switch to real SMS.
+2026-10-17T07:21:56.891358605Z [sms] SMS_PROVIDER="fast2sms" is set but FAST2SMS_API_KEY is missing — falling back to "console" (OTP goes to the logs). Add the key in the host dashboard to switch to real SMS.
+2026-10-17T07:22:01.891993951Z [sms] SMS_PROVIDER="fast2sms" is set but FAST2SMS_API_KEY is missing — falling back to "console" (OTP goes to the logs). Add the key in the host dashboard to switch to real SMS.
+2026-10-17T07:22:06.834247477Z [sms] SMS_PROVIDER="fast2sms" is set but FAST2SMS_API_KEY is missing — falling back to "console" (OTP goes to the logs). Add the key in the host dashboard to switch to real SMS.
+2026-10-17T07:22:06.891968823Z [sms] SMS_PROVIDER="fast2sms" is set but FAST2SMS_API_KEY is missing — falling back to "console" (OTP goes to the logs). Add the key in the host dashboard to switch to real SMS.
+2026-10-17T07:22:11.890734388Z [sms] SMS_PROVIDER="fast2sms" is set but FAST2SMS_API_KEY is missing — falling back to "console" (OTP goes to the logs). Add the key in the host dashboard to switch to real SMS.
+2026-10-17T07:22:16.891535097Z [sms] SMS_PROVIDER="fast2sms" is set but FAST2SMS_API_KEY is missing — falling back to "console" (OTP goes to the logs). Add the key in the host dashboard to switch to real SMS.
+2026-10-17T07:22:21.890595679Z [sms] SMS_PROVIDER="fast2sms" is set but FAST2SMS_API_KEY is missing — falling back to "console" (OTP goes to the logs). Add the key in the host dashboard to switch to real SMS.
+2026-10-17T07:22:26.892339828Z [sms] SMS_PROVIDER="fast2sms" is set but FAST2SMS_API_KEY is missing — falling back to "console" (OTP goes to the logs). Add the key in the host dashboard to switch to real SMS.
+2026-10-17T07:22:31.894697089Z [sms] SMS_PROVIDER="fast2sms" is set but FAST2SMS_API_KEY is missing — falling back to "console" (OTP goes to the logs). Add the key in the host dashboard to switch to real SMS.
+2026-10-17T07:22:36.832240002Z [sms] SMS_PROVIDER="fast2sms" is set but FAST2SMS_API_KEY is missing — falling back to "console" (OTP goes to the logs). Add the key in the host dashboard to switch to real SMS.
+2026-10-17T07:22:36.891513871Z [sms] SMS_PROVIDER="fast2sms" is set but FAST2SMS_API_KEY is missing — falling back to "console" (OTP goes to the logs). Add the key in the host dashboard to switch to real SMS.

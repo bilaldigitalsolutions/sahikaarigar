@@ -1,5 +1,5 @@
 /** @type {import('next').NextConfig} */
-const isStaticExport = process.env.STATIC_EXPORT === '1';
+const isStaticExport = true;
 
 const supabaseHost = process.env.NEXT_PUBLIC_SUPABASE_URL
   ? process.env.NEXT_PUBLIC_SUPABASE_URL.replace(/^https?:\/\//, '')

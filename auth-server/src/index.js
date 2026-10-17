@@ -15,8 +15,7 @@ import * as Sentry from '@sentry/node';
 import express from 'express';
 import cors from 'cors';
 import supertokens from 'supertokens-node';
-import pkg from 'supertokens-node/recipe/passwordless';
-const { Passwordless } = pkg;
+import Passwordless from 'supertokens-node/recipe/passwordless';
 import Session from 'supertokens-node/recipe/session';
 import { middleware, errorHandler } from 'supertokens-node/framework/express';
 

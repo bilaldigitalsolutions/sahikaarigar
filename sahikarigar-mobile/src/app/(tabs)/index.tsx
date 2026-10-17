@@ -8,7 +8,6 @@ import {
   BrandLogo,
   HireCard,
   LocationPicker,
-  ModeSwitch,
   Rating,
   Screen,
   type PlaceResult,
@@ -190,9 +189,6 @@ export default function HomeScreen() {
           </Text>
         </Pressable>
       </View>
-
-      {/* Uber-style mode switch — only visible to accounts with a worker profile. */}
-      <ModeSwitch style={styles.modeSwitch} />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.body}>
         <Pressable style={styles.mapBar} onPress={() => router.push('/map')}>
@@ -522,7 +518,6 @@ const styles = StyleSheet.create({
     marginTop: 2,
     textAlign: 'center',
   },
-  modeSwitch: { marginTop: spacing.md, marginHorizontal: spacing.lg },
   brandRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   brandLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   logoMark: {

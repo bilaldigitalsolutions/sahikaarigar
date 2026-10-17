@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Alert, Linking, Pressable, StyleSheet, Switch, Text, View, Modal } from 'react-native';
+import { Alert, Linking, Pressable, StyleSheet, Text, View, Modal } from 'react-native';
 
 import { Avatar, Badge, Button, Card, Screen } from '@/components';
 import { LEGAL_URLS, areaLabel } from '@/constants';
@@ -21,7 +21,7 @@ const ROLE_LABEL: Record<string, string> = {
 export default function ProfileScreen() {
   const router = useRouter();
   const { user, signOut } = useAuth();
-  const { mode, canSwitch, setMode, role } = useMode();
+  const { role } = useMode();
   const [savedArea, setSavedArea] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
 
@@ -56,13 +56,6 @@ export default function ProfileScreen() {
       </Screen>
     );
   }
-
-  const onToggleMode = (next: boolean) => {
-    setMode(next ? 'worker' : 'customer');
-    // Land on the Home tab — its content follows the new mode (kaarigar
-    // dashboard vs employer browse).
-    router.replace('/(tabs)');
-  };
 
   const onSignOut = async () => {
     await signOut();
@@ -124,46 +117,10 @@ export default function ProfileScreen() {
         <InfoRow icon="star-outline" label="Trust Score" value={String(user.trustScore ?? 0)} />
       </Card>
 
-      {canSwitch ? (
-        <Card style={styles.switchCard}>
-          <View style={styles.switchRow}>
-            <View style={styles.switchInfo}>
-              <Text style={styles.switchTitle}>
-                {mode === 'worker' ? 'Switch to Customer Mode' : 'Switch to Worker Mode'}
-              </Text>
-              <Text style={styles.switchSubtitle}>
-                {mode === 'worker'
-                  ? 'Hire workers for your own jobs.'
-                  : 'Receive and manage job requests.'}
-              </Text>
-            </View>
-            <Switch
-              value={mode === 'worker'}
-              onValueChange={onToggleMode}
-              trackColor={{ false: colors.border, true: colors.primary }}
-              thumbColor={colors.white}
-            />
-          </View>
-        </Card>
-      ) : null}
+      
 
-      <Card style={styles.card}>
-        <Pressable
-          style={styles.changeRoleRow}
-          onPress={() => router.push('/onboarding/role' as never)}
-          accessibilityRole="button"
-        >
-          <View style={styles.changeRoleInfo}>
-            <Text style={styles.ctaTitle}>
-              Change Role — {role === 'worker' ? 'Kaarigar' : 'Employer'}
-            </Text>
-            <Text style={styles.ctaText}>
-              Aap kaun hain? screen se dobara chuno.{savedArea ? ` Saved area: ${savedArea}.` : ''}
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
-        </Pressable>
-      </Card>
+
+
 
       {user.role === 'employer' ? (
         <Card style={styles.card}>
@@ -325,19 +282,6 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   card: { marginBottom: spacing.lg },
-  switchCard: { marginBottom: spacing.lg, padding: spacing.lg },
-  switchRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  switchInfo: { flex: 1 },
-  switchTitle: {
-    fontSize: fontSize.body,
-    fontWeight: fontWeight.semibold,
-    color: colors.textPrimary,
-  },
-  switchSubtitle: {
-    fontSize: fontSize.caption,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
   row: { flexDirection: 'row', alignItems: 'center' },
   info: { marginLeft: spacing.lg, flex: 1 },
   name: { fontSize: fontSize.title, fontWeight: fontWeight.semibold, color: colors.textPrimary },
@@ -354,8 +298,6 @@ const styles = StyleSheet.create({
   ctaTitle: { fontSize: fontSize.body, fontWeight: fontWeight.semibold, color: colors.textPrimary },
   ctaText: { fontSize: fontSize.caption, color: colors.textSecondary, marginTop: spacing.xs },
   ctaBtn: { marginTop: spacing.md },
-  changeRoleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  changeRoleInfo: { flex: 1 },
   signOut: { marginTop: spacing.sm },
   legalNote: {
     fontSize: fontSize.caption,

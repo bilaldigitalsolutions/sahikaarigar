@@ -475,8 +475,8 @@ app.post('/feedback', async (req, res, next) => {
 
 app.post('/admin/login', async (req, res, next) => {
   try {
-    const { phone, otp } = req.body;
-    const result = await loginAdmin({ phone, otp, res });
+    const { email, password } = req.body;
+    const result = await loginAdmin({ email, password, res });
     res.json(result);
   } catch (error) {
     next(error);

@@ -11,7 +11,7 @@
 // =============================================================================
 
 import supertokens from 'supertokens-node';
-import Passwordless from 'supertokens-node/recipe/passwordless';
+import EmailPassword from 'supertokens-node/recipe/emailpassword';
 import Session from 'supertokens-node/recipe/session';
 
 import { db, getOrCreateUserByAuthId, normalizeIndianPhone } from './users.js';
@@ -20,6 +20,8 @@ const ADMIN_PHONES = (process.env.ADMIN_PHONES || '')
   .split(',')
   .map((value) => value.replace(/\D/g, ''))
   .filter(Boolean);
+
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || '';
 
 export function isAdmin(user) {
   if (!user) return false;
@@ -92,34 +94,25 @@ export async function setWorkerApproval(workerId, approved, adminNotes) {
   return { id: data.id, isApproved: data.is_approved, adminNotes: data.admin_notes ?? null };
 }
 
-/** Admin login: verify OTP via SuperTokens, create session, confirm admin status. */
-export async function loginAdmin({ phone, otp, res }) {
-  const cleanPhone = normalizeIndianPhone(phone);
+/** Admin login: verify email+password via SuperTokens EmailPassword recipe, create session, confirm admin status. */
+export async function loginAdmin({ email, password, res }) {
+  const response = await EmailPassword.signIn("public", email, password);
 
-  // Verify OTP via SuperTokens passwordless recipe.
-  const response = await Passwordless.consumeCode({
-    contactMethod: 'phone',
-    phone: cleanPhone,
-    code: otp,
-  });
+  if (response.status !== "OK") {
+    return { status: "WRONG_CREDENTIALS_ERROR" };
+  }
 
   const authUserId = response.user.id;
 
-  // Pull the phone from SuperTokens user record (same pattern as resolveSession).
-  const stUser = await supertokens.getUser(authUserId, {});
-  const userPhone = normalizeIndianPhone(stUser?.phoneNumbers?.[0] ?? '');
-
-  // Get-or-create the user row in our DB.
-  const user = await getOrCreateUserByAuthId(authUserId, userPhone);
-
-  if (!isAdmin(user)) {
+  // Match with ADMIN_EMAIL env var just to be safe.
+  if (ADMIN_EMAIL && email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
     throw new Error('Aap admin nahi ho');
   }
 
   // Create SuperTokens session so the cookie is set on the response.
   await Session.createSession(res, authUserId, {});
 
-  return { authUserId, user };
+  return { authUserId, user: response.user };
 }
 
 /** Validate an existing session and confirm the user is an admin. */

@@ -11,6 +11,7 @@
 // =============================================================================
 
 import 'dotenv/config';
+import * as Sentry from '@sentry/node';
 import express from 'express';
 import cors from 'cors';
 import supertokens from 'supertokens-node';
@@ -37,6 +38,7 @@ import {
   listReviewsByWorker,
   getReviewByHireRequest,
 } from './reviews.js';
+import { createReport } from './reports.js';
 import { isAdmin, listPendingWorkers, setWorkerApproval } from './admin.js';
 import { notifyHireUpdate, notifyWorkerOfNewHire } from './push.js';
 
@@ -48,6 +50,15 @@ const API_DOMAIN =
 const WEBSITE_DOMAIN = (process.env.WEBSITE_DOMAIN || 'http://localhost:3000').replace(/\/+$/, '');
 const API_BASE_PATH = process.env.API_BASE_PATH || '/auth';
 const APP_NAME = process.env.APP_NAME || 'SahiKaarigar';
+
+// Sentry error tracking — optional; only active when SENTRY_DSN is set.
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV || 'production',
+    tracesSampleRate: 0.1,
+  });
+}
 
 if (!process.env.SUPERTOKENS_CONNECTION_URI) {
   console.error('✗ SUPERTOKENS_CONNECTION_URI is not set — see .env.example');
@@ -421,6 +432,26 @@ app.post('/reviews', async (req, res, next) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// Reports — lets any logged-in user report another user (Group 3).
+// ---------------------------------------------------------------------------
+app.post('/reports', async (req, res, next) => {
+  try {
+    const session = await Session.getSession(req, res, { sessionRequired: true });
+    const { authUserId, phone } = await resolveSession(session);
+    const user = await getOrCreateUserByAuthId(authUserId, phone);
+    const report = await createReport({
+      reporter_id: user.id,
+      reported_id: req.body?.reported_id,
+      reason: req.body?.reason,
+      description: req.body?.description,
+    });
+    res.json({ ok: true, report });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.post('/feedback', async (req, res, next) => {
   try {
     const session = await Session.getSession(req, res, { sessionRequired: true });
@@ -490,6 +521,13 @@ app.use(errorHandler());
 app.use((error, req, res, _next) => {
   const message = error instanceof Error ? error.message : 'Unexpected error';
   console.error('auth-server error:', message);
+  // Report the error to Sentry with request context (route + method only —
+  // no bodies or auth headers, so no PII leaks).
+  Sentry.withScope((scope) => {
+    scope.setTag('route', req.path);
+    scope.setTag('method', req.method);
+    Sentry.captureException(error);
+  });
   if (res.headersSent) return;
 
   if (req.path.startsWith(API_BASE_PATH)) {

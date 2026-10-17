@@ -10,11 +10,9 @@
 //   2. a phone number listed in the ADMIN_PHONES env var (comma separated).
 // =============================================================================
 
-import supertokens from 'supertokens-node';
-import EmailPassword from 'supertokens-node/recipe/emailpassword';
-import Session from 'supertokens-node/recipe/session';
+import jwt from 'jsonwebtoken';
 
-import { db, getOrCreateUserByAuthId, normalizeIndianPhone } from './users.js';
+import { db } from './users.js';
 
 const ADMIN_PHONES = (process.env.ADMIN_PHONES || '')
   .split(',')
@@ -22,6 +20,8 @@ const ADMIN_PHONES = (process.env.ADMIN_PHONES || '')
   .filter(Boolean);
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || '';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
+const ADMIN_SESSION_SECRET = process.env.ADMIN_SESSION_SECRET || 'change-me-in-production';
 
 export function isAdmin(user) {
   if (!user) return false;
@@ -94,40 +94,38 @@ export async function setWorkerApproval(workerId, approved, adminNotes) {
   return { id: data.id, isApproved: data.is_approved, adminNotes: data.admin_notes ?? null };
 }
 
-/** Admin login: verify email+password via SuperTokens EmailPassword recipe, create session, confirm admin status. */
-export async function loginAdmin({ email, password, res }) {
-  const response = await EmailPassword.signIn("public", email, password);
+/** Admin login: verify email+password against env vars, return a JWT token. */
+export async function loginAdmin({ email, password }) {
+  const adminEmail = process.env.ADMIN_EMAIL;
+  const adminPassword = process.env.ADMIN_PASSWORD;
 
-  if (response.status !== "OK") {
+  if (!adminEmail || !adminPassword) {
+    throw new Error('ADMIN_EMAIL / ADMIN_PASSWORD not configured on server');
+  }
+
+  if (email !== adminEmail || password !== adminPassword) {
     return { status: "WRONG_CREDENTIALS_ERROR" };
   }
 
-  const authUserId = response.user.id;
+  const token = jwt.sign({ role: 'admin', email }, ADMIN_SESSION_SECRET, {
+    expiresIn: '4h',
+  });
 
-  // Match with ADMIN_EMAIL env var just to be safe.
-  if (ADMIN_EMAIL && email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
-    throw new Error('Aap admin nahi ho');
-  }
-
-  // Create SuperTokens session so the cookie is set on the response.
-  await Session.createSession(res, authUserId, {});
-
-  return { authUserId, user: response.user };
+  return { status: "OK", token };
 }
 
-/** Validate an existing session and confirm the user is an admin. */
-export async function getAdminSession(req, res) {
-  const session = await Session.getSession(req, res, { sessionRequired: true });
-  const { authUserId } = await resolveSession(session);
-
-  const stUser = await supertokens.getUser(authUserId, {});
-  const phone = normalizeIndianPhone(stUser?.phoneNumbers?.[0] ?? '');
-
-  const user = await getOrCreateUserByAuthId(authUserId, phone);
-
-  if (!isAdmin(user)) {
-    throw new Error('Aap admin nahi ho');
+/** Validate an existing JWT Bearer token and confirm the user is an admin. */
+export async function getAdminSession(req) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    throw new Error('Unauthorized');
   }
 
-  return user;
+  const token = authHeader.split(' ')[1];
+  try {
+    const decoded = jwt.verify(token, ADMIN_SESSION_SECRET);
+    return { status: "OK", user: decoded };
+  } catch (e) {
+    throw new Error('Unauthorized');
+  }
 }

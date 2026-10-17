@@ -476,7 +476,7 @@ app.post('/feedback', async (req, res, next) => {
 app.post('/admin/login', async (req, res, next) => {
   try {
     const { email, password } = req.body;
-    const result = await loginAdmin({ email, password, res });
+    const result = await loginAdmin({ email, password });
     res.json(result);
   } catch (error) {
     next(error);
@@ -485,7 +485,7 @@ app.post('/admin/login', async (req, res, next) => {
 
 app.get('/admin/session', async (req, res, next) => {
   try {
-    const user = await getAdminSession(req, res);
+    const user = await getAdminSession(req);
     res.json({ ok: true, user, isAdmin: true });
   } catch (error) {
     next(error);

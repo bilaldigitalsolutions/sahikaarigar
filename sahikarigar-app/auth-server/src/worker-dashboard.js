@@ -17,7 +17,7 @@ import { mapHire, HIRE_SELECT } from './hires.js';
 
 /** Same projection the public worker endpoints use (includes the owner's user row). */
 const WORKER_WITH_USER =
-  '*, user:users(id, name, avatar, phone, location_area, location_city, is_verified, trust_score)';
+  '*, user:users!user_id(id, name, avatar, phone, location_area, location_city, is_verified, trust_score)';
 
 /** Values allowed by the `worker_profiles_availability` check constraint. */
 const AVAILABILITY_VALUES = ['available', 'busy', 'offline'];

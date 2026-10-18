@@ -11,7 +11,7 @@ import { db } from './users.js';
 /** Everything the public is allowed to see about a worker (phone is included
  *  only because the caller decides whether to expose it). */
 const WORKER_WITH_USER =
-  '*, user:users(id, name, avatar, phone, location_area, location_city, is_verified, trust_score)';
+  '*, user:users!user_id(id, name, avatar, phone, location_area, location_city, is_verified, trust_score)';
 
 function mapPublicUser(row) {
   if (!row) return null;

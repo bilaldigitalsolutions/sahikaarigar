@@ -18,7 +18,7 @@ export const HIRE_SELECT =
   'en_route_at, arrived_at, worker_lat, worker_lng, start_otp, ' +
   'employer:users(id, name, phone, avatar, location_area, location_city), ' +
   'worker:worker_profiles(id, user_id, skills, hourly_rate, rating_average, ' +
-  'rating_count, availability, user:users(id, name, avatar, phone, location_area, location_city))';
+  'rating_count, availability, user:users!user_id(id, name, avatar, phone, location_area, location_city))';
 
 /** Statuses from which a job can still be completed / cancelled. */
 const TRACKABLE = ['accepted', 'en_route', 'arrived'];

@@ -119,7 +119,7 @@ export async function listAdminWorkers(status = 'pending', page = 1, limit = 50)
 
   const { data, error, count } = await db
     .from('worker_profiles')
-    .select('*, user:users(id, name, phone, avatar, location_area, location_city)', { count: 'exact' })
+    .select('*, user:users!user_id(id, name, phone, avatar, location_area, location_city)', { count: 'exact' })
     .eq('verification_status', status)
     .order('created_at', { ascending: false })
     .range(from, from + safeLimit - 1);
@@ -238,7 +238,7 @@ export async function setUserActive(userId, isActive) {
 const ADMIN_HIRE_SELECT =
   'id, employer_id, worker_id, description, location, proposed_rate, status, scheduled_date, ' +
   'completed_at, created_at, updated_at, employer:users(id, name, phone), ' +
-  'worker:worker_profiles(id, user:users(id, name, phone))';
+  'worker:worker_profiles(id, user:users!user_id(id, name, phone))';
 const HIRE_STATUSES = ['pending', 'accepted', 'rejected', 'completed', 'cancelled', 'en_route', 'arrived'];
 
 export async function listAdminHires(status, page = 1, limit = 50) {

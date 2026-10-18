@@ -175,31 +175,38 @@ export async function setWorkerApproval(workerId, approved, adminNotes) {
 }
 
 export async function getAdminStats() {
-  const [users, hires, pending] = await Promise.all([
+  const [users, hires, pending, active] = await Promise.all([
     db.from('users').select('id', { count: 'exact', head: true }),
     db.from('hire_requests').select('id', { count: 'exact', head: true }),
     db.from('worker_profiles').select('id', { count: 'exact', head: true })
       .eq('verification_status', 'pending'),
+    db.from('worker_profiles').select('id', { count: 'exact', head: true })
+      .eq('is_approved', true),
   ]);
-  for (const result of [users, hires, pending]) {
+  for (const result of [users, hires, pending, active]) {
     if (result.error) throw new Error(result.error.message);
   }
   return {
     totalUsers: users.count ?? 0,
     totalHires: hires.count ?? 0,
     pendingVerifications: pending.count ?? 0,
+    activeWorkers: active.count ?? 0,
   };
 }
 
 export async function listAdminUsers(role, search = '', page = 1, limit = 50) {
-  if (!['employer', 'worker'].includes(role)) throw new Error('Invalid user role');
+  const normalizedRole = typeof role === 'string' ? role.trim().toLowerCase() : '';
+  const filterByRole = ['employer', 'worker'].includes(normalizedRole);
+  if (normalizedRole && normalizedRole !== 'all' && !filterByRole) {
+    throw new Error('Invalid user role');
+  }
   const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 100);
   const safePage = Math.max(Number(page) || 1, 1);
   let query = db.from('users')
     .select('id, name, phone, role, avatar, is_active, created_at', { count: 'exact' })
-    .eq('role', role)
     .order('created_at', { ascending: false })
     .range((safePage - 1) * safeLimit, safePage * safeLimit - 1);
+  if (filterByRole) query = query.eq('role', normalizedRole);
   const term = String(search).trim().slice(0, 100).replace(/[%_,()."\\]/g, '');
   if (term) query = query.or(`name.ilike.%${term}%,phone.ilike.%${term}%`);
   const { data, error, count } = await query;

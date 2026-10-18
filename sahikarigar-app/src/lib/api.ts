@@ -354,6 +354,7 @@ export interface ApiAdminStats {
   totalUsers: number;
   totalHires: number;
   pendingVerifications: number;
+  activeWorkers?: number;
 }
 
 export function getAdminStats(): Promise<{ stats: ApiAdminStats }> {

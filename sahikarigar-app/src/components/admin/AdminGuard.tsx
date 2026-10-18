@@ -16,7 +16,11 @@ function AdminLogin({ onLogin }: { onLogin: () => void }) {
     setLoading(true);
 
     try {
-      const res = await fetch(`https://sahikaarigar-auth.onrender.com/admin/login`, {
+      const API_URL = (process.env.NEXT_PUBLIC_AUTH_API_URL ?? '').replace(/\/+$/, '');
+      if (!API_URL) {
+        throw new Error('Auth server configure nahi hai (NEXT_PUBLIC_AUTH_API_URL).');
+      }
+      const res = await fetch(`${API_URL}/admin/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),

@@ -466,10 +466,14 @@ app.post('/feedback', async (req, res, next) => {
 // Admin — worker approval. New profiles start unapproved, so nothing appears in
 // search until an admin approves it here.
 // ---------------------------------------------------------------------------
+// JWT-style HMAC admin session — applied to EVERY /admin/* route except
+// POST /admin/login (public). Reads `Authorization: Bearer <token>`, trims
+// stray whitespace (some fetch wrappers add it) and 401s when missing/invalid.
 async function requireAdmin(req, res) {
-  const authorization = req.get('Authorization') || '';
+  const authorization = req.get('Authorization') || req.get('authorization') || '';
   const tokenMatch = authorization.match(/^Bearer\s+(.+)$/i);
-  const admin = tokenMatch ? getAdminSession(tokenMatch[1]) : null;
+  const token = tokenMatch ? tokenMatch[1].trim() : '';
+  const admin = token ? getAdminSession(token) : null;
   if (!admin) {
     res.status(401).json({
       ok: false,

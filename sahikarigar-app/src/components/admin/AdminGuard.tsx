@@ -3,19 +3,9 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { LogOut, ShieldCheck } from 'lucide-react';
 import { Button, Card } from '@/components/ui';
-import {
-  adminLogin,
-  adminLogout,
-  getAdminSession,
-  getAdminToken,
-  type AdminSession,
-} from '@/lib/api';
+import { adminLogin, adminLogout, getAdminToken } from '@/lib/api';
 
-function AdminLogin({
-  onLogin,
-}: {
-  onLogin: (session: AdminSession) => void;
-}) {
+function AdminLogin({ onLogin }: { onLogin: () => void }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -32,7 +22,7 @@ function AdminLogin({
         localStorage.setItem('admin_token', token);
       }
       setPassword('');
-      onLogin(admin);
+      onLogin();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Admin login nahi hua.');
     } finally {
@@ -82,27 +72,49 @@ function AdminLogin({
 }
 
 export function AdminGuard({ children }: { children: ReactNode }) {
-  const [admin, setAdmin] = useState<AdminSession | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
-    void getAdminSession()
-      .then(({ admin: session }) => {
-        if (!cancelled && session.role === 'admin') setAdmin(session);
-      })
-      .catch(() => {
-        if (!cancelled) setAdmin(null);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    const checkSession = async () => {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('admin_token') : null;
 
-    const handleUnauthorized = () => setAdmin(null);
-    window.addEventListener('sahikarigar-admin-unauthorized', handleUnauthorized);
+      // Agar token nahi hai, toh API call mat karo, seedha login page dikhao
+      if (!token) {
+        if (!cancelled) {
+          setLoading(false);
+        }
+        return;
+      }
+
+      try {
+        // Agar token hai, tabhi API call karo
+        const API_URL = (process.env.NEXT_PUBLIC_AUTH_API_URL ?? '').replace(/\/+$/, '');
+        const res = await fetch(`${API_URL}/admin/session`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        if (!cancelled) {
+          if (res.ok) {
+            setIsAuthenticated(true);
+          } else {
+            localStorage.removeItem('admin_token');
+            setIsAuthenticated(false);
+          }
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    checkSession();
+
     return () => {
       cancelled = true;
-      window.removeEventListener('sahikarigar-admin-unauthorized', handleUnauthorized);
     };
   }, []);
 
@@ -114,19 +126,18 @@ export function AdminGuard({ children }: { children: ReactNode }) {
     );
   }
 
-  if (!admin) return <AdminLogin onLogin={setAdmin} />;
+  if (!isAuthenticated) return <AdminLogin onLogin={() => setIsAuthenticated(true)} />;
 
   return (
     <>
       <div className="flex items-center justify-end gap-3 border-b bg-white px-4 py-2">
-        <span className="text-caption text-text-secondary">{admin.email}</span>
         <Button
           type="button"
           size="sm"
           variant="ghost"
           onClick={() => {
             adminLogout();
-            setAdmin(null);
+            setIsAuthenticated(false);
           }}
         >
           <LogOut size={15} className="mr-1" /> Logout

@@ -488,7 +488,7 @@ app.get('/admin/session', async (req, res, next) => {
     const user = await getAdminSession(req);
     res.json({ ok: true, user, isAdmin: true });
   } catch (error) {
-    next(error);
+    res.status(401).json({ ok: false, code: 'UNAUTHORIZED', message: 'Unauthorized' });
   }
 });
 

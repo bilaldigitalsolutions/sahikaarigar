@@ -46,6 +46,10 @@ export function clearAdminSession(): void {
   if (typeof window !== 'undefined') window.localStorage.removeItem(ADMIN_SESSION_KEY);
 }
 
+export function getAdminToken(): string | null {
+  return typeof window === 'undefined' ? null : localStorage.getItem('admin_token');
+}
+
 async function adminApiFetch<T>(
   path: string,
   init?: RequestInit,

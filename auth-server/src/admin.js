@@ -118,14 +118,23 @@ export async function loginAdmin({ email, password }) {
 export async function getAdminSession(req) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    throw new Error('Unauthorized');
+    const error = new Error('Unauthorized');
+    error.statusCode = 401;
+    throw error;
   }
 
   const token = authHeader.split(' ')[1];
+  if (!token) {
+    const error = new Error('Unauthorized');
+    error.statusCode = 401;
+    throw error;
+  }
   try {
     const decoded = jwt.verify(token, ADMIN_SESSION_SECRET);
     return { status: "OK", user: decoded };
   } catch (e) {
-    throw new Error('Unauthorized');
+    const error = new Error('Unauthorized');
+    error.statusCode = 401;
+    throw error;
   }
 }

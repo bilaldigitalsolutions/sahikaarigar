@@ -7,6 +7,7 @@ import {
   adminLogin,
   adminLogout,
   getAdminSession,
+  getAdminToken,
   type AdminSession,
 } from '@/lib/api';
 
@@ -26,6 +27,10 @@ function AdminLogin({
     setSubmitting(true);
     try {
       const { admin } = await adminLogin({ email, password });
+      const token = getAdminToken();
+      if (token) {
+        localStorage.setItem('admin_token', token);
+      }
       setPassword('');
       onLogin(admin);
     } catch (reason) {

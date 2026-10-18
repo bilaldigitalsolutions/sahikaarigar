@@ -15,6 +15,9 @@ import {
   requestNotificationPermission,
 } from '@/lib/notifications';
 import { initObservability, reportError, setObservabilityUser } from '@/lib/observability';
+import { PostHogProvider } from 'posthog-react-native';
+import { PostHog } from 'posthog-react-native';
+const posthog = new PostHog(process.env.EXPO_PUBLIC_POSTHOG_KEY ?? '');
 import { colors, fontSize, fontWeight, spacing } from '@/theme';
 
 SplashScreen.preventAutoHideAsync();
@@ -45,10 +48,15 @@ function AppLoading() {
 function RootNavigator() {
   const { initializing, user } = useAuth();
 
-  // Tag crash reports with the signed-in account (id + role only, never PII).
+  // Tag crash reports + PostHog with the signed-in account (id + role only, never PII).
   useEffect(() => {
     try {
       setObservabilityUser(user ? { id: user.id, role: user.role } : null);
+      if (user) {
+        posthog.identify(String(user.id), { role: String(user.role) });
+      } else {
+        posthog.reset();
+      }
     } catch (e) {
       reportError(e, { where: 'RootNavigator.setObservabilityUser' });
     }
@@ -106,12 +114,14 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <AuthProvider>
-          <ModeProvider>
-            <StatusBar style="dark" />
-            <RootNavigator />
-          </ModeProvider>
-        </AuthProvider>
+        <PostHogProvider apiKey={process.env.EXPO_PUBLIC_POSTHOG_KEY}>
+          <AuthProvider>
+            <ModeProvider>
+              <StatusBar style="dark" />
+              <RootNavigator />
+            </ModeProvider>
+          </AuthProvider>
+        </PostHogProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

@@ -17,9 +17,13 @@
 // =============================================================================
 
 import { DEMO_MODE } from './config';
+import { PostHog } from 'posthog-react-native';
 
 export const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN ?? '';
 export const ANALYTICS_ENDPOINT = process.env.EXPO_PUBLIC_ANALYTICS_ENDPOINT ?? '';
+export const POSTHOG_KEY = process.env.EXPO_PUBLIC_POSTHOG_KEY ?? '';
+
+const posthog = new PostHog(POSTHOG_KEY);
 
 type SentryLike = {
   init: (options: Record<string, unknown>) => void;
@@ -106,23 +110,15 @@ export type AnalyticsEvent =
   | 'search_performed';
 
 /**
- * Fire-and-forget lifecycle event. Dropped silently when no endpoint is
- * configured, when offline, or in demo mode — analytics must never block UX.
+ * Fire-and-forget lifecycle event via PostHog. Dropped silently when in demo
+ * mode — analytics must never block UX. Only non-PII properties are accepted
+ * (event name + safe properties such as counts, ratings, skill ids).
  */
 export function trackEvent(event: AnalyticsEvent, properties?: Record<string, unknown>): void {
   try {
-    if (!ANALYTICS_ENDPOINT || DEMO_MODE) return;
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 4000);
-    void fetch(ANALYTICS_ENDPOINT, {
-      method: 'POST',
-      signal: ctrl.signal,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event, properties: properties ?? {}, ts: new Date().toISOString() }),
-    })
-      .catch(() => {})
-      .finally(() => clearTimeout(timer));
+    if (DEMO_MODE || !POSTHOG_KEY) return;
+    posthog.capture(event, (properties ?? {}) as any);
   } catch {
-    // ignore
+    // ignore — PostHog is optional and must never break UX
   }
 }

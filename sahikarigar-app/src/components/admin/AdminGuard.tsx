@@ -41,7 +41,7 @@ function AdminLogin({ onLogin }: { onLogin: () => void }) {
 
       localStorage.setItem('admin_token', token);
       
-      window.location.href = '/admin/dashboard'; 
+      window.location.href = '/admin';
       
     } catch (err) {
       console.error("Login catch error:", err);

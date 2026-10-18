@@ -1,9 +1,8 @@
 'use client';
 
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { LogOut, ShieldCheck } from 'lucide-react';
+import { ShieldCheck } from 'lucide-react';
 import { Button, Card } from '@/components/ui';
-import { adminLogout } from '@/lib/api';
 
 function AdminLogin({ onLogin }: { onLogin: () => void }) {
   const [email, setEmail] = useState('');
@@ -22,27 +21,30 @@ function AdminLogin({ onLogin }: { onLogin: () => void }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
-      
+
       console.log("Status:", res.status);
-      
+
       const data = await res.json();
       console.log("Response Data:", data);
 
       if (!res.ok) {
-         throw new Error(data.message || "Invalid credentials");
+        throw new Error(data.message || "Invalid credentials");
       }
 
       const token = data.token || data.accessToken || data.session;
-      
+
       if (!token) {
-         console.error("Token missing in response:", data);
-         throw new Error("Token missing from server");
+        console.error("Token missing in response:", data);
+        throw new Error("Token missing from server");
       }
 
       localStorage.setItem('admin_token', token);
-      
+      if (data.admin?.email) {
+        localStorage.setItem('admin_email', data.admin.email);
+      }
+
       window.location.href = '/admin';
-      
+
     } catch (err) {
       console.error("Login catch error:", err);
       setError(err instanceof Error ? err.message : "Admin request fail ho gayi");
@@ -123,6 +125,7 @@ export function AdminGuard({ children }: { children: ReactNode }) {
             setIsAuthenticated(true);
           } else {
             localStorage.removeItem('admin_token');
+            localStorage.removeItem('admin_email');
             setIsAuthenticated(false);
           }
         }
@@ -150,22 +153,5 @@ export function AdminGuard({ children }: { children: ReactNode }) {
 
   if (!isAuthenticated) return <AdminLogin onLogin={() => setIsAuthenticated(true)} />;
 
-  return (
-    <>
-      <div className="flex items-center justify-end gap-3 border-b bg-white px-4 py-2">
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          onClick={() => {
-            adminLogout();
-            setIsAuthenticated(false);
-          }}
-        >
-          <LogOut size={15} className="mr-1" /> Logout
-        </Button>
-      </div>
-      {children}
-    </>
-  );
+  return <>{children}</>;
 }

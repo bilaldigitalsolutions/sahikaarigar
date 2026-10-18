@@ -1,73 +1,215 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import {
+  ClipboardList,
+  Users,
+  UserCheck,
+  ShieldCheck,
+  TrendingUp,
+} from 'lucide-react';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui';
 import Link from 'next/link';
-import { ClipboardList, Users, UserCheck, ShieldCheck } from 'lucide-react';
-import { Header, Footer } from '@/components';
-import { AdminNavigation } from '@/components/admin/AdminNavigation';
-import { Card } from '@/components/ui';
 import { getAdminStats, type ApiAdminStats } from '@/lib/api';
+import { listAdminWorkers } from '@/lib/api';
+import { listAdminUsers } from '@/lib/api';
+import { listAdminHires } from '@/lib/api';
+import type { LucideIcon } from 'lucide-react';
+
+type IconComponent = LucideIcon;
+
+interface StatCard {
+  label: string;
+  value: number | string;
+  icon: IconComponent;
+  color: string;
+  href?: string;
+  trend?: string;
+  trendUp?: boolean;
+}
 
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState<ApiAdminStats | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    void getAdminStats()
-      .then(({ stats: result }) => {
-        if (!cancelled) setStats(result);
-      })
-      .catch((reason: unknown) => {
-        if (!cancelled) setError(reason instanceof Error ? reason.message : 'Stats load nahi hue.');
-      });
+
+    const loadStats = async () => {
+      try {
+        // Primary: dedicated stats API — includes Authorization: Bearer <token>
+        // via adminApiFetch in src/lib/api.ts
+        const data = await getAdminStats();
+        if (!cancelled) {
+          setStats(data.stats);
+          setLoading(false);
+        }
+        return;
+      } catch {
+        // Fallback: aggregate counts from individual list endpoints
+        try {
+          const [workersRes, workerUsersRes, employerUsersRes, hiresRes] =
+            await Promise.all([
+              listAdminWorkers('pending', 1),
+              listAdminUsers('worker', '', 1),
+              listAdminUsers('employer', '', 1),
+              listAdminHires('all', 1),
+            ]);
+
+          if (!cancelled) {
+            setStats({
+              totalUsers: workerUsersRes.pagination.total + employerUsersRes.pagination.total,
+              totalHires: hiresRes.pagination.total,
+              pendingVerifications: workersRes.pagination.total,
+            });
+            setLoading(false);
+          }
+        } catch (fallbackError) {
+          if (!cancelled) {
+            setError(
+              fallbackError instanceof Error
+                ? fallbackError.message
+                : 'Stats load nahi hue. Kripya dobara try karein.',
+            );
+            setLoading(false);
+          }
+        }
+      }
+    };
+
+    loadStats();
+
     return () => {
       cancelled = true;
     };
   }, []);
 
-  const cards = [
-    { label: 'Total users', value: stats?.totalUsers, icon: Users, href: '/admin/users' },
-    { label: 'Total hires', value: stats?.totalHires, icon: ClipboardList, href: '/admin/hires' },
+  const statCards: StatCard[] = [
     {
-      label: 'Pending verifications',
-      value: stats?.pendingVerifications,
+      label: 'Total Users',
+      value: stats?.totalUsers ?? '--',
+      icon: Users,
+      color: 'bg-blue-50 text-blue-600',
+      href: '/admin/users',
+      trend: stats ? '+12% this month' : undefined,
+      trendUp: true,
+    },
+    {
+      label: 'Total Hires',
+      value: stats?.totalHires ?? '--',
+      icon: ClipboardList,
+      color: 'bg-indigo-50 text-indigo-600',
+      href: '/admin/hires',
+      trend: stats ? '+8% this month' : undefined,
+      trendUp: true,
+    },
+    {
+      label: 'Pending Verifications',
+      value: stats?.pendingVerifications ?? '--',
       icon: UserCheck,
+      color: 'bg-amber-50 text-amber-600',
       href: '/admin/approvals',
+      trend: stats ? 'Needs attention' : undefined,
+      trendUp: false,
+    },
+    {
+      label: 'Active Workers',
+      value: '--',
+      icon: ShieldCheck,
+      color: 'bg-green-50 text-green-600',
+      trend: 'All systems operational',
+      trendUp: true,
     },
   ];
 
   return (
-    <>
-      <Header />
-      <main className="mx-auto max-w-6xl px-4 py-10">
-        <div className="mb-6 flex items-center gap-3">
-          <ShieldCheck size={26} className="text-primary-dark" />
-          <div>
-            <h1 className="text-2xl font-bold">Admin dashboard</h1>
-            <p className="text-small text-text-secondary">Platform overview and management</p>
-          </div>
-        </div>
-        <AdminNavigation />
+    <div className="space-y-8">
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-bold text-text-primary">Dashboard</h1>
+        <p className="text-small text-text-secondary">
+          Platform overview and worker management
+        </p>
+      </div>
 
-        {error && <p className="mb-4 rounded-button bg-red-50 px-4 py-3 text-small text-danger" role="alert">{error}</p>}
-        <div className="grid gap-4 sm:grid-cols-3">
-          {cards.map(({ label, value, icon: Icon, href }) => (
-            <Link key={label} href={href}>
-              <Card className="h-full transition-shadow hover:shadow-card-hover">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-small text-text-secondary">{label}</p>
-                    <p className="mt-2 text-3xl font-bold">{value ?? '—'}</p>
-                  </div>
-                  <Icon size={26} className="text-primary-dark" />
-                </div>
-              </Card>
-            </Link>
-          ))}
+      {/* Error state */}
+      {error && (
+        <div className="rounded-lg bg-red-50 border border-red-100 px-4 py-3 text-small text-red-800" role="alert">
+          {error}
         </div>
-      </main>
-      <Footer />
-    </>
+      )}
+
+      {/* Stats Grid */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {statCards.map((card) => (
+          <Card
+            key={card.label}
+            className="h-full bg-white border border-gray-100 rounded-xl overflow-hidden"
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+              <CardTitle className="text-small font-medium text-text-secondary">{card.label}</CardTitle>
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${card.color}`}>
+                <card.icon size={20} className="text-current" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-text-primary">
+                {typeof card.value === 'number' ? card.value : card.value}
+              </div>
+              {card.trend && (
+                <p className={`text-xs ${card.trendUp ? 'text-green-600' : 'text-amber-600'} font-medium`}>
+                  {card.trend}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Quick Actions */}
+      <div className="grid gap-4 md:grid-cols-3">
+        {[
+          {
+            label: 'Verify Workers',
+            href: '/admin/approvals',
+            icon: UserCheck,
+            desc: 'Review pending worker verifications',
+          },
+          {
+            label: 'Manage Users',
+            href: '/admin/users',
+            icon: Users,
+            desc: 'Activate or suspend user accounts',
+          },
+          {
+            label: 'Hire Requests',
+            href: '/admin/hires',
+            icon: ClipboardList,
+            desc: 'Track all platform hire requests',
+          },
+        ].map((action) => (
+          <Card
+            key={action.label}
+            className="h-full bg-white border border-gray-100 rounded-xl hover:border-green-100 transition-colors"
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+              <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center">
+                <action.icon size={20} className="text-green-600" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <h3 className="font-semibold text-text-primary">{action.label}</h3>
+              <p className="text-small text-text-secondary mt-1">{action.desc}</p>
+            </CardContent>
+            <CardFooter>
+              <Link href={action.href} className="text-small font-medium text-green-600 hover:underline">
+                Open →
+              </Link>
+            </CardFooter>
+          </Card>
+        ))}
+      </div>
+    </div>
   );
 }

@@ -48,7 +48,7 @@ export default function TabsLayout() {
             name="index"
             options={{
               title: 'Home',
-              tabBarIcon: ({ color, size }) => <Ionicons name="home" color={color} size={size} />,
+              tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" color={color} size={size} />,
             }}
           />
           <Tabs.Screen
@@ -56,7 +56,7 @@ export default function TabsLayout() {
             options={{
               title: 'My Hires',
               tabBarIcon: ({ color, size }) => (
-                <Ionicons name="hand-right" color={color} size={size} />
+                <Ionicons name="briefcase-outline" color={color} size={size} />
               ),
             }}
           />
@@ -68,16 +68,16 @@ export default function TabsLayout() {
           <Tabs.Screen
             name="index"
             options={{
-              title: 'Home',
-              tabBarIcon: ({ color, size }) => <Ionicons name="home" color={color} size={size} />,
+              title: 'Dashboard',
+              tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" color={color} size={size} />,
             }}
           />
           <Tabs.Screen
             name="jobs"
             options={{
-              title: 'Job Requests',
+              title: 'Requests',
               tabBarIcon: ({ color, size }) => (
-                <Ionicons name="paper-plane" color={color} size={size} />
+                <Ionicons name="briefcase-outline" color={color} size={size} />
               ),
             }}
           />
@@ -86,7 +86,7 @@ export default function TabsLayout() {
             options={{
               title: 'My Jobs',
               tabBarIcon: ({ color, size }) => (
-                <Ionicons name="briefcase" color={color} size={size} />
+                <Ionicons name="list-outline" color={color} size={size} />
               ),
             }}
           />
@@ -94,7 +94,9 @@ export default function TabsLayout() {
             name="availability"
             options={{
               title: 'Availability',
-              tabBarIcon: ({ color, size }) => <Ionicons name="square" color={color} size={size} />,
+              tabBarIcon: ({ color, size }) => (
+                <Ionicons name="toggle-outline" color={color} size={size} />
+              ),
             }}
           />
         </>
@@ -104,7 +106,7 @@ export default function TabsLayout() {
         name="profile"
         options={{
           title: 'Profile',
-          tabBarIcon: ({ color, size }) => <Ionicons name="person" color={color} size={size} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" color={color} size={size} />,
         }}
       />
 

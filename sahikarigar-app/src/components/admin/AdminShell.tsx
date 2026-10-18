@@ -21,7 +21,7 @@ import { adminLogout, getAdminStats } from '@/lib/api';
 
 const NAV_LINKS = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, badgeKey: null as null },
-  { href: '/admin/approvals', label: 'Worker Verification', icon: UserCheck, badgeKey: 'verification' as const },
+  { href: '/admin/workers', label: 'Worker Verification', icon: UserCheck, badgeKey: 'verification' as const },
   { href: '/admin/users', label: 'Users', icon: Users, badgeKey: null as null },
   { href: '/admin/hires', label: 'Hire Requests', icon: ClipboardList, badgeKey: 'hires' as const },
 ] as const;
@@ -59,9 +59,10 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         setVerificationCount(data.stats.pendingVerifications);
         setHireCount(data.stats.totalHires);
       } catch {
+        // Real data only — leave badges hidden when the API fails.
         if (!cancelled) {
-          setVerificationCount(23);
-          setHireCount(8);
+          setVerificationCount(null);
+          setHireCount(null);
         }
       }
     })();

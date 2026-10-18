@@ -16,17 +16,12 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
 import {
   getAdminStats,
-  listAdminHires,
-  listAdminUsers,
   listAdminWorkers,
   type ApiAdminStats,
   type ApiAdminWorker,
 } from '@/lib/api';
-
-type IconComponent = LucideIcon;
 
 type ActivityStatus = 'Pending' | 'Verified' | 'Review';
 
@@ -43,14 +38,6 @@ interface ActivityRow {
 }
 
 const AVATAR_COLORS = ['bg-blue-500', 'bg-violet-500', 'bg-amber-500', 'bg-emerald-500', 'bg-orange-500'];
-
-const MOCK_ACTIVITY: ActivityRow[] = [
-  { id: 'm1', name: 'Rahul Sharma', shortId: 'ID #2048', initials: 'RS', avatarBg: 'bg-blue-500', category: 'Electrician', location: 'Pune, MH', status: 'Pending', time: '2 min ago' },
-  { id: 'm2', name: 'Ananya Gupta', shortId: 'ID #2048', initials: 'AG', avatarBg: 'bg-violet-500', category: 'Plumber', location: 'Delhi, DL', status: 'Verified', time: '14 min ago' },
-  { id: 'm3', name: 'Vikram Singh', shortId: 'ID #2048', initials: 'VS', avatarBg: 'bg-amber-500', category: 'Carpenter', location: 'Jaipur, RJ', status: 'Review', time: '38 min ago' },
-  { id: 'm4', name: 'Priya Nair', shortId: 'ID #2048', initials: 'PN', avatarBg: 'bg-emerald-500', category: 'House Help', location: 'Bangalore, KA', status: 'Verified', time: '1 hour ago' },
-  { id: 'm5', name: 'Mohammed Ali', shortId: 'ID #2048', initials: 'MA', avatarBg: 'bg-orange-500', category: 'Painter', location: 'Hyderabad, TG', status: 'Pending', time: '2 hours ago' },
-];
 
 function formatNumber(value: number | string): string {
   if (typeof value === 'string') return value;
@@ -141,8 +128,8 @@ function StatusPill({ status }: { status: ActivityStatus }) {
 
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState<ApiAdminStats | null>(null);
-  const [activity, setActivity] = useState<ActivityRow[]>(MOCK_ACTIVITY);
-  const [pendingTotal, setPendingTotal] = useState<number>(23);
+  const [activity, setActivity] = useState<ActivityRow[]>([]);
+  const [pendingTotal, setPendingTotal] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -150,44 +137,26 @@ export default function AdminDashboardPage() {
     setLoading(true);
     setError(null);
     try {
-      const data = await getAdminStats();
-      setStats(data.stats);
-      try {
-        const workersRes = await listAdminWorkers('pending', 1);
-        setPendingTotal(workersRes.pagination.total);
-        const mapped = (workersRes.workers ?? []).slice(0, 5).map(workerToActivityRow);
-        setActivity(mapped.length > 0 ? mapped : MOCK_ACTIVITY);
-      } catch {
-        setActivity(MOCK_ACTIVITY);
-      }
+      // Real data only — no hardcoded fallbacks. Both calls send
+      // Authorization: Bearer <admin_token> via adminApiFetch.
+      const [statsRes, workersRes] = await Promise.all([
+        getAdminStats(),
+        listAdminWorkers('pending', 1),
+      ]);
+      setStats(statsRes.stats);
+      setPendingTotal(workersRes.pagination.total);
+      setActivity((workersRes.workers ?? []).slice(0, 5).map(workerToActivityRow));
       setLoading(false);
-    } catch {
-      try {
-        const [workersRes, workerUsersRes, employerUsersRes, hiresRes] = await Promise.all([
-          listAdminWorkers('pending', 1),
-          listAdminUsers('worker', '', 1),
-          listAdminUsers('employer', '', 1),
-          listAdminHires('all', 1),
-        ]);
-        setStats({
-          totalUsers: workerUsersRes.pagination.total + employerUsersRes.pagination.total,
-          totalHires: hiresRes.pagination.total,
-          pendingVerifications: workersRes.pagination.total,
-          activeWorkers: workersRes.pagination.total,
-        });
-        setPendingTotal(workersRes.pagination.total);
-        const mapped = (workersRes.workers ?? []).slice(0, 5).map(workerToActivityRow);
-        setActivity(mapped.length > 0 ? mapped : MOCK_ACTIVITY);
-        setLoading(false);
-      } catch (fallbackError) {
-        setError(
-          fallbackError instanceof Error
-            ? fallbackError.message
-            : 'Stats load nahi hue. Kripya dobara try karein.',
-        );
-        setActivity(MOCK_ACTIVITY);
-        setLoading(false);
-      }
+    } catch (loadError) {
+      setStats(null);
+      setActivity([]);
+      setPendingTotal(0);
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : 'Stats load nahi hue. Kripya dobara try karein.',
+      );
+      setLoading(false);
     }
   }, []);
 
@@ -241,7 +210,7 @@ export default function AdminDashboardPage() {
     {
       label: 'Verify Workers',
       desc: 'Review documents, background checks and approve trusted workers.',
-      href: '/admin/approvals',
+      href: '/admin/workers',
       icon: UserCheck,
       iconBox: 'bg-emerald-50 text-emerald-500 ring-emerald-100',
       pill: `${pendingTotal} pending`,
@@ -266,7 +235,6 @@ export default function AdminDashboardPage() {
       cta: 'View requests',
     },
   ];
-//__DASH5__
 
   return (
     <div className="space-y-6 text-[#111827]">
@@ -299,14 +267,11 @@ export default function AdminDashboardPage() {
             </span>
             <div className="min-w-0 flex-1">
               <p className="flex flex-wrap items-center gap-2 text-[14px] font-bold text-[#7c4a12]">
-                Admin request fail ho gayi. Dobara try karo.
-                <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[12px] font-semibold text-amber-800">
-                  Sync error • Code: ADM_429
-                </span>
+                {error}
               </p>
               <p className="mt-1 text-[13px] text-amber-800/80">
-                Worker verification service temporarily unreachable. Your local data is
-                safe — retrying in background.
+                Neeche di gayi details check karo — token expire ho sakta hai ya backend
+                abhi deploy ho raha hai. Retry karne se pehle dobara login karke dekho.
               </p>
               <div className="mt-3 flex flex-wrap items-center gap-2.5">
                 <button
@@ -451,7 +416,21 @@ export default function AdminDashboardPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {activity.map((row) => (
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="px-5 py-10 text-center text-gray-400">
+                    Loading recent activity…
+                  </td>
+                </tr>
+              ) : activity.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-5 py-10 text-center text-gray-400">
+                    Abhi koi pending verification nahi hai. Naye worker registrations yahan
+                    dikhengi.
+                  </td>
+                </tr>
+              ) : (
+                activity.map((row) => (
                 <tr key={row.id} className="hover:bg-gray-50/60">
                   <td className="px-5 py-3.5">
                     <span className="flex items-center gap-3">
@@ -489,7 +468,8 @@ export default function AdminDashboardPage() {
                     </span>
                   </td>
                 </tr>
-              ))}
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -499,7 +479,7 @@ export default function AdminDashboardPage() {
             Showing {activity.length} of {pendingTotal} pending verifications
           </p>
           <Link
-            href="/admin/approvals"
+            href="/admin/workers"
             className="inline-flex items-center gap-1 text-[14px] font-semibold hover:text-emerald-700"
           >
             View all <ChevronRight size={16} />

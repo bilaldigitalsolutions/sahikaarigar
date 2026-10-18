@@ -1,11 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ClipboardList, ShieldCheck } from 'lucide-react';
-import { Header, Footer } from '@/components';
-import { AdminNavigation } from '@/components/admin/AdminNavigation';
+import { ClipboardList } from 'lucide-react';
 import { AdminPagination } from '@/components/admin/AdminPagination';
-import { Card } from '@/components/ui';
 import {
   listAdminHires,
   setAdminHireStatus,
@@ -69,16 +66,21 @@ export default function AdminHiresPage() {
   }
 
   return (
-    <>
-      <Header />
-      <main className="mx-auto max-w-6xl px-4 py-10">
-        <div className="mb-6 flex items-center gap-3">
-          <ClipboardList size={24} className="text-primary-dark" />
-          <h1 className="text-2xl font-bold">Hire overview</h1>
+    <div className="space-y-6 text-[#111827]">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-[28px] font-extrabold tracking-tight">Hire Requests</h1>
+          <p className="mt-1 text-[14px] text-gray-500">
+            Monitor ongoing hires, payments and completion status in real-time.
+          </p>
         </div>
-        <AdminNavigation />
+        <span className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-[13px] font-semibold text-gray-600">
+          <ClipboardList size={15} /> {pagination.total} {filter === 'all' ? 'total' : filter}
+        </span>
+      </div>
 
-        <label className="mb-5 flex max-w-sm items-center gap-3 text-small font-medium">
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="flex items-center gap-2 text-[14px] font-medium text-gray-500">
           Status
           <select
             value={filter}
@@ -86,63 +88,103 @@ export default function AdminHiresPage() {
               setFilter(event.target.value as (typeof FILTERS)[number]);
               setPage(1);
             }}
-            className="flex-1 rounded-button border border-gray-200 bg-white px-3 py-2"
+            className="rounded-full border border-gray-200 bg-white px-4 py-2 text-[14px] font-medium text-[#111827] outline-none"
           >
-            {FILTERS.map((status) => <option key={status} value={status}>{status === 'all' ? 'All statuses' : status}</option>)}
+            {FILTERS.map((status) => <option key={status} value={status}>{status === 'all' ? 'All statuses' : status.replace('_', ' ')}</option>)}
           </select>
         </label>
+      </div>
 
-        {error && <p className="mb-4 rounded-button bg-red-50 px-4 py-3 text-small text-danger" role="alert">{error}</p>}
-        {loading ? (
-          <Card><p className="py-8 text-center text-text-secondary">Loading hire requests…</p></Card>
-        ) : hires.length === 0 ? (
-          <Card><p className="py-8 text-center text-text-secondary">Is filter ke liye koi hire nahi hai.</p></Card>
-        ) : (
-          <div className="space-y-3">
-            {hires.map((hire) => (
-              <Card key={hire.id}>
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-caption text-text-secondary">Request {hire.id.slice(0, 8)}</p>
-                    <h2 className="mt-1 font-semibold">{hire.description}</h2>
-                    <p className="text-small text-text-secondary">{hire.location} · ₹{hire.proposedRate}</p>
-                    <div className="mt-2 grid gap-1 text-caption text-text-secondary sm:grid-cols-2">
-                      <span>Employer: {hire.employer?.name ?? '—'} {hire.employer?.phone ? `(+91 ${hire.employer.phone})` : ''}</span>
-                      <span>Worker: {hire.worker?.name ?? '—'} {hire.worker?.phone ? `(+91 ${hire.worker.phone})` : ''}</span>
-                    </div>
-                    <p className="mt-2 text-caption text-text-secondary">
-                      Created {new Date(hire.createdAt).toLocaleString('en-IN')}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <ShieldCheck size={16} className="text-text-secondary" />
-                    <select
-                      aria-label={`Change hire ${hire.id} status`}
-                      value={hire.status}
-                      disabled={busyId === hire.id}
-                      onChange={(event) => void changeStatus(hire, event.target.value as AdminHireStatus)}
-                      className="rounded-button border border-gray-200 bg-white px-3 py-2 text-small capitalize disabled:opacity-60"
-                    >
-                      {STATUS_OPTIONS.map((status) => (
-                        <option key={status} value={status}>{status.replace('_', ' ')}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </Card>
-            ))}
+      {error && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/60 px-4 py-3 text-[14px] font-medium text-amber-900" role="alert">
+          {error}
+        </div>
+      )}
+
+      <section className="overflow-hidden rounded-3xl border border-gray-100 bg-white">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[860px] border-collapse text-left text-[14px]">
+            <thead>
+              <tr className="text-[11px] font-semibold uppercase tracking-[0.1em] text-gray-400">
+                <th className="px-5 py-3.5">Request</th>
+                <th className="px-5 py-3.5">Employer</th>
+                <th className="px-5 py-3.5">Worker</th>
+                <th className="px-5 py-3.5">Status</th>
+                <th className="px-5 py-3.5 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {loading ? (
+                <tr>
+                  <td colSpan={5} className="px-5 py-10 text-center text-gray-400">
+                    Loading hire requests…
+                  </td>
+                </tr>
+              ) : hires.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-5 py-10 text-center text-gray-400">
+                    Is filter ke liye koi hire nahi hai.
+                  </td>
+                </tr>
+              ) : (
+                hires.map((hire) => (
+                  <tr key={hire.id} className="align-top hover:bg-gray-50/60">
+                    <td className="px-5 py-3.5">
+                      <span className="block font-semibold">{hire.description}</span>
+                      <span className="mt-0.5 block text-[12px] text-gray-400">
+                        {hire.location} · Rs.{hire.proposedRate} · {new Date(hire.createdAt).toLocaleDateString('en-IN')}
+                      </span>
+                      <span className="block font-mono text-[11px] text-gray-400">
+                        #{hire.id.slice(0, 8)}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5 text-gray-500">
+                      <span className="block font-medium text-[#111827]">{hire.employer?.name ?? '—'}</span>
+                      <span className="block text-[12px] text-gray-400">
+                        {hire.employer?.phone ? `+91 ${hire.employer.phone}` : ''}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5 text-gray-500">
+                      <span className="block font-medium text-[#111827]">{hire.worker?.name ?? '—'}</span>
+                      <span className="block text-[12px] text-gray-400">
+                        {hire.worker?.phone ? `+91 ${hire.worker.phone}` : ''}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-[12px] font-semibold capitalize text-gray-600">
+                        {hire.status.replace('_', ' ')}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5 text-right">
+                      <select
+                        aria-label={`Change hire ${hire.id} status`}
+                        value={hire.status}
+                        disabled={busyId === hire.id}
+                        onChange={(event) => void changeStatus(hire, event.target.value as AdminHireStatus)}
+                        className="rounded-full border border-gray-200 bg-white px-3 py-2 text-[13px] font-medium capitalize outline-none disabled:opacity-60"
+                      >
+                        {STATUS_OPTIONS.map((status) => (
+                          <option key={status} value={status}>{status.replace('_', ' ')}</option>
+                        ))}
+                      </select>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        {!loading && hires.length > 0 && (
+          <div className="border-t border-gray-100 px-5 py-3.5">
+            <AdminPagination
+              page={page}
+              pages={pagination.pages}
+              total={pagination.total}
+              onPageChange={setPage}
+            />
           </div>
         )}
-        {!loading && hires.length > 0 && (
-          <AdminPagination
-            page={page}
-            pages={pagination.pages}
-            total={pagination.total}
-            onPageChange={setPage}
-          />
-        )}
-      </main>
-      <Footer />
-    </>
+      </section>
+    </div>
   );
 }

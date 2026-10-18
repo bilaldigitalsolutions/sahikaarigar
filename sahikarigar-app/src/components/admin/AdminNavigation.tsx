@@ -6,7 +6,7 @@ import { clsx } from 'clsx';
 
 const LINKS = [
   { href: '/admin', label: 'Dashboard' },
-  { href: '/admin/approvals', label: 'Worker verification' },
+  { href: '/admin/workers', label: 'Worker verification' },
   { href: '/admin/users', label: 'Users' },
   { href: '/admin/hires', label: 'Hire requests' },
 ] as const;

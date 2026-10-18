@@ -3,7 +3,7 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { LogOut, ShieldCheck } from 'lucide-react';
 import { Button, Card } from '@/components/ui';
-import { adminLogin, adminLogout, getAdminToken } from '@/lib/api';
+import { adminLogin, adminLogout } from '@/lib/api';
 
 function AdminLogin({ onLogin }: { onLogin: () => void }) {
   const [email, setEmail] = useState('');
@@ -17,10 +17,6 @@ function AdminLogin({ onLogin }: { onLogin: () => void }) {
     setSubmitting(true);
     try {
       const { admin } = await adminLogin({ email, password });
-      const token = getAdminToken();
-      if (token) {
-        localStorage.setItem('admin_token', token);
-      }
       setPassword('');
       onLogin();
     } catch (reason) {
@@ -92,6 +88,7 @@ export function AdminGuard({ children }: { children: ReactNode }) {
         // Agar token hai, tabhi API call karo
         const API_URL = (process.env.NEXT_PUBLIC_AUTH_API_URL ?? '').replace(/\/+$/, '');
         const res = await fetch(`${API_URL}/admin/session`, {
+          credentials: 'include',
           headers: {
             Authorization: `Bearer ${token}`,
           },

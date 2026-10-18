@@ -667,7 +667,7 @@ app.use((error, req, res, _next) => {
     res.status(200).json({ status: 'GENERAL_ERROR', message });
     return;
   }
-  res.status(Number(error?.statusCode) || 400).json({
+  res.status(Number(error?.statusCode || error?.status) || 400).json({
     ok: false,
     code: Number(error?.statusCode) === 403 ? 'FORBIDDEN' : 'BAD_REQUEST',
     message,

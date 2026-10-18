@@ -120,8 +120,10 @@ export default function RegisterWorkerScreen() {
       });
       await refreshUser();
       Alert.alert('Thank you!', 'Your application has been received. An admin will review it.', [
-        // Land on the kaarigar Home dashboard (the tabs now key off the
-        // locally chosen role + the freshly promoted backend role).
+        // Land on the worker dashboard — refreshUser() already flipped the
+        // backend role to 'worker' (the worker_profiles row just got written),
+        // so the tabs guard lets it through and the dashboard shows
+        // "Verification Pending" until the admin approves the profile.
         { text: 'OK', onPress: () => router.replace('/(tabs)') },
       ]);
     } catch (e) {
@@ -349,13 +351,6 @@ export default function RegisterWorkerScreen() {
           </Pressable>
 
           <Button label="Submit Application" onPress={onSubmit} loading={busy} size="lg" style={styles.mt} />
-          <Button
-            label="Verify OTP"
-            variant="secondary"
-            onPress={() => router.push('/(auth)/login')}
-            disabled={busy}
-            style={styles.verifyBtn}
-          />
 
           <Text style={styles.support}>Need help? Contact support • {SUPPORT_PHONE}</Text>
 
@@ -446,7 +441,6 @@ const styles = StyleSheet.create({
   termsBoxChecked: { backgroundColor: colors.primaryDark },
   termsText: { flex: 1, fontSize: fontSize.caption, color: colors.textPrimary, lineHeight: 19 },
   link: { color: colors.primaryDark, fontWeight: fontWeight.semibold },
-  verifyBtn: { marginTop: spacing.md },
   support: {
     marginTop: spacing.xl,
     fontSize: fontSize.caption,

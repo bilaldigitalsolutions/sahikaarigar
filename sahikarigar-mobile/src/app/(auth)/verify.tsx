@@ -11,7 +11,7 @@ import { formatPhone } from '@/utils';
 
 export default function VerifyScreen() {
   const router = useRouter();
-  const { role, ready } = useMode();
+  const { role, roleChosen, ready } = useMode();
   const params = useLocalSearchParams<{ skill?: string; area?: string; next?: string }>();
   const { confirmOtp, resend, busy, pendingPhone, devOtp } = useAuth();
   const [code, setCode] = useState('');
@@ -24,7 +24,10 @@ export default function VerifyScreen() {
     }
     setError(null);
     try {
-      await confirmOtp(code.trim());
+      // confirmOtp resolves the fresh backend user. Its `role` is 'worker' only
+      // when the worker_profiles row exists (upsertWorkerProfile flips it), so
+      // routing can trust it instead of guessing client-side.
+      const me = await confirmOtp(code.trim());
       trackEvent('user_signup');
 
       // A Hire-time login carries `next` (e.g. /hire/<workerId>) — resume the
@@ -35,19 +38,28 @@ export default function VerifyScreen() {
         return;
       }
 
-      // If a role was already picked (one-time onboarding), go straight to tabs.
-      // Otherwise send to role selection ("Aap kaun hain?").
-      if (ready && role) {
-        router.replace('/(tabs)');
+      // Role never picked (new user / fresh install) — "Aap kaun hain?"
+      // decides the next step (it smart-routes Kaarigars itself).
+      if (!ready || !roleChosen) {
+        const skill = params.skill ? String(params.skill) : undefined;
+        const area = params.area ? String(params.area) : undefined;
+        router.replace({
+          pathname: '/role-selection',
+          params: { ...(skill ? { skill } : {}), ...(area ? { area } : {}) },
+        });
         return;
       }
 
-      const skill = params.skill ? String(params.skill) : undefined;
-      const area = params.area ? String(params.area) : undefined;
-      router.replace({
-        pathname: '/role-selection',
-        params: { ...(skill ? { skill } : {}), ...(area ? { area } : {}) },
-      });
+      if (role === 'worker') {
+        // Smart worker routing: profile exists → straight to the dashboard
+        // (it renders "Verification Pending" until an admin approves, then the
+        // live stats). No profile yet → the registration form first.
+        router.replace(me.role === 'worker' ? '/(tabs)' : '/register-worker');
+        return;
+      }
+
+      // Employer mode — the kaarigar home / search.
+      router.replace('/(tabs)');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'OTP verification failed. Please try again.');
     }

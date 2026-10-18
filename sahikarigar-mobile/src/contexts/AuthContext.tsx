@@ -37,7 +37,8 @@ interface AuthContextValue {
   /** Dev-only: the OTP echoed by the server when SMS_PROVIDER=console. */
   devOtp: string | null;
   signIn: (phone: string) => Promise<void>;
-  confirmOtp: (code: string) => Promise<void>;
+  /** Verifies the OTP and resolves the fresh backend user (for smart routing). */
+  confirmOtp: (code: string) => Promise<User>;
   resend: () => Promise<void>;
   signOut: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -104,7 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const confirmOtp = useCallback(async (code: string) => {
+  const confirmOtp = useCallback(async (code: string): Promise<User> => {
     const challenge = challengeRef.current;
     if (!challenge) throw new Error('Enter your phone number and request an OTP first.');
     setBusy(true);
@@ -119,6 +120,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setPendingPhone(null);
       setDevOtp(null);
       challengeRef.current = null;
+      // The caller (verify.tsx) routes on `me.role`: 'worker' means the
+      // backend promoted the account — i.e. the worker_profiles row exists.
+      return me;
     } finally {
       setBusy(false);
     }

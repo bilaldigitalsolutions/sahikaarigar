@@ -214,6 +214,14 @@ export default function ProfileScreen() {
           </View>
           <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
         </Pressable>
+        <Pressable style={styles.helpOption} onPress={() => router.push('/help/faq' as any)}>
+          <Ionicons name="help-circle" size={20} color={colors.primaryDark} />
+          <View style={styles.helpOptionText}>
+            <Text style={styles.helpOptionLabel}>FAQs</Text>
+            <Text style={styles.helpOptionDesc}>Frequently asked questions</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+        </Pressable>
       </Card>
 
       <Modal

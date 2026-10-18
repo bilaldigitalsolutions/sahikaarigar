@@ -102,6 +102,7 @@ function RootNavigator() {
       />
       <Stack.Screen name="hire/detail/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="hire/feedback/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="/help/faq" />
       <Stack.Screen name="register-worker" options={{ headerShown: false }} />
       <Stack.Screen name="edit-profile" options={{ headerShown: false }} />
       <Stack.Screen name="search" options={{ headerShown: false }} />

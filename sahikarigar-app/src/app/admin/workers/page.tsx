@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowUpRight, CheckCircle2, Search, UserCheck, XCircle } from 'lucide-react';
+import { CheckCircle2, Search, UserCheck, XCircle } from 'lucide-react';
 import { AdminPagination } from '@/components/admin/AdminPagination';
 import {
   listAdminWorkers,
@@ -146,7 +146,6 @@ export default function WorkerApprovalsPage() {
           {error}
         </div>
       )}
-//__WTABLE__
       <section className="overflow-hidden rounded-3xl border border-gray-100 bg-white">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[860px] border-collapse text-left text-[14px]">
@@ -202,7 +201,6 @@ export default function WorkerApprovalsPage() {
                         </span>
                       </td>
                       <td className="px-5 py-3.5 text-gray-500">{category}</td>
-                      <td className="whitespace-nowrap px-5 py-3.5 text-gray-500">{location}</td>
                       <td className="whitespace-nowrap px-5 py-3.5 text-gray-500">{location}</td>
                       <td className="px-5 py-3.5">
                         <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[12px] font-semibold capitalize ring-1 ring-inset ${statusPillClasses(worker.verificationStatus)}`}>

@@ -111,7 +111,6 @@ export default function AdminUsersPage() {
           {error}
         </div>
       )}
-//__USERS_TABLE__
       <section className="overflow-hidden rounded-3xl border border-gray-100 bg-white">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] border-collapse text-left text-[14px]">

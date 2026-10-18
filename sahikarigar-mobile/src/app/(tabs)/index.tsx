@@ -102,11 +102,12 @@ export default function HomeScreen() {
     };
   }, []);
 
-  // Guest employer: hardware back stays on Home (never forces login/onboarding).
+  // Guest employer: hardware back goes to Role Selection (never Login).
   useEffect(() => {
     if (user) return undefined;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      return true; // consume the event, stay on Home
+      router.replace('/onboarding/role' as never);
+      return true; // consume the event
     });
     return () => sub.remove();
   }, [user, router]);

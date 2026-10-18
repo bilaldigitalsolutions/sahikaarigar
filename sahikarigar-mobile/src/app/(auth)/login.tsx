@@ -73,6 +73,11 @@ export default function LoginScreen() {
             hint="A 6-digit OTP will be sent to your number"
             returnKeyType="done"
             onSubmitEditing={onSubmit}
+            autoComplete="off"
+            autoCapitalize="none"
+            spellCheck={false}
+            textContentType="none"
+            importantForAutofill="no"
           />
           <Button label="Send OTP" onPress={onSubmit} loading={busy} size="lg" />
         </View>

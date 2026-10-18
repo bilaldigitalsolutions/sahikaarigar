@@ -6,7 +6,7 @@ import { useMode, type AppMode } from '@/contexts/ModeContext';
 import { colors, fontSize, fontWeight, radius, spacing } from '@/theme';
 
 const OPTIONS: { value: AppMode; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { value: 'customer', label: 'Customer', icon: 'home-outline' },
+  { value: 'customer', label: 'Employer', icon: 'home-outline' },
   { value: 'worker', label: 'Kaarigar', icon: 'construct-outline' },
 ];
 

@@ -104,72 +104,32 @@ export function AdminGuard({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
+
     const checkSession = async () => {
-      // Client-side only: localStorage does not exist during SSR, so this
-      // check MUST live inside useEffect to avoid hydration mismatches.
+      // Client-side only: localStorage does not exist during SSR. When a token
+      // exists the app is already inside AdminShell (a client component), so
+      // we can safely read it here instead of redirecting.
       const token = typeof window !== 'undefined' ? localStorage.getItem('admin_token') : null;
 
-      // Agar token nahi hai, toh API call mat karo, seedha login page dikhao
-      if (!token) {
-        if (!cancelled) {
-          setIsAuthenticated(false);
-          setLoading(false);
-        }
+      // Token exists -> keep the panel open. No redirect, no re-check on every
+      // network blip (fixes the infinite login loop on Users/Hires).
+      if (token) {
+        if (!cancelled) setIsAuthenticated(true);
+        if (!cancelled) setLoading(false);
         return;
       }
 
-      try {
-        // Agar token hai, tabhi API call karo (Bearer header ke saath)
-        const API_URL = (process.env.NEXT_PUBLIC_AUTH_API_URL ?? '').replace(/\/+$/, '');
-        if (!API_URL) {
-          throw new Error('Auth server configure nahi hai (NEXT_PUBLIC_AUTH_API_URL).');
-        }
-        const res = await fetch(`${API_URL}/admin/session`, {
-          credentials: 'include',
-          headers: {
-            Authorization: `Bearer ${token.trim()}`,
-          },
-        });
-        if (!cancelled) {
-          if (res.ok) {
-            setIsAuthenticated(true);
-          } else if (res.status === 401) {
-            // Token invalid/expired hai — clear karo taaki login dikhe.
-            try {
-              localStorage.removeItem('admin_token');
-              localStorage.removeItem('admin_email');
-            } catch {
-              /* noop */
-            }
-            setIsAuthenticated(false);
-          } else {
-            // Backend down ya network error: token mat hatao, sirf error banner
-            // dikhane ke liye unauthenticated raho — user dobara try kar sakta hai.
-            setIsAuthenticated(false);
-          }
-        }
-      } catch (e) {
-        console.error(e);
-        if (!cancelled) setIsAuthenticated(false);
-      } finally {
-        if (!cancelled) setLoading(false);
+      // No token: normal flow -> show login page directly.
+      if (!cancelled) {
+        setIsAuthenticated(false);
+        setLoading(false);
       }
     };
-
-    const handleUnauthorized = () => {
-      if (!cancelled) setIsAuthenticated(false);
-    };
-    if (typeof window !== 'undefined') {
-      window.addEventListener('sahikarigar-admin-unauthorized', handleUnauthorized);
-    }
 
     checkSession();
 
     return () => {
       cancelled = true;
-      if (typeof window !== 'undefined') {
-        window.removeEventListener('sahikarigar-admin-unauthorized', handleUnauthorized);
-      }
     };
   }, []);
 
@@ -185,3 +145,5 @@ export function AdminGuard({ children }: { children: ReactNode }) {
 
   return <>{children}</>;
 }
+
+export default AdminGuard;

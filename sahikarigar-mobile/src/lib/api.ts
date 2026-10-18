@@ -240,6 +240,7 @@ export async function registerWorker(payload: {
     serviceAreas: string[];
     lat?: number;
     lng?: number;
+    aadhaarNumber?: string;
   };
 }): Promise<{ user: User; workerProfile: ApiWorker | null }> {
   try {

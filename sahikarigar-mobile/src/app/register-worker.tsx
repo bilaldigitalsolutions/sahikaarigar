@@ -105,8 +105,8 @@ export default function RegisterWorkerScreen() {
     setBusy(true);
     try {
       // NOTE: the API stores one hourly rate per worker; the form's "per day"
-      // charge is sent as `hourlyRate`. Aadhaar + photos are UI-only until the
-      // backend grows fields/storage for them.
+      // charge is sent as `hourlyRate`. The Aadhaar number is optional and only
+      // visible to admins during verification.
       await registerWorker({
         name: name.trim(),
         profile: {
@@ -116,6 +116,7 @@ export default function RegisterWorkerScreen() {
           serviceAreas: [area],
           lat: coords?.lat,
           lng: coords?.lng,
+          aadhaarNumber: aadhaar.replace(/\D/g, '') || undefined,
         },
       });
       await refreshUser();

@@ -32,7 +32,7 @@ services:
       #               the SMS OTP route needs DLT — WhatsApp/Quick-SMS do not)
       #   MSG91    -> MSG91_AUTH_KEY + MSG91_TEMPLATE_ID     (India, needs DLT)
       #   Twilio   -> TWILIO_ACCOUNT_SID/AUTH_TOKEN/FROM     (global, needs card)
-      #   Admin    -> ADMIN_PHONES (comma separated) — who may approve workers
+      #   Admin    -> ADMIN_EMAIL + ADMIN_PASSWORD + ADMIN_SESSION_SECRET (32+ chars)
       # With no credentials the OTP is printed in the Render logs instead (free).
       - key: APP_NAME
         value: SahiKaarigar
@@ -44,6 +44,12 @@ services:
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ADMIN_SESSION_SECRET
         sync: false
       # The static site origin. API_DOMAIN is auto-detected from
       # RENDER_EXTERNAL_URL, so it usually does not need setting.

@@ -123,8 +123,6 @@ function StatusPill({ status }: { status: ActivityStatus }) {
     </span>
   );
 }
-//__DASH3__
-
 
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState<ApiAdminStats | null>(null);

@@ -39,7 +39,17 @@ import {
   getReviewByHireRequest,
 } from './reviews.js';
 import { createReport } from './reports.js';
-import { isAdmin, listPendingWorkers, setWorkerApproval, loginAdmin, getAdminSession } from './admin.js';
+import {
+  getAdminStats,
+  getAdminSession,
+  loginAdmin,
+  listAdminHires,
+  listAdminUsers,
+  listAdminWorkers,
+  setAdminHireStatus,
+  setUserActive,
+  setWorkerApproval,
+} from './admin.js';
 import { notifyHireUpdate, notifyWorkerOfNewHire } from './push.js';
 
 const PORT = Number(process.env.PORT || 4000);
@@ -140,7 +150,10 @@ const EXTRA_ORIGINS = (process.env.EXTRA_CORS_ORIGINS || '')
   .split(',')
   .map((o) => o.trim().replace(/\/+$/, ''))
   .filter(Boolean);
-const ALLOWED_ORIGINS = [WEBSITE_DOMAIN, ...EXTRA_ORIGINS];
+// The Firebase-hosted admin panel. Always allowed, even if WEBSITE_DOMAIN is
+// missing from the environment, so the admin API never fails CORS in prod.
+const PRODUCTION_ORIGIN = 'https://sahi-kaarigar.web.app';
+const ALLOWED_ORIGINS = [...new Set([PRODUCTION_ORIGIN, WEBSITE_DOMAIN, ...EXTRA_ORIGINS])];
 const LOCALHOST_RE = /^https?:\/\/(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?$/;
 
 app.use(
@@ -152,7 +165,9 @@ app.use(
       }
       return callback(null, false);
     },
-    allowedHeaders: ['content-type', ...supertokens.getAllCORSHeaders()],
+    // `authorization` is required for the admin panel's Bearer token. Without
+    // it the browser's preflight blocks every /admin/* request.
+    allowedHeaders: ['content-type', 'authorization', ...supertokens.getAllCORSHeaders()],
     credentials: true,
   }),
 );
@@ -470,14 +485,105 @@ app.post('/feedback', async (req, res, next) => {
 });
 
 // ---------------------------------------------------------------------------
-// Admin login / session.
+// Admin — email/password panel. Sessions are stateless HMAC tokens:
+// `<base64url(payload)>.<base64url(hmac-sha256)>`, signed with
+// ADMIN_SESSION_SECRET. Every /admin/* route except POST /admin/login is
+// protected by requireAdmin(), which reads `Authorization: Bearer <token>`.
 // ---------------------------------------------------------------------------
+function isAdminAuthConfigured() {
+  return Buffer.byteLength(process.env.ADMIN_SESSION_SECRET || '', 'utf8') >= 32;
+}
 
-app.post('/admin/login', async (req, res, next) => {
+async function requireAdmin(req, res) {
+  // A missing/short secret is a server misconfiguration, not an expired
+  // session. Return 503 so the frontend keeps the token instead of logging
+  // the admin out on every request.
+  if (!isAdminAuthConfigured()) {
+    res.status(503).json({
+      ok: false,
+      code: 'ADMIN_AUTH_NOT_CONFIGURED',
+      message: 'ADMIN_SESSION_SECRET must be at least 32 characters on the server.',
+    });
+    return null;
+  }
+
+  const authorization = req.get('Authorization') || req.get('authorization') || '';
+  const tokenMatch = authorization.match(/^Bearer\s+(.+)$/i);
+  const token = tokenMatch ? tokenMatch[1].trim() : '';
+  const admin = token ? getAdminSession(token) : null;
+  if (!admin) {
+    res.status(401).json({
+      ok: false,
+      code: 'UNAUTHORIZED',
+      message: 'Admin email/password se login karein.',
+    });
+    return null;
+  }
+  return admin;
+}
+
+const failedAdminLogins = new Map();
+const ADMIN_LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const ADMIN_LOGIN_MAX_FAILURES = 5;
+
+app.post('/admin/login', (req, res, next) => {
   try {
-    const { email, password } = req.body;
-    const result = await loginAdmin({ email, password });
-    res.json(result);
+    if (!isAdminAuthConfigured()) {
+      res.status(503).json({
+        ok: false,
+        code: 'ADMIN_AUTH_NOT_CONFIGURED',
+        message: 'ADMIN_SESSION_SECRET must be at least 32 characters on the server.',
+      });
+      return;
+    }
+
+    const clientKey = req.ip || req.socket.remoteAddress || 'unknown';
+    const now = Date.now();
+    const attempt = failedAdminLogins.get(clientKey);
+    if (attempt && now - attempt.startedAt > ADMIN_LOGIN_WINDOW_MS) {
+      failedAdminLogins.delete(clientKey);
+    }
+    const activeAttempt = failedAdminLogins.get(clientKey);
+    if (activeAttempt && activeAttempt.count >= ADMIN_LOGIN_MAX_FAILURES) {
+      res.status(429).json({
+        ok: false,
+        code: 'TOO_MANY_REQUESTS',
+        message: 'Too many failed admin login attempts. Try again in 15 minutes.',
+      });
+      return;
+    }
+    if (failedAdminLogins.size > 1000) {
+      for (const [key, value] of failedAdminLogins) {
+        if (now - value.startedAt > ADMIN_LOGIN_WINDOW_MS) failedAdminLogins.delete(key);
+      }
+    }
+
+    const email = req.body?.email;
+    const password = req.body?.password;
+    if (typeof email !== 'string' || typeof password !== 'string') {
+      res.status(400).json({
+        ok: false,
+        code: 'BAD_REQUEST',
+        message: 'Email aur password required hain.',
+      });
+      return;
+    }
+    const session = loginAdmin(email, password);
+    if (!session) {
+      const failed = failedAdminLogins.get(clientKey);
+      failedAdminLogins.set(clientKey, {
+        startedAt: failed?.startedAt ?? now,
+        count: (failed?.count ?? 0) + 1,
+      });
+      res.status(401).json({
+        ok: false,
+        code: 'UNAUTHORIZED',
+        message: 'Email ya password galat hai.',
+      });
+      return;
+    }
+    failedAdminLogins.delete(clientKey);
+    res.json({ ok: true, ...session });
   } catch (error) {
     next(error);
   }
@@ -485,35 +591,23 @@ app.post('/admin/login', async (req, res, next) => {
 
 app.get('/admin/session', async (req, res, next) => {
   try {
-    const user = await getAdminSession(req);
-    res.json({ ok: true, user, isAdmin: true });
+    const admin = await requireAdmin(req, res);
+    if (!admin) return;
+    res.json({ ok: true, admin: { email: admin.email || null, role: 'admin' } });
   } catch (error) {
-    res.status(401).json({ ok: false, code: 'UNAUTHORIZED', message: 'Unauthorized' });
+    next(error);
   }
 });
-
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// Admin — worker approval. New profiles start unapproved, so nothing appears in
-// search until an admin approves it here.
-// ---------------------------------------------------------------------------
-async function requireAdmin(req, res) {
-  const session = await Session.getSession(req, res, { sessionRequired: true });
-  const { authUserId, phone } = await resolveSession(session);
-  const user = await getOrCreateUserByAuthId(authUserId, phone);
-  if (!isAdmin(user)) {
-    res.status(403).json({ ok: false, code: 'FORBIDDEN', message: 'Aap admin nahi ho' });
-    return null;
-  }
-  return user;
-}
 
 app.get('/admin/workers', async (req, res, next) => {
   try {
     const admin = await requireAdmin(req, res);
     if (!admin) return;
-    const result = await listPendingWorkers(req.query.page, req.query.limit);
+    const result = await listAdminWorkers(
+      req.query.status || 'pending',
+      req.query.page,
+      req.query.limit,
+    );
     res.json({ ok: true, ...result });
   } catch (error) {
     next(error);
@@ -524,12 +618,83 @@ app.patch('/admin/workers/:id', async (req, res, next) => {
   try {
     const admin = await requireAdmin(req, res);
     if (!admin) return;
+    if (typeof req.body?.approved !== 'boolean') {
+      res.status(400).json({ ok: false, code: 'BAD_REQUEST', message: 'approved boolean chahiye' });
+      return;
+    }
+    if (req.body?.adminNotes !== undefined && typeof req.body.adminNotes !== 'string') {
+      res.status(400).json({ ok: false, code: 'BAD_REQUEST', message: 'adminNotes string chahiye' });
+      return;
+    }
     const worker = await setWorkerApproval(
       req.params.id,
       req.body?.approved,
       req.body?.adminNotes,
     );
     res.json({ ok: true, worker });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/admin/stats', async (req, res, next) => {
+  try {
+    const admin = await requireAdmin(req, res);
+    if (!admin) return;
+    res.json({ ok: true, stats: await getAdminStats() });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/admin/users', async (req, res, next) => {
+  try {
+    const admin = await requireAdmin(req, res);
+    if (!admin) return;
+    const result = await listAdminUsers(
+      req.query.role,
+      req.query.search,
+      req.query.page,
+      req.query.limit,
+    );
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.patch('/admin/users/:id', async (req, res, next) => {
+  try {
+    const admin = await requireAdmin(req, res);
+    if (!admin) return;
+    if (typeof req.body?.isActive !== 'boolean') {
+      res.status(400).json({ ok: false, code: 'BAD_REQUEST', message: 'isActive boolean chahiye' });
+      return;
+    }
+    const user = await setUserActive(req.params.id, req.body.isActive);
+    res.json({ ok: true, user });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/admin/hires', async (req, res, next) => {
+  try {
+    const admin = await requireAdmin(req, res);
+    if (!admin) return;
+    const result = await listAdminHires(req.query.status, req.query.page, req.query.limit);
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.patch('/admin/hires/:id', async (req, res, next) => {
+  try {
+    const admin = await requireAdmin(req, res);
+    if (!admin) return;
+    const hire = await setAdminHireStatus(req.params.id, req.body?.status);
+    res.json({ ok: true, hire });
   } catch (error) {
     next(error);
   }

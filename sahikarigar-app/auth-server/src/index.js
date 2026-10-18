@@ -141,7 +141,9 @@ const EXTRA_ORIGINS = (process.env.EXTRA_CORS_ORIGINS || '')
   .split(',')
   .map((o) => o.trim().replace(/\/+$/, ''))
   .filter(Boolean);
-const ALLOWED_ORIGINS = [WEBSITE_DOMAIN, ...EXTRA_ORIGINS];
+const ALLOWED_ORIGINS = [
+  ...new Set(['https://sahi-kaarigar.web.app', WEBSITE_DOMAIN, ...EXTRA_ORIGINS]),
+];
 const LOCALHOST_RE = /^https?:\/\/(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?$/;
 
 app.use(
@@ -470,6 +472,18 @@ app.post('/feedback', async (req, res, next) => {
 // POST /admin/login (public). Reads `Authorization: Bearer <token>`, trims
 // stray whitespace (some fetch wrappers add it) and 401s when missing/invalid.
 async function requireAdmin(req, res) {
+  // A missing/short secret is a server misconfiguration, not an expired
+  // session. Return 503 so the frontend keeps the token instead of logging
+  // the admin out on every request.
+  if (Buffer.byteLength(process.env.ADMIN_SESSION_SECRET || '', 'utf8') < 32) {
+    res.status(503).json({
+      ok: false,
+      code: 'ADMIN_AUTH_NOT_CONFIGURED',
+      message: 'ADMIN_SESSION_SECRET must be at least 32 characters on the server.',
+    });
+    return null;
+  }
+
   const authorization = req.get('Authorization') || req.get('authorization') || '';
   const tokenMatch = authorization.match(/^Bearer\s+(.+)$/i);
   const token = tokenMatch ? tokenMatch[1].trim() : '';

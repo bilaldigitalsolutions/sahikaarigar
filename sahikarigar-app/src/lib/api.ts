@@ -38,16 +38,37 @@ export interface AdminSession {
   role: 'admin';
 }
 
+/**
+ * Normalise a token read from localStorage. Guards against the literal strings
+ * `undefined` / `null` ever being written and against accidental whitespace —
+ * either would make the server reject the `Authorization` header with a 401.
+ */
+function normalizeAdminToken(value: string | null): string | null {
+  const token = value?.trim();
+  if (!token || token === 'undefined' || token === 'null') return null;
+  return token;
+}
+
 function getStoredAdminToken(): string | null {
-  return typeof window === 'undefined' ? null : window.localStorage.getItem(ADMIN_SESSION_KEY);
+  if (typeof window === 'undefined') return null;
+  try {
+    return normalizeAdminToken(window.localStorage.getItem(ADMIN_SESSION_KEY));
+  } catch {
+    return null;
+  }
 }
 
 export function clearAdminSession(): void {
-  if (typeof window !== 'undefined') window.localStorage.removeItem(ADMIN_SESSION_KEY);
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.removeItem(ADMIN_SESSION_KEY);
+  } catch {
+    /* storage unavailable (private mode) — nothing to clear */
+  }
 }
 
 export function getAdminToken(): string | null {
-  return typeof window === 'undefined' ? null : localStorage.getItem('admin_token');
+  return getStoredAdminToken();
 }
 
 async function adminApiFetch<T>(
@@ -58,25 +79,31 @@ async function adminApiFetch<T>(
   if (!AUTH_API_URL) {
     throw new Error('Auth server configure nahi hai (NEXT_PUBLIC_AUTH_API_URL).');
   }
+  // Only send the header when we actually have a token — never
+  // `Authorization: Bearer undefined`.
+  const headers = new Headers(init?.headers);
+  if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
+  if (token) headers.set('Authorization', `Bearer ${token}`);
   const response = await fetch(`${AUTH_API_URL}${path}`, {
     ...init,
     credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(init?.headers ?? {}),
-    },
+    headers,
   });
   const data = (await response.json().catch(() => null)) as
     | { ok?: boolean; message?: string; token?: string; admin?: AdminSession }
     | null;
-  if (!response.ok || !data?.ok) {
-    if (response.status === 401 && token) {
-      clearAdminSession();
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new Event('sahikarigar-admin-unauthorized'));
-      }
+
+  // Network failures never reach this point (fetch rejects) and a 5xx is a
+  // server problem — in both cases the stored token is kept. Only a genuine
+  // 401 means the session is invalid/expired, so only then do we log out.
+  if (response.status === 401 && token) {
+    clearAdminSession();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('sahikarigar-admin-unauthorized'));
     }
+  }
+
+  if (!response.ok || !data?.ok) {
     throw new Error(data?.message || 'Admin request fail ho gayi. Dobara try karo.');
   }
   return data as T;

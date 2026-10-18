@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { ShieldCheck } from 'lucide-react';
 import { Button, Card } from '@/components/ui';
+import { adminLogin, getAdminToken } from '@/lib/api';
 
 function AdminLogin({ onLogin }: { onLogin: () => void }) {
   const [email, setEmail] = useState('');
@@ -16,42 +17,20 @@ function AdminLogin({ onLogin }: { onLogin: () => void }) {
     setLoading(true);
 
     try {
-      const API_URL = (process.env.NEXT_PUBLIC_AUTH_API_URL ?? '').replace(/\/+$/, '');
-      if (!API_URL) {
+      if (!(process.env.NEXT_PUBLIC_AUTH_API_URL ?? '').trim()) {
         throw new Error('Auth server configure nahi hai (NEXT_PUBLIC_AUTH_API_URL).');
       }
-      const res = await fetch(`${API_URL}/admin/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
 
-      console.log("Status:", res.status);
+      const data = await adminLogin({ email, password });
 
-      const data = await res.json();
-      console.log("Response Data:", data);
-
-      if (!res.ok) {
-        throw new Error(data.message || "Invalid credentials");
-      }
-
-      const token = data.token || data.accessToken || data.session;
-
-      if (!token) {
-        console.error("Token missing in response:", data);
-        throw new Error("Token missing from server");
-      }
-
-      localStorage.setItem('admin_token', token);
       if (data.admin?.email) {
         localStorage.setItem('admin_email', data.admin.email);
       }
 
+      onLogin();
       window.location.href = '/admin';
-
     } catch (err) {
-      console.error("Login catch error:", err);
-      setError(err instanceof Error ? err.message : "Admin request fail ho gayi");
+      setError(err instanceof Error ? err.message : 'Admin request fail ho gayi');
     } finally {
       setLoading(false);
     }
@@ -103,33 +82,34 @@ export function AdminGuard({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let cancelled = false;
-
-    const checkSession = async () => {
-      // Client-side only: localStorage does not exist during SSR. When a token
-      // exists the app is already inside AdminShell (a client component), so
-      // we can safely read it here instead of redirecting.
-      const token = typeof window !== 'undefined' ? localStorage.getItem('admin_token') : null;
-
-      // Token exists -> keep the panel open. No redirect, no re-check on every
-      // network blip (fixes the infinite login loop on Users/Hires).
-      if (token) {
-        if (!cancelled) setIsAuthenticated(true);
-        if (!cancelled) setLoading(false);
-        return;
-      }
-
-      // No token: normal flow -> show login page directly.
-      if (!cancelled) {
-        setIsAuthenticated(false);
-        setLoading(false);
-      }
+    // Client-side only: localStorage does not exist during SSR. The guard is
+    // deliberately "token presence" based — it never pings the API on mount,
+    // so a cold Render start, a temporary network error or a 5xx can never log
+    // the admin out. Only a real 401 (dispatched by adminApiFetch) clears the
+    // token and brings the login form back.
+    const syncFromStorage = () => {
+      setIsAuthenticated(Boolean(getAdminToken()));
+      setLoading(false);
     };
 
-    checkSession();
+    syncFromStorage();
+
+    const handleUnauthorized = () => {
+      setIsAuthenticated(false);
+      setLoading(false);
+    };
+
+    // Keep multiple admin tabs in sync when one of them logs out / expires.
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === null || event.key === 'admin_token') syncFromStorage();
+    };
+
+    window.addEventListener('sahikarigar-admin-unauthorized', handleUnauthorized);
+    window.addEventListener('storage', handleStorage);
 
     return () => {
-      cancelled = true;
+      window.removeEventListener('sahikarigar-admin-unauthorized', handleUnauthorized);
+      window.removeEventListener('storage', handleStorage);
     };
   }, []);
 

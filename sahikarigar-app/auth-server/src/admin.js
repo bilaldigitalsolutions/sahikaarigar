@@ -53,7 +53,9 @@ export function loginAdmin(email, password) {
 
 export function getAdminSession(token) {
   if (typeof token !== 'string') return null;
-  const [payload, signature, extra] = token.split('.');
+  const raw = token.trim();
+  if (!raw) return null;
+  const [payload, signature, extra] = raw.split('.');
   if (!payload || !signature || extra) return null;
   let expected;
   try {

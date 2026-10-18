@@ -98,6 +98,14 @@ export async function getOrCreateUserByAuthId(
   return created;
 }
 
+/** Keep only digits; require exactly 12 when a value is supplied. */
+function normalizeAadhaarNumber(value) {
+  const digits = String(value ?? '').replace(/\D/g, '');
+  if (!digits) return null;
+  if (digits.length !== 12) throw new Error('Aadhaar number must be exactly 12 digits');
+  return digits;
+}
+
 /** Create/update the worker profile and promote the account to role=worker. */
 export async function upsertWorkerProfile(userId, input = {}) {
   const skills = asStringArray(input.skills);
@@ -115,6 +123,8 @@ export async function upsertWorkerProfile(userId, input = {}) {
 
   const serviceAreas = asStringArray(input.serviceAreas);
   if (serviceAreas.length === 0) throw new Error('At least one service area is required');
+
+  const aadhaarNumber = normalizeAadhaarNumber(input.aadhaarNumber);
 
   const { error: roleError } = await db
     .from('users')
@@ -141,6 +151,7 @@ export async function upsertWorkerProfile(userId, input = {}) {
         verification_status: 'pending',
         admin_notes: null,
         ...(input.aadhaarPhotoPath ? { aadhaar_photo_path: input.aadhaarPhotoPath } : {}),
+        ...(aadhaarNumber ? { aadhaar_number: aadhaarNumber } : {}),
         availability: 'available',
       },
       { onConflict: 'user_id' },

@@ -10,6 +10,15 @@ import { Card } from '@/components/ui';
 import { useAuth } from '@/components/providers';
 import { registerWorkerViaSuperTokens } from '@/lib/supertokens';
 
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ''));
+    reader.onerror = () => reject(new Error(`${file.name} read nahi ho payi.`));
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function RegisterWorkerPage() {
   const router = useRouter();
   const { refresh } = useAuth();
@@ -28,15 +37,24 @@ export default function RegisterWorkerPage() {
     setSubmitting(true);
 
     try {
+      const profile: Record<string, unknown> = {
+        skills: data.skills,
+        experience: data.experience,
+        description: data.description || undefined,
+        hourlyRate: data.hourlyRate,
+        serviceAreas: data.serviceAreas,
+        aadhaarNumber: data.aadhaarNumber,
+      };
+      if (data.aadhaarPhoto) {
+        profile.aadhaarPhotoDataUrl = await fileToDataUrl(data.aadhaarPhoto);
+      }
+      if (data.profilePhoto) {
+        profile.profilePhotoDataUrl = await fileToDataUrl(data.profilePhoto);
+      }
+
       await registerWorkerViaSuperTokens({
         name: data.name,
-        profile: {
-          skills: data.skills,
-          experience: data.experience,
-          description: data.description || undefined,
-          hourlyRate: data.hourlyRate,
-          serviceAreas: data.serviceAreas,
-        },
+        profile,
       });
 
       await refresh();

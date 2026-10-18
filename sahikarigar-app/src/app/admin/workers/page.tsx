@@ -1,11 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { CheckCircle2, Search, UserCheck, XCircle } from 'lucide-react';
+import { Eye, Search, UserCheck } from 'lucide-react';
 import { AdminPagination } from '@/components/admin/AdminPagination';
+import { WorkerDetailModal } from '@/components/admin/WorkerDetailModal';
 import {
   listAdminWorkers,
-  setWorkerApproval,
   type ApiAdminWorker,
   type VerificationStatus,
 } from '@/lib/api';
@@ -41,10 +41,9 @@ export default function WorkerApprovalsPage() {
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ pages: 0, total: 0 });
-  const [reasons, setReasons] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
+  const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -75,24 +74,6 @@ export default function WorkerApprovalsPage() {
     const phone = (worker.user?.phone ?? '').toLowerCase();
     return name.includes(term) || phone.includes(term);
   });
-
-  const decide = async (worker: ApiAdminWorker, approved: boolean) => {
-    const reason = (reasons[worker.id] ?? '').trim();
-    if (!approved && reason.length < 3) {
-      setError('Reject karne se pehle kam se kam 3 characters ka reason likho.');
-      return;
-    }
-    setBusyId(worker.id);
-    setError(null);
-    try {
-      await setWorkerApproval(worker.id, approved, approved ? undefined : reason);
-      await load();
-    } catch (failure) {
-      setError(failure instanceof Error ? failure.message : 'Status update nahi hua.');
-    } finally {
-      setBusyId(null);
-    }
-  };
 
   return (
     <div className="space-y-6 text-[#111827]">
@@ -184,9 +165,20 @@ export default function WorkerApprovalsPage() {
                   const city = worker.user?.locationCity?.trim();
                   const location =
                     [area, city].filter(Boolean).join(', ') || worker.serviceAreas?.[0] || 'India';
-                  const busy = busyId === worker.id;
                   return (
-                    <tr key={worker.id} className="align-top hover:bg-gray-50/60">
+                    <tr
+                      key={worker.id}
+                      onClick={() => setSelectedWorkerId(worker.id)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          setSelectedWorkerId(worker.id);
+                        }
+                      }}
+                      tabIndex={0}
+                      title="Click to view complete details"
+                      className="cursor-pointer align-top hover:bg-gray-50/60 focus:bg-gray-50 focus:outline-none"
+                    >
                       <td className="px-5 py-3.5">
                         <span className="flex items-center gap-3">
                           <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[12px] font-bold text-white ${profile.bg}`}>
@@ -210,41 +202,18 @@ export default function WorkerApprovalsPage() {
                       <td className="whitespace-nowrap px-5 py-3.5 text-gray-400">
                         {new Date(worker.createdAt).toLocaleDateString('en-IN')}
                       </td>
-                      <td className="px-5 py-3.5">
-                        {status === 'pending' ? (
-                          <span className="flex flex-col items-end gap-2">
-                            <input
-                              aria-label={`Reject reason for ${name}`}
-                              value={reasons[worker.id] ?? ''}
-                              maxLength={500}
-                              onChange={(event) =>
-                                setReasons((current) => ({ ...current, [worker.id]: event.target.value }))
-                              }
-                              placeholder="Reject reason…"
-                              className="w-44 rounded-lg border border-gray-200 px-2.5 py-1.5 text-[12px] outline-none focus:border-emerald-500"
-                            />
-                            <span className="flex items-center gap-1.5">
-                              <button
-                                type="button"
-                                disabled={busy}
-                                onClick={() => void decide(worker, true)}
-                                className="inline-flex items-center gap-1 rounded-full bg-[#111827] px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-black disabled:opacity-60"
-                              >
-                                <CheckCircle2 size={13} /> Approve
-                              </button>
-                              <button
-                                type="button"
-                                disabled={busy}
-                                onClick={() => void decide(worker, false)}
-                                className="inline-flex items-center gap-1 rounded-full border border-gray-200 px-3 py-1.5 text-[12px] font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-60"
-                              >
-                                <XCircle size={13} /> Reject
-                              </button>
-                            </span>
-                          </span>
-                        ) : (
-                          <span className="block text-right text-[12px] text-gray-400">—</span>
-                        )}
+                      <td
+                        className="px-5 py-3.5 text-right"
+                        onClick={(event) => event.stopPropagation()}
+                        onKeyDown={(event) => event.stopPropagation()}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setSelectedWorkerId(worker.id)}
+                          className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-[12px] font-semibold text-gray-700 hover:bg-gray-50"
+                        >
+                          <Eye size={13} /> View details
+                        </button>
                       </td>
                     </tr>
                   );
@@ -264,6 +233,14 @@ export default function WorkerApprovalsPage() {
           </div>
         )}
       </section>
+
+      {selectedWorkerId && (
+        <WorkerDetailModal
+          workerId={selectedWorkerId}
+          onClose={() => setSelectedWorkerId(null)}
+          onUpdated={() => void load()}
+        />
+      )}
     </div>
   );
 }

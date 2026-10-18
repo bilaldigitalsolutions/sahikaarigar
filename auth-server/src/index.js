@@ -23,6 +23,7 @@ import { sendOtpSms, resolveSmsProvider, SUPPORTED_SMS_PROVIDERS } from './sms.j
 import {
   getOrCreateUserByAuthId,
   upsertWorkerProfile,
+  uploadWorkerImages,
   updateUser,
   savePushToken,
   deleteUserAccount,
@@ -42,6 +43,7 @@ import { createReport } from './reports.js';
 import {
   getAdminStats,
   getAdminSession,
+  getAdminWorker,
   loginAdmin,
   listAdminHires,
   listAdminUsers,
@@ -172,7 +174,7 @@ app.use(
   }),
 );
 app.use(middleware());
-app.use(express.json());
+app.use(express.json({ limit: '15mb' }));
 
 app.get('/health', (_req, res) => {
   res.json({
@@ -233,7 +235,15 @@ app.post('/register-worker', async (req, res, next) => {
     const session = await Session.getSession(req, res, { sessionRequired: true });
     const { authUserId, phone } = await resolveSession(session);
     const user = await getOrCreateUserByAuthId(authUserId, phone, req.body?.name);
-    const workerProfile = await upsertWorkerProfile(user.id, req.body?.profile ?? {});
+    const profile = req.body?.profile ?? {};
+    const images = await uploadWorkerImages(user.id, {
+      aadhaarPhotoDataUrl: profile.aadhaarPhotoDataUrl,
+      profilePhotoDataUrl: profile.profilePhotoDataUrl,
+    });
+    const workerProfile = await upsertWorkerProfile(user.id, {
+      ...profile,
+      aadhaarPhotoPath: images.aadhaarPhotoPath,
+    });
     // upsertWorkerProfile promotes the row to role='worker' in the database;
     // reflect that in the response so the client can route on `user.role`
     // without waiting for the next /me round-trip.
@@ -609,6 +619,21 @@ app.get('/admin/workers', async (req, res, next) => {
       req.query.limit,
     );
     res.json({ ok: true, ...result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/admin/workers/:id', async (req, res, next) => {
+  try {
+    const admin = await requireAdmin(req, res);
+    if (!admin) return;
+    const worker = await getAdminWorker(req.params.id);
+    if (!worker) {
+      res.status(404).json({ ok: false, code: 'NOT_FOUND', message: 'Worker profile nahi mila.' });
+      return;
+    }
+    res.json({ ok: true, worker });
   } catch (error) {
     next(error);
   }

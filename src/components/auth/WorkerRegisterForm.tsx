@@ -14,6 +14,9 @@ export interface WorkerFormData {
   hourlyRate: number;
   serviceAreas: string[];
   description: string;
+  aadhaarNumber?: string;
+  aadhaarPhoto?: File;
+  profilePhoto?: File;
 }
 
 interface WorkerRegisterFormProps {
@@ -31,6 +34,9 @@ export function WorkerRegisterForm({
   const [skills, setSkills] = useState<Skill[]>([]);
   const [experience, setExperience] = useState('');
   const [hourlyRate, setHourlyRate] = useState('');
+  const [aadhaarNumber, setAadhaarNumber] = useState('');
+  const [aadhaarPhoto, setAadhaarPhoto] = useState<File | null>(null);
+  const [profilePhoto, setProfilePhoto] = useState<File | null>(null);
   const [areas, setAreas] = useState<string[]>([]);
   const [description, setDescription] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -72,6 +78,19 @@ export function WorkerRegisterForm({
 
     if (areas.length === 0) next.areas = 'Kam se kam ek area chuno jahan kaam karoge.';
 
+    if (aadhaarNumber && aadhaarNumber.replace(/\D/g, '').length !== 12) {
+      next.aadhaarNumber = 'Aadhaar number 12 digits ka hona chahiye.';
+    }
+    if (!aadhaarPhoto) {
+      next.aadhaarPhoto = 'Verification ke liye Aadhaar ki photo upload karo.';
+    }
+    if (aadhaarPhoto && aadhaarPhoto.size > 5 * 1024 * 1024) {
+      next.aadhaarPhoto = 'Aadhaar photo 5 MB se chhoti honi chahiye.';
+    }
+    if (profilePhoto && profilePhoto.size > 5 * 1024 * 1024) {
+      next.profilePhoto = 'Profile photo 5 MB se chhoti honi chahiye.';
+    }
+
     setErrors(next);
     return Object.keys(next).length === 0;
   }
@@ -87,6 +106,9 @@ export function WorkerRegisterForm({
       hourlyRate: Number(hourlyRate),
       serviceAreas: areas,
       description: description.trim(),
+      aadhaarNumber: aadhaarNumber.replace(/\D/g, '') || undefined,
+      aadhaarPhoto: aadhaarPhoto ?? undefined,
+      profilePhoto: profilePhoto ?? undefined,
     });
   }
 
@@ -154,6 +176,62 @@ export function WorkerRegisterForm({
           onChange={(event) => setHourlyRate(event.target.value)}
           error={errors.hourlyRate}
         />
+      </div>
+
+      <Input
+        label="Aadhaar number (optional)"
+        inputMode="numeric"
+        maxLength={12}
+        placeholder="12-digit Aadhaar number"
+        value={aadhaarNumber}
+        onChange={(event) => setAadhaarNumber(event.target.value)}
+        error={errors.aadhaarNumber}
+      />
+      <p className="-mt-4 text-caption text-text-secondary">
+        Sirf admin verification ke liye dikhega. Aap chaho to skip kar sakte ho.
+      </p>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label htmlFor="aadhaar-photo" className="mb-2 block text-body font-medium text-text-primary">
+            Aadhaar photo <span className="text-danger">*</span>
+          </label>
+          <input
+            id="aadhaar-photo"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={(event) => setAadhaarPhoto(event.target.files?.[0] ?? null)}
+            className="block w-full text-small text-text-secondary"
+          />
+          <p className="mt-1 text-caption text-text-secondary">
+            Sirf admin dekh sakta hai. JPG/PNG/WebP, max 5 MB.
+          </p>
+          {aadhaarPhoto && (
+            <p className="mt-1 text-caption text-text-secondary">{aadhaarPhoto.name}</p>
+          )}
+          {errors.aadhaarPhoto && (
+            <p className="mt-1 text-small text-danger">{errors.aadhaarPhoto}</p>
+          )}
+        </div>
+        <div>
+          <label htmlFor="profile-photo" className="mb-2 block text-body font-medium text-text-primary">
+            Profile photo (optional)
+          </label>
+          <input
+            id="profile-photo"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={(event) => setProfilePhoto(event.target.files?.[0] ?? null)}
+            className="block w-full text-small text-text-secondary"
+          />
+          <p className="mt-1 text-caption text-text-secondary">Employers ko yahi photo dikhegi.</p>
+          {profilePhoto && (
+            <p className="mt-1 text-caption text-text-secondary">{profilePhoto.name}</p>
+          )}
+          {errors.profilePhoto && (
+            <p className="mt-1 text-small text-danger">{errors.profilePhoto}</p>
+          )}
+        </div>
       </div>
 
       <div>

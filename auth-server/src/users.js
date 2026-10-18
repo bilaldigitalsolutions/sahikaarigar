@@ -88,6 +88,62 @@ export async function getOrCreateUserByAuthId(authUserId, phone, name) {
   return created;
 }
 
+/** Keep only digits; require exactly 12 when a value is supplied. */
+function normalizeAadhaarNumber(value) {
+  const digits = String(value ?? '').replace(/\D/g, '');
+  if (!digits) return null;
+  if (digits.length !== 12) throw new Error('Aadhaar number must be exactly 12 digits');
+  return digits;
+}
+
+function decodeImageDataUrl(value, label) {
+  if (typeof value !== 'string') return null;
+  const match = value.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
+  if (!match) throw new Error(`${label} must be a JPEG, PNG, or WebP image`);
+  const buffer = Buffer.from(match[2], 'base64');
+  if (buffer.length === 0 || buffer.length > 5 * 1024 * 1024) {
+    throw new Error(`${label} must be smaller than 5 MB`);
+  }
+  return { buffer, contentType: match[1] };
+}
+
+/** Store worker profile photos privately/publicly as appropriate. */
+export async function uploadWorkerImages(
+  userId,
+  { aadhaarPhotoDataUrl, profilePhotoDataUrl } = {},
+) {
+  const images = {};
+  const aadhaar = decodeImageDataUrl(aadhaarPhotoDataUrl, 'Aadhaar photo');
+  if (aadhaar) {
+    const path = `${userId}/aadhaar`;
+    const { error } = await db.storage.from('aadhaar-documents').upload(path, aadhaar.buffer, {
+      contentType: aadhaar.contentType,
+      upsert: true,
+    });
+    if (error) throw new Error(`Aadhaar photo upload failed: ${error.message}`);
+    images.aadhaarPhotoPath = path;
+  }
+
+  const profilePhoto = decodeImageDataUrl(profilePhotoDataUrl, 'Profile photo');
+  if (profilePhoto) {
+    const path = `${userId}/profile`;
+    const { error } = await db.storage.from('avatars').upload(path, profilePhoto.buffer, {
+      contentType: profilePhoto.contentType,
+      upsert: true,
+    });
+    if (error) throw new Error(`Profile photo upload failed: ${error.message}`);
+    const { data } = db.storage.from('avatars').getPublicUrl(path);
+    const { error: userError } = await db
+      .from('users')
+      .update({ avatar: data.publicUrl })
+      .eq('id', userId);
+    if (userError) throw new Error(userError.message);
+    images.profilePhotoUrl = data.publicUrl;
+  }
+
+  return images;
+}
+
 /** Create/update the worker profile and promote the account to role=worker. */
 export async function upsertWorkerProfile(userId, input = {}) {
   const skills = asStringArray(input.skills);
@@ -105,6 +161,8 @@ export async function upsertWorkerProfile(userId, input = {}) {
 
   const serviceAreas = asStringArray(input.serviceAreas);
   if (serviceAreas.length === 0) throw new Error('At least one service area is required');
+
+  const aadhaarNumber = normalizeAadhaarNumber(input.aadhaarNumber);
 
   const { error: roleError } = await db
     .from('users')
@@ -128,6 +186,9 @@ export async function upsertWorkerProfile(userId, input = {}) {
         lat: asNumber(input.lat),
         lng: asNumber(input.lng),
         is_approved: false,
+        verification_status: 'pending',
+        ...(input.aadhaarPhotoPath ? { aadhaar_photo_path: input.aadhaarPhotoPath } : {}),
+        ...(aadhaarNumber ? { aadhaar_number: aadhaarNumber } : {}),
         availability: 'available',
       },
       { onConflict: 'user_id' },

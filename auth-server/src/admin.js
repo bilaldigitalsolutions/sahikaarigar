@@ -91,12 +91,23 @@ function mapAdminWorker(row, aadhaarPhotoUrl) {
     description: row.description ?? null,
     hourlyRate: row.hourly_rate ?? 0,
     availability: row.availability ?? 'available',
+    portfolio: row.portfolio ?? [],
     serviceAreas: row.service_areas ?? [],
+    ratingAverage: row.rating_average ?? 0,
+    ratingCount: row.rating_count ?? 0,
+    completedJobs: row.completed_jobs ?? 0,
+    lat: row.lat ?? null,
+    lng: row.lng ?? null,
     isApproved: row.is_approved ?? false,
     verificationStatus: row.verification_status ?? (row.is_approved ? 'approved' : 'pending'),
     adminNotes: row.admin_notes ?? null,
+    rejectionReason: row.rejection_reason ?? row.admin_notes ?? null,
+    reviewedAt: row.reviewed_at ?? null,
+    // Full number is only exposed to authenticated admins.
+    aadhaarNumber: row.aadhaar_number ?? null,
     aadhaarPhotoUrl,
     createdAt: row.created_at,
+    updatedAt: row.updated_at ?? null,
     user: row.user
       ? {
           id: row.user.id,
@@ -105,9 +116,23 @@ function mapAdminWorker(row, aadhaarPhotoUrl) {
           avatar: row.user.avatar ?? null,
           locationArea: row.user.location_area ?? null,
           locationCity: row.user.location_city ?? null,
+          createdAt: row.user.created_at ?? null,
         }
       : null,
   };
+}
+
+const ADMIN_WORKER_SELECT =
+  '*, user:users!user_id(id, name, phone, avatar, location_area, location_city, created_at)';
+
+/** 5-minute signed URL for the private Aadhaar document. */
+async function signedAadhaarUrl(path) {
+  if (!path) return null;
+  const { data, error } = await db.storage
+    .from('aadhaar-documents')
+    .createSignedUrl(path, 300);
+  if (error) throw new Error(error.message);
+  return data?.signedUrl ?? null;
 }
 
 /** Workers by review state (newest first), with a short-lived Aadhaar URL. */
@@ -121,23 +146,17 @@ export async function listAdminWorkers(status = 'pending', page = 1, limit = 50)
 
   const { data, error, count } = await db
     .from('worker_profiles')
-    .select('*, user:users!user_id(id, name, phone, avatar, location_area, location_city)', { count: 'exact' })
+    .select(ADMIN_WORKER_SELECT, { count: 'exact' })
     .eq('verification_status', status)
     .order('created_at', { ascending: false })
     .range(from, from + safeLimit - 1);
 
   if (error) throw new Error(error.message);
-  const workers = await Promise.all((data ?? []).map(async (row) => {
-    let aadhaarPhotoUrl = null;
-    if (row.aadhaar_photo_path) {
-      const { data: signed, error: signedError } = await db.storage
-        .from('aadhaar-documents')
-        .createSignedUrl(row.aadhaar_photo_path, 300);
-      if (signedError) throw new Error(signedError.message);
-      aadhaarPhotoUrl = signed.signedUrl;
-    }
-    return mapAdminWorker(row, aadhaarPhotoUrl);
-  }));
+  const workers = await Promise.all(
+    (data ?? []).map(async (row) =>
+      mapAdminWorker(row, await signedAadhaarUrl(row.aadhaar_photo_path)),
+    ),
+  );
 
   return {
     workers,
@@ -148,6 +167,18 @@ export async function listAdminWorkers(status = 'pending', page = 1, limit = 50)
       pages: Math.ceil((count ?? 0) / safeLimit),
     },
   };
+}
+
+/** Single worker with every detail needed for manual verification. */
+export async function getAdminWorker(workerId) {
+  const { data, error } = await db
+    .from('worker_profiles')
+    .select(ADMIN_WORKER_SELECT)
+    .eq('id', workerId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+  return mapAdminWorker(data, await signedAadhaarUrl(data.aadhaar_photo_path));
 }
 
 /** Approve or reject a worker profile. */
@@ -161,9 +192,11 @@ export async function setWorkerApproval(workerId, approved, adminNotes) {
       is_approved: Boolean(approved),
       verification_status: approved ? 'approved' : 'rejected',
       admin_notes: approved ? null : reason,
+      rejection_reason: approved ? null : reason,
+      reviewed_at: new Date().toISOString(),
     })
     .eq('id', workerId)
-    .select('id, is_approved, verification_status, admin_notes')
+    .select('id, is_approved, verification_status, admin_notes, rejection_reason, reviewed_at')
     .maybeSingle();
 
   if (error) throw new Error(error.message);
@@ -173,6 +206,8 @@ export async function setWorkerApproval(workerId, approved, adminNotes) {
     isApproved: data.is_approved,
     verificationStatus: data.verification_status,
     adminNotes: data.admin_notes ?? null,
+    rejectionReason: data.rejection_reason ?? data.admin_notes ?? null,
+    reviewedAt: data.reviewed_at ?? null,
   };
 }
 

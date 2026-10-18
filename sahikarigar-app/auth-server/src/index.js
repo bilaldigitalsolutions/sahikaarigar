@@ -41,6 +41,7 @@ import {
 import {
   getAdminStats,
   getAdminSession,
+  getAdminWorker,
   loginAdmin,
   listAdminHires,
   listAdminUsers,
@@ -577,6 +578,21 @@ app.get('/admin/workers', async (req, res, next) => {
       req.query.limit,
     );
     res.json({ ok: true, ...result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/admin/workers/:id', async (req, res, next) => {
+  try {
+    const admin = await requireAdmin(req, res);
+    if (!admin) return;
+    const worker = await getAdminWorker(req.params.id);
+    if (!worker) {
+      res.status(404).json({ ok: false, code: 'NOT_FOUND', message: 'Worker profile nahi mila.' });
+      return;
+    }
+    res.json({ ok: true, worker });
   } catch (error) {
     next(error);
   }

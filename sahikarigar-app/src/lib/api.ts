@@ -327,12 +327,22 @@ export interface ApiAdminWorker {
   description?: string | null;
   hourlyRate: number;
   availability: ApiAvailability;
+  portfolio?: string[];
   serviceAreas: string[];
+  ratingAverage?: number;
+  ratingCount?: number;
+  completedJobs?: number;
+  lat?: number | null;
+  lng?: number | null;
   isApproved: boolean;
   verificationStatus: VerificationStatus;
   adminNotes?: string | null;
+  rejectionReason?: string | null;
+  reviewedAt?: string | null;
+  aadhaarNumber?: string | null;
   aadhaarPhotoUrl?: string | null;
   createdAt: string;
+  updatedAt?: string | null;
   user: {
     id: string;
     name: string;
@@ -340,6 +350,7 @@ export interface ApiAdminWorker {
     avatar?: string | null;
     locationArea?: string | null;
     locationCity?: string | null;
+    createdAt?: string | null;
   } | null;
 }
 
@@ -359,6 +370,10 @@ export function listPendingWorkers(): Promise<{
   return listAdminWorkers('pending');
 }
 
+export function getAdminWorker(id: string): Promise<{ worker: ApiAdminWorker }> {
+  return adminApiFetch(`/admin/workers/${encodeURIComponent(id)}`);
+}
+
 export function setWorkerApproval(
   id: string,
   approved: boolean,
@@ -369,6 +384,8 @@ export function setWorkerApproval(
     isApproved: boolean;
     verificationStatus: VerificationStatus;
     adminNotes: string | null;
+    rejectionReason?: string | null;
+    reviewedAt?: string | null;
   };
 }> {
   return adminApiFetch(`/admin/workers/${encodeURIComponent(id)}`, {

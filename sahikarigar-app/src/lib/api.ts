@@ -31,7 +31,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return data as T;
 }
 
-const ADMIN_SESSION_KEY = 'sahikarigar-admin-session';
+const ADMIN_SESSION_KEY = 'admin_token';
 
 export interface AdminSession {
   email: string;
@@ -39,11 +39,11 @@ export interface AdminSession {
 }
 
 function getStoredAdminToken(): string | null {
-  return typeof window === 'undefined' ? null : window.sessionStorage.getItem(ADMIN_SESSION_KEY);
+  return typeof window === 'undefined' ? null : window.localStorage.getItem(ADMIN_SESSION_KEY);
 }
 
 export function clearAdminSession(): void {
-  if (typeof window !== 'undefined') window.sessionStorage.removeItem(ADMIN_SESSION_KEY);
+  if (typeof window !== 'undefined') window.localStorage.removeItem(ADMIN_SESSION_KEY);
 }
 
 async function adminApiFetch<T>(
@@ -87,7 +87,7 @@ export async function adminLogin(payload: {
     { method: 'POST', body: JSON.stringify(payload) },
     null,
   );
-  window.sessionStorage.setItem(ADMIN_SESSION_KEY, data.token);
+  window.localStorage.setItem(ADMIN_SESSION_KEY, data.token);
   return { admin: data.admin };
 }
 

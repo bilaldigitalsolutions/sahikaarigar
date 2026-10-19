@@ -80,6 +80,21 @@ export function isValidPhone(phone: string): boolean {
 }
 
 /**
+ * Known fake/test sequences we refuse anywhere a phone is entered:
+ *   0000000000, 1111111111 … 9999999999 (all-same-digit),
+ *   0123456789 / 1234567890 / 9876543210 (straight runs).
+ */
+export function isFakePhoneSequence(phone: string): boolean {
+  if (!/^\d{10}$/.test(phone)) return false;
+  if (/^(\d)\1{9}$/.test(phone)) return true; // 0000000000 … 9999999999
+  const chars = [...phone].map(Number);
+  // Cyclic runs — 0123456789 / 1234567890 / 9876543210 / 9012345678 …
+  const ascending = chars.every((d, i) => i === 0 || d === (chars[i - 1] + 1) % 10);
+  const descending = chars.every((d, i) => i === 0 || d === (chars[i - 1] + 9) % 10);
+  return ascending || descending;
+}
+
+/**
  * Normalise a phone number to the 10-digit Indian mobile format stored in the
  * database. Firebase returns "+919876543210" while the DB stores "9876543210".
  */
@@ -118,6 +133,9 @@ export function generateStars(rating: number): string {
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+export type { AadhaarValidation } from './aadhaar';
+export { formatAadhaar, isValidAadhaar, validateAadhaar, verhoeffPasses } from './aadhaar';
 
 /** Debounce a function. */
 export function debounce<T extends (...args: never[]) => unknown>(

@@ -30,6 +30,7 @@ import { AVAILABILITY_OPTIONS, LEGAL_URLS, SKILLS, SUPPORT_PHONE, VALIDATION } f
 import { useAuth } from '@/contexts/AuthContext';
 import { registerWorker } from '@/lib/api';
 import { colors, fontSize, fontWeight, radius, spacing } from '@/theme';
+import { formatAadhaar, validateAadhaar } from '@/utils';
 
 export default function RegisterWorkerScreen() {
   const router = useRouter();
@@ -49,6 +50,12 @@ export default function RegisterWorkerScreen() {
   const [workPhotos, setWorkPhotos] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Strict Aadhaar gate (UIDAI Verhoeff checksum — see utils/aadhaar): empty
+  // is fine (optional), but anything typed must checksum-pass before Submit.
+  const aadhaarDigits = aadhaar.replace(/\D/g, '');
+  const aadhaarCheck = aadhaarDigits ? validateAadhaar(aadhaarDigits) : null;
+  const aadhaarValid = !aadhaarCheck || aadhaarCheck.valid;
 
   const pickProfilePhoto = async () => {
     const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7 });
@@ -89,6 +96,16 @@ export default function RegisterWorkerScreen() {
     if (!area) {
       setError('Select your area.');
       return;
+    }
+    // Strict Aadhaar gate — if the worker typed anything, it must pass the
+    // UIDAI Verhoeff checksum, not just be 12 digits.
+    const aadhaarDigits = aadhaar.replace(/\D/g, '');
+    if (aadhaarDigits) {
+      const aadhaarCheck = validateAadhaar(aadhaarDigits);
+      if (!aadhaarCheck.valid) {
+        setError(aadhaarCheck.error ?? 'Kripya valid 12-digit Aadhaar number daalein.');
+        return;
+      }
     }
     const rateValue = Number(rate);
     if (!Number.isFinite(rateValue) || rateValue < VALIDATION.MIN_RATE || rateValue > VALIDATION.MAX_RATE) {
@@ -233,18 +250,22 @@ export default function RegisterWorkerScreen() {
               <TextInput
                 style={styles.phoneInput}
                 value={aadhaar}
-                onChangeText={setAadhaar}
+                // Auto-format as the official XXXX XXXX XXXX layout while typing.
+                onChangeText={(text) => setAadhaar(formatAadhaar(text))}
                 keyboardType="number-pad"
-                maxLength={12}
+                maxLength={14}
                 placeholder="XXXX XXXX XXXX"
                 placeholderTextColor={colors.muted}
                 secureTextEntry
               />
             </View>
-            <Text style={styles.hint}>
-              Optional — self-verification ke liye. Number sirf aapke phone par rehta hai, server ko kabhi nahi
-              bheja jata.
-            </Text>
+            {aadhaarDigits && !aadhaarValid ? (
+              <Text style={styles.fieldError}>Kripya valid 12-digit Aadhaar number daalein.</Text>
+            ) : (
+              <Text style={styles.hint}>
+                Optional — admin verification ke liye. UIDAI checksum galat number pakad leta hai, isliye dhyan se daalo.
+              </Text>
+            )}
           </View>
 
           <View style={[styles.mt, styles.uploadRow]}>
@@ -335,7 +356,15 @@ export default function RegisterWorkerScreen() {
             </Text>
           </Pressable>
 
-          <Button label="Submit Application" onPress={onSubmit} loading={busy} size="lg" style={styles.mt} />
+          <Button
+            label="Submit Application"
+            onPress={onSubmit}
+            loading={busy}
+            size="lg"
+            // Dead button until the Aadhaar digits (when typed) pass Verhoeff.
+            disabled={!aadhaarValid}
+            style={styles.mt}
+          />
 
           <Text style={styles.support}>Need help? Contact support • {SUPPORT_PHONE}</Text>
 
@@ -381,6 +410,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   hint: { fontSize: fontSize.caption, color: colors.textSecondary, marginTop: spacing.xs },
+  fieldError: { fontSize: fontSize.caption, fontWeight: fontWeight.medium, color: colors.danger, marginTop: spacing.xs },
   phoneField: {
     flexDirection: 'row',
     alignItems: 'center',

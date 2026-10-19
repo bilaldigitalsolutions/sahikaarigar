@@ -7,6 +7,8 @@
 
 import { createClient } from '@supabase/supabase-js';
 
+import { isBlockedFakeSequence, isValidAadhaar } from './validation.js';
+
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -27,7 +29,11 @@ export function normalizeIndianPhone(value) {
 }
 
 export function isValidIndianPhone(phone) {
-  return /^[6-9]\d{9}$/.test(phone);
+  // Strict: exact 10 digits starting 6-9 AND not an obvious fake sequence
+  // (0000000000, 1111111111, 1234567890, 9876543210 …). SuperTokens' OTP flow
+  // and new-account creation both route through this validator.
+  if (!/^[6-9]\d{9}$/.test(phone)) return false;
+  return !isBlockedFakeSequence(phone);
 }
 
 function asStringArray(value) {
@@ -88,11 +94,15 @@ export async function getOrCreateUserByAuthId(authUserId, phone, name) {
   return created;
 }
 
-/** Keep only digits; require exactly 12 when a value is supplied. */
+/** Keep only digits; require exactly 12 + a passing UIDAI Verhoeff checksum. */
 function normalizeAadhaarNumber(value) {
   const digits = String(value ?? '').replace(/\D/g, '');
   if (!digits) return null;
   if (digits.length !== 12) throw new Error('Aadhaar number must be exactly 12 digits');
+  if (!isValidAadhaar(digits)) {
+    // 403-style rejection of fake data — the checksum can never lie here.
+    throw new Error('Kripya valid 12-digit Aadhaar number daalein — ye UIDAI checksum pass nahi hua');
+  }
   return digits;
 }
 

@@ -6,7 +6,7 @@ import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } fro
 import { BrandLogo, Button, Input, Screen } from '@/components';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors, fontSize, fontWeight, spacing } from '@/theme';
-import { isValidPhone, normalizeIndianPhone } from '@/utils';
+import { isFakePhoneSequence, isValidPhone, normalizeIndianPhone } from '@/utils';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -26,8 +26,12 @@ export default function LoginScreen() {
 
   const onSubmit = async () => {
     const normalized = normalizeIndianPhone(phone);
-    if (!isValidPhone(normalized)) {
-      setError('Enter a valid 10-digit mobile number (starting with 6, 7, 8 or 9).');
+    if (!phoneReady) {
+      setError(
+        isFakePhoneSequence(normalized)
+          ? 'Ye fake/test number allow nahi hai — apna asli mobile number daalo.'
+          : 'Enter a valid 10-digit mobile number (starting with 6, 7, 8 or 9).',
+      );
       return;
     }
     setError(null);
@@ -38,6 +42,10 @@ export default function LoginScreen() {
       setError(e instanceof Error ? e.message : 'Something went wrong. Please try again.');
     }
   };
+
+  /** Strict phone gate — button stays dead until a REAL number is typed. */
+  const normalizedPhone = normalizeIndianPhone(phone);
+  const phoneReady = isValidPhone(normalizedPhone) && !isFakePhoneSequence(normalizedPhone);
 
   return (
     <Screen scroll>
@@ -79,7 +87,13 @@ export default function LoginScreen() {
             textContentType="none"
             importantForAutofill="no"
           />
-          <Button label="Send OTP" onPress={onSubmit} loading={busy} size="lg" />
+          <Button
+            label="Send OTP"
+            onPress={onSubmit}
+            loading={busy}
+            size="lg"
+            disabled={!phoneReady}
+          />
         </View>
 
         <Text style={styles.terms}>

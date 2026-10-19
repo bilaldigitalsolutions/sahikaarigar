@@ -7,6 +7,8 @@
 
 import { createClient } from '@supabase/supabase-js';
 
+import { isBlockedFakeSequence, isValidAadhaar } from './validation.js';
+
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -27,7 +29,11 @@ export function normalizeIndianPhone(value) {
 }
 
 export function isValidIndianPhone(phone) {
-  return /^[6-9]\d{9}$/.test(phone);
+  // Strict: exact 10 digits starting 6-9 AND not an obvious fake sequence
+  // (0000000000, 1111111111, 1234567890, 9876543210 …). SuperTokens' OTP flow
+  // and new-account creation both route through this validator.
+  if (!/^[6-9]\d{9}$/.test(phone)) return false;
+  return !isBlockedFakeSequence(phone);
 }
 
 function asStringArray(value) {
@@ -44,12 +50,7 @@ function asNumber(value) {
 /**
  * Find the `users` row for this SuperTokens user, creating it on first sign-in.
  */
-export async function getOrCreateUserByAuthId(
-  authUserId,
-  phone,
-  name,
-  { allowInactive = false } = {},
-) {
+export async function getOrCreateUserByAuthId(authUserId, phone, name) {
   const { data: existing, error } = await db
     .from('users')
     .select('*')
@@ -61,11 +62,6 @@ export async function getOrCreateUserByAuthId(
   const cleanName = typeof name === 'string' ? name.trim() : '';
 
   if (existing) {
-    if (!existing.is_active && !allowInactive) {
-      const error = new Error('Account suspended hai. Admin se sampark karein.');
-      error.statusCode = 403;
-      throw error;
-    }
     if (cleanName.length >= 2 && cleanName !== existing.name) {
       const { data: updated, error: updateError } = await db
         .from('users')
@@ -98,69 +94,16 @@ export async function getOrCreateUserByAuthId(
   return created;
 }
 
-/** Keep only digits; require exactly 12 when a value is supplied. */
+/** Keep only digits; require exactly 12 + a passing UIDAI Verhoeff checksum. */
 function normalizeAadhaarNumber(value) {
   const digits = String(value ?? '').replace(/\D/g, '');
   if (!digits) return null;
   if (digits.length !== 12) throw new Error('Aadhaar number must be exactly 12 digits');
+  if (!isValidAadhaar(digits)) {
+    // 403-style rejection of fake data — the checksum can never lie here.
+    throw new Error('Kripya valid 12-digit Aadhaar number daalein — ye UIDAI checksum pass nahi hua');
+  }
   return digits;
-}
-
-/** Create/update the worker profile and promote the account to role=worker. */
-export async function upsertWorkerProfile(userId, input = {}) {
-  const skills = asStringArray(input.skills);
-  if (skills.length === 0) throw new Error('At least one skill is required');
-
-  const experience = asNumber(input.experience) ?? 0;
-  if (experience < 0 || experience > 50) {
-    throw new Error('Experience must be between 0 and 50 years');
-  }
-
-  const hourlyRate = asNumber(input.hourlyRate) ?? 0;
-  if (hourlyRate < 50 || hourlyRate > 10000) {
-    throw new Error('Hourly rate must be between Rs.50 and Rs.10,000');
-  }
-
-  const serviceAreas = asStringArray(input.serviceAreas);
-  if (serviceAreas.length === 0) throw new Error('At least one service area is required');
-
-  const aadhaarNumber = normalizeAadhaarNumber(input.aadhaarNumber);
-
-  const { error: roleError } = await db
-    .from('users')
-    .update({ role: 'worker' })
-    .eq('id', userId);
-  if (roleError) throw new Error(roleError.message);
-
-  const { data, error } = await db
-    .from('worker_profiles')
-    .upsert(
-      {
-        user_id: userId,
-        skills,
-        experience,
-        description:
-          typeof input.description === 'string' && input.description.trim()
-            ? input.description.trim()
-            : null,
-        hourly_rate: hourlyRate,
-        service_areas: serviceAreas,
-        lat: asNumber(input.lat),
-        lng: asNumber(input.lng),
-        is_approved: false,
-        verification_status: 'pending',
-        admin_notes: null,
-        ...(input.aadhaarPhotoPath ? { aadhaar_photo_path: input.aadhaarPhotoPath } : {}),
-        ...(aadhaarNumber ? { aadhaar_number: aadhaarNumber } : {}),
-        availability: 'available',
-      },
-      { onConflict: 'user_id' },
-    )
-    .select('*')
-    .single();
-
-  if (error) throw new Error(error.message);
-  return data;
 }
 
 function decodeImageDataUrl(value, label) {
@@ -209,6 +152,62 @@ export async function uploadWorkerImages(
   }
 
   return images;
+}
+
+/** Create/update the worker profile and promote the account to role=worker. */
+export async function upsertWorkerProfile(userId, input = {}) {
+  const skills = asStringArray(input.skills);
+  if (skills.length === 0) throw new Error('At least one skill is required');
+
+  const experience = asNumber(input.experience) ?? 0;
+  if (experience < 0 || experience > 50) {
+    throw new Error('Experience must be between 0 and 50 years');
+  }
+
+  const hourlyRate = asNumber(input.hourlyRate) ?? 0;
+  if (hourlyRate < 50 || hourlyRate > 10000) {
+    throw new Error('Hourly rate must be between Rs.50 and Rs.10,000');
+  }
+
+  const serviceAreas = asStringArray(input.serviceAreas);
+  if (serviceAreas.length === 0) throw new Error('At least one service area is required');
+
+  const aadhaarNumber = normalizeAadhaarNumber(input.aadhaarNumber);
+
+  const { error: roleError } = await db
+    .from('users')
+    .update({ role: 'worker' })
+    .eq('id', userId);
+  if (roleError) throw new Error(roleError.message);
+
+  const { data, error } = await db
+    .from('worker_profiles')
+    .upsert(
+      {
+        user_id: userId,
+        skills,
+        experience,
+        description:
+          typeof input.description === 'string' && input.description.trim()
+            ? input.description.trim()
+            : null,
+        hourly_rate: hourlyRate,
+        service_areas: serviceAreas,
+        lat: asNumber(input.lat),
+        lng: asNumber(input.lng),
+        is_approved: false,
+        verification_status: 'pending',
+        ...(input.aadhaarPhotoPath ? { aadhaar_photo_path: input.aadhaarPhotoPath } : {}),
+        ...(aadhaarNumber ? { aadhaar_number: aadhaarNumber } : {}),
+        availability: 'available',
+      },
+      { onConflict: 'user_id' },
+    )
+    .select('*')
+    .single();
+
+  if (error) throw new Error(error.message);
+  return data;
 }
 
 /**
@@ -263,35 +262,23 @@ export async function savePushToken(userId, token) {
  * Delete the signed-in user's account and everything it owns.
  * Play Store policy needs an in-app delete path; the privacy page promises it.
  *
- * Deletion order matters — media first, child rows next, `users` last.
+ * Deletion order matters — child rows first, `users` last.
  * (All FKs are `on delete cascade`, but explicit order keeps behaviour stable
  * even if a constraint is ever relaxed.)
- *   1. private Aadhaar + profile image files
- *   2. reviews they wrote + reviews on their worker profile
- *   3. their worker profile (cascades their hire_requests + those reviews)
- *   4. hire_requests where they are the employer (cascades reviews + platform_feedback)
- *   5. reports for/against them + their platform_feedback
- *   6. the users row itself, then the SuperTokens identity so the number
+ *   1. reviews they wrote + reviews on their worker profile
+ *   2. their worker profile (cascades their hire_requests + those reviews)
+ *   3. hire_requests where they are the employer (cascades reviews + platform_feedback)
+ *   4. reports for/against them + their platform_feedback
+ *   5. the users row itself, then the SuperTokens identity so the number
  *      can never sign back into a ghost row
  */
 export async function deleteUserAccount({ userId, authUserId }) {
   const { data: workerProfile } = await db
     .from('worker_profiles')
-    .select('id, aadhaar_photo_path')
+    .select('id')
     .eq('user_id', userId)
     .maybeSingle();
   const workerProfileId = workerProfile?.id ?? null;
-
-  const storedImages = [
-    ...(workerProfile?.aadhaar_photo_path
-      ? [{ bucket: 'aadhaar-documents', path: workerProfile.aadhaar_photo_path }]
-      : []),
-    { bucket: 'avatars', path: `${userId}/profile` },
-  ];
-  for (const { bucket, path } of storedImages) {
-    const { error } = await db.storage.from(bucket).remove([path]);
-    if (error) throw new Error(`Account image cleanup failed: ${error.message}`);
-  }
 
   // Reviews they wrote (as an employer/customer).
   {

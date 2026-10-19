@@ -1,7 +1,7 @@
 // =============================================================================
 // Loading / Splash Screen — Step 1 of the onboarding flow.
 // =============================================================================
-// Shows the brand logo + tagline + spinner for a MINIMUM of 10 seconds while
+// Shows the brand logo + tagline + spinner for a MINIMUM of 2.5 seconds while
 // the session restores and onboarding state loads, then routes automatically:
 //
 //   logged-in + role chosen  -> role dashboard (/(tabs))
@@ -21,8 +21,9 @@ import { colors, fontSize, fontWeight, spacing } from '@/theme';
 /** Tagline shown under the logo. */
 const TAGLINE = 'Trusted Kaarigar, Har Kaam Ke Liye';
 
-/** Minimum time this screen stays visible (ms). */
-const MIN_LOAD_TIME = 10000;
+/** Minimum time this screen stays visible (ms) — just long enough for the
+ *  brand to register; the real gate is the session restore completing. */
+const MIN_LOAD_TIME = 2500;
 
 export default function LoadingScreen() {
   const router = useRouter();

@@ -102,9 +102,14 @@ export function ModeProvider({ children }: { children: ReactNode }) {
     void persistRole(role);
   }, []);
 
-  // Until a role is explicitly chosen fall back to the backend role so deep
-  // links / restores never crash; the Role Selection screen overrides this.
-  const role: AppRole = storedRole ?? (hasWorkerProfile ? 'worker' : 'employer');
+  // ================================= BUG FIX (audit #3) =================================
+  // OLD semantics allowed a locally stored role to OVERRIDE the backend — a
+  // returning kaarigar whose `user_role` still said 'employer' (picked before
+  // they ever registered) got the EMPLOYER tab set and their Requests /
+  // Dashboard tabs vanished. Backend truth wins instead:
+  //   users.role === 'worker' (worker_profiles row exists) → the app IS the
+  //   kaarigar app. Only the account itself can change this (server-side).
+  const role: AppRole = hasWorkerProfile ? 'worker' : (storedRole ?? 'employer');
   const roleChosen = storedRole !== null;
 
   // ---- Legacy aliases ----

@@ -298,7 +298,12 @@ export async function createHire(payload: {
     return result;
   } catch (e) {
     if (!(e instanceof NetworkError)) throw e;
-    return { hire: createLocalHire(payload) };
+    // ONLY an explicit demo build may fall back to a simulated local hire.
+    // A real build must NEVER: a Render cold-start / timeout would otherwise
+    // silently create a phantom booking that no worker sees and no admin can
+    // track. Surface a clear network error instead so the user can retry.
+    if (DEMO_MODE) return { hire: createLocalHire(payload) };
+    throw new Error('Network se connect nahi ho paaya. Internet check karo aur dobara try karo.');
   }
 }
 

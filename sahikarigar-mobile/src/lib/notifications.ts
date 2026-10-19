@@ -14,7 +14,9 @@ import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 
-import { savePushToken } from './api';
+import { savePushToken, getHire } from './api';
+
+import { formatCurrency } from '../utils';
 
 /**
  * Ask for notification permission ONLY (no token, no server call).
@@ -104,6 +106,10 @@ function isNewRequestPush(
 export interface AppBannerPayload {
   title: string;
   body: string;
+  /** Hire rate — shown big and bold on the banner (Rapido-style). */
+  price?: string;
+  /** Customer's work location — a one-line brief under the price. */
+  location?: string;
 }
 
 const bannerListeners = new Set<(payload: AppBannerPayload) => void>();
@@ -135,6 +141,30 @@ function bannerPayloadOf(content: Notifications.NotificationContent): AppBannerP
 }
 
 /**
+ * Pop the banner for a new-request push, then quietly enrich it with the
+ * actual card details (rate + location) once the hire is fetched — the banner
+ * simply updates in place. Everything best-effort; a failed fetch just leaves
+ * the text-only banner.
+ */
+function emitRequestBanner(content: Notifications.NotificationContent): void {
+  emitAppBanner(bannerPayloadOf(content));
+
+  const data = content.data as { hireId?: string } | undefined;
+  if (!data?.hireId) return;
+  void getHire(data.hireId)
+    .then(({ hire }) => {
+      emitAppBanner({
+        ...bannerPayloadOf(content),
+        price: formatCurrency(hire.proposedRate),
+        location: hire.location,
+      });
+    })
+    .catch(() => {
+      // Server slow/offline — the text-only banner already popped above.
+    });
+}
+
+/**
  * Tapping a new-job-request push lands the kaarigar straight on the Job
  * Requests tab. Handles both taps while the app runs and cold starts
  * (Android/iOS deep-open). Also pops the in-app top banner whenever a new
@@ -159,14 +189,14 @@ export function useHireRequestNotificationRoute(enabled: boolean) {
     // Push RECEIVED while the app is open — pop the in-app banner.
     const receivedSubscription = Notifications.addNotificationReceivedListener((notification) => {
       const data = notification.request.content.data as { action?: string } | undefined;
-      if (data?.action === 'created') emitAppBanner(bannerPayloadOf(notification.request.content));
+      if (data?.action === 'created') emitRequestBanner(notification.request.content);
     });
 
     // Foreground/background tap — navigate + show the banner.
     const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
       if (isNewRequestPush(response)) {
         openRequests();
-        emitAppBanner(bannerPayloadOf(response.notification.request.content));
+        emitRequestBanner(response.notification.request.content);
       }
     });
 
@@ -174,7 +204,7 @@ export function useHireRequestNotificationRoute(enabled: boolean) {
     void Notifications.getLastNotificationResponseAsync().then((response) => {
       if (response && mounted && isNewRequestPush(response)) {
         openRequests();
-        emitAppBanner(bannerPayloadOf(response.notification.request.content));
+        emitRequestBanner(response.notification.request.content);
       }
     });
 

@@ -13,8 +13,7 @@ import {
   View,
 } from 'react-native';
 
-import { Avatar, Badge, Button, Card, EmptyState, HireCard, ModeSwitch, Screen } from '@/components';
-import { skillIconName, skillLabel } from '@/constants';
+import { Badge, Button, Card, EmptyState, HireCard, ModeSwitch, Screen } from '@/components';
 import {
   getWorkerDashboard,
   hireAction,
@@ -339,14 +338,14 @@ function Section({
 }
 
 /**
- * Pending booking request card — matches the reference design:
- *   [SAHIKAARIGAR • BOOKING REQUEST]          (small caps label on green)
- *   ┌ white card ─────────────────────────────┐
- *   │ avatar  Name                (• Pending)  │
- *   │ ⚡  Skill - work description              │
- *   │ ₹ rate   📍 location   🕐 relative time  │
- *   └──────────────────────────────────────────┘
- *   [ ✕ Reject (red) ]   [ ✓ Accept (green) ]
+ * Pending booking request card — Rapido/Porter reference design:
+ *   ┌ white card, thick brand-green border ───────────────┐
+ *   │ ₹240  Just now                                       │
+ *   │  •  Worker's Area                        ← pickup    │
+ *   │  |  (service location)                               │
+ *   │  ↓  Customer's Address                   ← drop      │
+ *   └──────────────────────────────────────────────────────┘
+ *   [ (X) circle ]   [  Accept  — solid green pill  ]
  */
 function RequestCard({
   hire,
@@ -365,117 +364,81 @@ function RequestCard({
   onAccept: () => void;
   onReject: () => void;
 }) {
-  const employer = hire.employer;
-  const primarySkill = hire.worker?.skills?.[0] ?? '';
-  const serviceName = primarySkill
-    ? `${skillLabel(primarySkill)} - ${hire.description}`
-    : hire.description;
+  const price = formatCurrency(hire.proposedRate);
+  const time = formatRelativeDate(hire.createdAt);
+
+  // Pickup = the kaarigar's own service area; drop = the customer's address.
+  const workerUser = hire.worker?.user ?? null;
+  const pickupMain = workerUser?.locationArea ?? 'Your Area';
+  const pickupSub = workerUser?.locationCity ?? 'Your service location';
+
+  const dropParts = hire.location.split(',').map((part) => part.trim()).filter(Boolean);
+  const dropMain = dropParts[0] ?? 'Customer Location';
+  const dropSub = dropParts.slice(1).join(', ') || 'Tap to see the full address';
 
   return (
     <View style={styles.requestCard}>
-      <Text style={styles.requestLabel}>SAHIKAARIGAR • BOOKING REQUEST</Text>
-
-      {/* White inner card — pressable to open the full detail screen. */}
-      <Pressable style={styles.requestInner} onPress={onPress}>
+      <Pressable onPress={onPress}>
+        {/* Header — big bold price + relative time. */}
         <View style={styles.requestHeader}>
-          <Avatar uri={employer?.avatar ?? null} name={employer?.name ?? 'User'} size={46} />
-          <Text style={styles.requestName} numberOfLines={1}>
-            {employer?.name ?? 'User'}
-          </Text>
-          <View style={styles.statusPill}>
-            <View style={styles.statusDot} />
-            <Text style={styles.statusText}>Pending</Text>
-          </View>
+          <Text style={styles.requestPrice}>{price}</Text>
+          <Text style={styles.requestTime}>{time}</Text>
         </View>
 
-        <View style={styles.requestServiceRow}>
-          <View style={styles.serviceIconBox}>
-            <Ionicons
-              name={skillIconName(primarySkill) as keyof typeof Ionicons.glyphMap}
-              size={15}
-              color={colors.primaryDark}
-            />
+        {/* Pickup → drop rail: dot on top, arrow at the bottom. */}
+        <View style={styles.routeRow}>
+          <View style={styles.routeRail}>
+            <View style={styles.routeDot} />
+            <View style={styles.routeLine} />
+            <Ionicons name="arrow-down" size={13} color={colors.muted} />
           </View>
-          <Text style={styles.requestService}>{serviceName}</Text>
-        </View>
-
-        <View style={styles.tagRow}>
-          <RequestTag icon="cash-outline" text={formatCurrency(hire.proposedRate)} />
-          <RequestTag icon="location" text={hire.location} />
-          <RequestTag icon="time-outline" text={formatRelativeDate(hire.createdAt)} />
+          <View style={styles.routePoints}>
+            <View style={styles.routePoint}>
+              <Text style={styles.routeMain} numberOfLines={1}>
+                {pickupMain}
+              </Text>
+              <Text style={styles.routeSub} numberOfLines={1}>
+                {pickupSub}
+              </Text>
+            </View>
+            <View style={styles.routeSpacer} />
+            <View style={styles.routePoint}>
+              <Text style={styles.routeMain} numberOfLines={1}>
+                {dropMain}
+              </Text>
+              <Text style={styles.routeSub} numberOfLines={2}>
+                {dropSub}
+              </Text>
+            </View>
+          </View>
         </View>
       </Pressable>
 
-      <RequestActions
-        acceptDisabled={acceptDisabled}
-        acceptBusy={acceptBusy}
-        rejectDisabled={rejectDisabled}
-        onAccept={onAccept}
-        onReject={onReject}
-      />
-    </View>
-  );
-}
-
-/** One soft-green icon + label tag under the service line. */
-function RequestTag({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; text: string }) {
-  return (
-    <View style={styles.requestTag}>
-      <View style={styles.tagIconBox}>
-        <Ionicons name={icon} size={12} color={colors.primaryDark} />
+      {/* Actions — circular grey Reject (X) + wide solid-green Accept pill. */}
+      <View style={styles.actions}>
+        <Pressable
+          style={[styles.rejectBtn, rejectDisabled && styles.rejectBtnDisabled]}
+          disabled={rejectDisabled}
+          onPress={onReject}
+          accessibilityLabel="Reject this request"
+        >
+          <Ionicons name="close" size={20} color={colors.textPrimary} />
+        </Pressable>
+        <Pressable
+          style={[styles.acceptBtn, acceptDisabled && styles.acceptBtnDisabled]}
+          disabled={acceptDisabled}
+          onPress={onAccept}
+          accessibilityLabel="Accept this request"
+        >
+          {acceptBusy ? (
+            <ActivityIndicator size="small" color={colors.white} />
+          ) : (
+            <Text style={[styles.acceptText, acceptDisabled && styles.acceptTextDisabled]}>
+              Accept
+            </Text>
+          )}
+        </Pressable>
       </View>
-      <Text style={styles.tagText} numberOfLines={1}>
-        {text}
-      </Text>
-    </View>
-  );
-}
-
-/**
- * The two prominent per-request actions (matched to the reference):
- *   Accept — solid green (#10B981) + checkmark
- *   Reject — solid red (#EF4444) + cross
- * When the worker is busy, Accept greys out and does nothing.
- */
-function RequestActions({
-  acceptDisabled,
-  acceptBusy,
-  rejectDisabled,
-  onAccept,
-  onReject,
-}: {
-  acceptDisabled: boolean;
-  acceptBusy: boolean;
-  rejectDisabled: boolean;
-  onAccept: () => void;
-  onReject: () => void;
-}) {
-  return (
-    <View style={styles.actions}>
-      <Pressable
-        style={[styles.rejectBtn, rejectDisabled && styles.actionBtnDisabled]}
-        disabled={rejectDisabled}
-        onPress={onReject}
-        accessibilityLabel="Reject this request"
-      >
-        <Ionicons name="close" size={16} color={colors.white} />
-        <Text style={[styles.rejectText, rejectDisabled && styles.actionTextDisabled]}>Reject</Text>
-      </Pressable>
-      <Pressable
-        style={[styles.acceptBtn, acceptDisabled && styles.actionBtnDisabled]}
-        disabled={acceptDisabled}
-        onPress={onAccept}
-        accessibilityLabel="Accept this request"
-      >
-        {acceptBusy ? (
-          <ActivityIndicator size="small" color={colors.white} />
-        ) : (
-          <Ionicons name="checkmark" size={16} color={colors.white} />
-        )}
-        <Text style={[styles.acceptText, acceptDisabled && styles.actionTextDisabled]}>
-          Accept
-        </Text>
-      </Pressable>
     </View>
   );
 }
@@ -549,105 +512,98 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: fontSize.title, fontWeight: fontWeight.semibold, color: colors.textPrimary },
   sectionEmpty: { fontSize: fontSize.caption, color: colors.textSecondary },
 
-  // ---- Request card (reference design) ----
-  // Soft green container; a white inner card holds the details; the two big
-  // action buttons sit below the white card, on the green background.
+  // ---- Request card (Rapido/Porter reference) ----
+  // White card with a prominent thick brand-green border: big price + time on
+  // top, a vertical pickup→drop rail in the middle, then the circular grey
+  // Reject (X) and the wide solid-green Accept pill at the bottom.
   requestCard: {
-    borderRadius: radius.card,
-    borderWidth: 1,
-    borderColor: colors.primaryBorder,
-    backgroundColor: colors.primaryBg,
-    padding: spacing.md,
-    marginBottom: spacing.md,
-  },
-  requestLabel: {
-    fontSize: fontSize.caption - 4,
-    fontWeight: fontWeight.semibold,
-    color: colors.primaryDark,
-    letterSpacing: 0.6,
-    textAlign: 'center',
-    marginBottom: spacing.md,
-  },
-  requestInner: {
-    borderRadius: 14,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: colors.primaryDark,
     backgroundColor: colors.card,
     padding: spacing.md,
+    marginBottom: spacing.md,
     ...shadows.card,
   },
   requestHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     gap: spacing.md,
   },
-  requestName: {
-    flex: 1,
-    fontSize: fontSize.title,
+  requestPrice: {
+    fontSize: 26,
     fontWeight: fontWeight.bold,
     color: colors.textPrimary,
   },
-  statusPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: colors.warning + '26',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.pill,
+  requestTime: {
+    fontSize: fontSize.caption,
+    color: colors.textSecondary,
+    paddingBottom: 3,
   },
-  statusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.warning },
-  statusText: {
-    fontSize: fontSize.caption - 2,
-    fontWeight: fontWeight.semibold,
-    color: '#A16207',
-  },
-  requestServiceRow: {
+  routeRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     gap: spacing.md,
-    marginTop: spacing.lg,
+    marginTop: spacing.md,
+    minHeight: 96,
   },
-  serviceIconBox: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: colors.primaryBg,
+  routeRail: {
+    width: 18,
     alignItems: 'center',
-    justifyContent: 'center',
+    paddingVertical: 2,
   },
-  requestService: {
+  routeDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    backgroundColor: colors.textPrimary,
+  },
+  routeLine: {
+    width: 2,
     flex: 1,
-    fontSize: fontSize.small,
-    fontWeight: fontWeight.medium,
+    backgroundColor: colors.border,
+    marginVertical: 2,
+  },
+  routePoints: { flex: 1 },
+  routePoint: {},
+  routeMain: {
+    fontSize: fontSize.body,
+    fontWeight: fontWeight.semibold,
     color: colors.textPrimary,
-    lineHeight: 22,
   },
-  tagRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.lg,
-    marginTop: spacing.lg,
+  routeSub: {
+    fontSize: fontSize.caption,
+    color: colors.textSecondary,
+    marginTop: 2,
   },
-  requestTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    flexShrink: 1,
-  },
-  tagIconBox: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: colors.primaryBg,
+  routeSpacer: { flex: 1, minHeight: spacing.xl },
+
+  actions: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: spacing.md },
+  rejectBtn: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  tagText: {
-    fontSize: fontSize.caption - 2,
-    color: colors.textPrimary,
-    fontWeight: fontWeight.medium,
+  acceptBtn: {
+    flex: 1,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: colors.primaryDark,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-
-  actions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
+  acceptText: {
+    fontSize: fontSize.small,
+    fontWeight: fontWeight.bold,
+    color: colors.white,
+  },
+  rejectBtnDisabled: { opacity: 0.5 },
+  acceptBtnDisabled: { backgroundColor: colors.border },
+  acceptTextDisabled: { color: colors.muted },
 
   // One-active-job banner
   busyBanner: {
@@ -666,38 +622,4 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     lineHeight: 19,
   },
-
-  // Accept (green + check) / Reject (red + X) — big and bold like the reference
-  acceptBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    height: 50,
-    borderRadius: radius.button,
-    backgroundColor: '#10B981',
-  },
-  rejectBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    height: 50,
-    borderRadius: radius.button,
-    backgroundColor: '#EF4444',
-  },
-  actionBtnDisabled: { backgroundColor: colors.border },
-  acceptText: {
-    fontSize: fontSize.small,
-    fontWeight: fontWeight.bold,
-    color: colors.white,
-  },
-  rejectText: {
-    fontSize: fontSize.small,
-    fontWeight: fontWeight.bold,
-    color: colors.white,
-  },
-  actionTextDisabled: { color: colors.muted },
 });

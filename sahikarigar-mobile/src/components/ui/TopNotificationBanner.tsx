@@ -1,16 +1,16 @@
 // =============================================================================
 // SahiKaarigar — in-app top notification banner (Rapido/Porter style)
 // =============================================================================
-// A slide-down pill under the status bar: "Nayi Kaam ki Request 🛠️" on the
-// brand green, with a white "View" button. Mounted ONCE in the root layout;
-// lib/notifications emits request pushes onto `onAppBanner`.
+// A slide-down condensed request card under the status bar — rate, location
+// and a green "View" button, matching the redesigned Job Requests card.
+// Mounted ONCE in the root layout; lib/notifications emits request pushes
+// (optionally enriched with the hire's rate/location) onto `onAppBanner`.
 // =============================================================================
 
-import { Ionicons } from '@expo/vector-icons';
 import * as Notifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Pressable, StyleSheet, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { onAppBanner, type AppBannerPayload } from '@/lib/notifications';
@@ -90,17 +90,15 @@ export function TopNotificationBanner() {
         { top: insets.top + 8, transform: [{ translateY }] },
       ]}
     >
-      <View style={styles.iconBox}>
-        <Ionicons name="hammer" size={20} color={colors.white} />
-      </View>
-      <View style={styles.textWrap}>
-        <Text style={styles.title} numberOfLines={1}>
-          {payload.title || 'Nayi Kaam ki Request 🛠️'}
+      {/* Condensed Rapido-style card: rate on top, location underneath. */}
+      <Pressable style={styles.info} onPress={onPress}>
+        <Text style={styles.price} numberOfLines={1}>
+          {payload.price || payload.title || 'Nayi Kaam ki Request 🛠️'}
         </Text>
-        <Text style={styles.body} numberOfLines={2}>
-          {payload.body || 'Tap View to open your job requests.'}
+        <Text style={styles.location} numberOfLines={1}>
+          {payload.location || payload.body || 'Nayi kaam ki request aayi hai'}
         </Text>
-      </View>
+      </Pressable>
       <Pressable style={styles.viewBtn} onPress={onPress} hitSlop={8} accessibilityLabel="View job requests">
         <Text style={styles.viewBtnText}>View</Text>
       </Pressable>
@@ -109,6 +107,8 @@ export function TopNotificationBanner() {
 }
 
 const styles = StyleSheet.create({
+  // Condensed request card — white with a thick brand-green border, matching
+  // the redesigned Job Requests list card.
   banner: {
     position: 'absolute',
     left: spacing.lg,
@@ -117,26 +117,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.md,
     padding: spacing.md,
-    borderRadius: radius.button,
-    backgroundColor: colors.primaryDark,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: colors.primaryDark,
+    backgroundColor: colors.card,
     ...shadows.cardHover,
   },
-  iconBox: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.16)',
-    alignItems: 'center',
-    justifyContent: 'center',
+  info: { flex: 1, gap: 1 },
+  price: {
+    fontSize: 18,
+    fontWeight: fontWeight.bold,
+    color: colors.textPrimary,
   },
-  textWrap: { flex: 1 },
-  title: { color: colors.white, fontSize: fontSize.caption, fontWeight: fontWeight.bold },
-  body: { color: 'rgba(255, 255, 255, 0.85)', fontSize: fontSize.caption - 3, marginTop: 2, lineHeight: 16 },
+  location: {
+    fontSize: fontSize.caption - 1,
+    color: colors.textSecondary,
+  },
   viewBtn: {
-    backgroundColor: colors.white,
-    paddingHorizontal: spacing.md,
+    backgroundColor: colors.primaryDark,
+    paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
     borderRadius: radius.pill,
   },
-  viewBtnText: { color: colors.primaryDark, fontSize: fontSize.caption - 3, fontWeight: fontWeight.bold },
+  viewBtnText: {
+    color: colors.white,
+    fontSize: fontSize.caption,
+    fontWeight: fontWeight.bold,
+  },
 });

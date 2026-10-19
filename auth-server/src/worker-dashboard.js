@@ -29,6 +29,99 @@ const ACTIVE_STATUSES = ['accepted', 'en_route', 'arrived'];
 const COMPLETED_LIMIT = 10;
 
 /**
+ * The signed-in user's own worker profile (or `null` when they have none).
+ * Cheap `GET /worker/profile` for the Edit Profile screen — it avoids the
+ * dashboard round-trip (hire history is not needed there).
+ * @param {string} userId  `users.id`
+ */
+export async function getOwnWorkerProfile(userId) {
+  const { data, error } = await db
+    .from('worker_profiles')
+    .select(WORKER_WITH_USER)
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  return data ? mapWorker(data) : null;
+}
+
+function asStringArray(value) {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => String(item).trim().toLowerCase()).filter(Boolean);
+}
+
+function asNumber(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+/**
+ * Update the signed-in worker's editable profile fields — skills, experience,
+ * rate, service areas, description. Mirrors the `worker_profiles` check
+ * constraints from supabase/migrations/0001_init_schema.sql:
+ *   skills non-empty, experience 0..50, hourly_rate 50..10000,
+ *   service_areas non-empty, description <= 500 chars.
+ * NEVER touches `is_approved` / `verification_status` — editing your profile
+ * must not push an approved worker back into the verification queue.
+ * @param {string} userId  `users.id`
+ */
+export async function updateOwnWorkerProfile(userId, input = {}) {
+  const row = {};
+
+  if (input.skills !== undefined) {
+    const skills = asStringArray(input.skills);
+    if (skills.length === 0) throw new Error('At least one skill is required');
+    row.skills = skills;
+  }
+
+  if (input.experience !== undefined) {
+    const experience = asNumber(input.experience);
+    if (experience === null || experience < 0 || experience > 50) {
+      throw new Error('Experience must be between 0 and 50 years');
+    }
+    row.experience = experience;
+  }
+
+  if (input.hourlyRate !== undefined) {
+    const hourlyRate = asNumber(input.hourlyRate);
+    if (hourlyRate === null || hourlyRate < 50 || hourlyRate > 10000) {
+      throw new Error('Hourly rate must be between Rs.50 and Rs.10,000');
+    }
+    row.hourly_rate = hourlyRate;
+  }
+
+  if (input.serviceAreas !== undefined) {
+    const serviceAreas = asStringArray(input.serviceAreas);
+    if (serviceAreas.length === 0) throw new Error('At least one service area is required');
+    row.service_areas = serviceAreas;
+  }
+
+  if (input.description !== undefined) {
+    const description = typeof input.description === 'string' ? input.description.trim() : '';
+    if (description.length > 500) {
+      throw new Error('Description 500 characters se chhota hona chahiye');
+    }
+    row.description = description || null;
+  }
+
+  if (Object.keys(row).length === 0) {
+    throw new Error('Kuch bhi badalnay ke liye nahi mila');
+  }
+
+  const { data, error } = await db
+    .from('worker_profiles')
+    .update(row)
+    .eq('user_id', userId)
+    .select(WORKER_WITH_USER)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error('Pehle kaarigar ke roop me register karo');
+  return mapWorker(data);
+}
+
+/**
  * Flip the signed-in worker's availability.
  * @param {string} userId  `users.id`
  * @param {string} availability  available | busy | offline

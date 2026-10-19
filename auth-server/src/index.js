@@ -31,7 +31,12 @@ import {
   isValidIndianPhone,
 } from './users.js';
 import { searchWorkers, getWorkerById } from './workers.js';
-import { getWorkerDashboard, setWorkerAvailability } from './worker-dashboard.js';
+import {
+  getOwnWorkerProfile,
+  getWorkerDashboard,
+  setWorkerAvailability,
+  updateOwnWorkerProfile,
+} from './worker-dashboard.js';
 import { createHireRequest, listHiresForUser, getHireById, hireAction } from './hires.js';
 import {
   createReview,
@@ -420,6 +425,34 @@ app.get('/worker/dashboard', async (req, res, next) => {
       return;
     }
     res.json({ ok: true, isWorker: true, ...dashboard });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// The signed-in worker's own profile — read + editable fields (skills,
+// experience, rate, service areas). Used by the mobile Edit Profile screen.
+// Editing an existing profile must NOT reset is_approved/verification_status
+// (unlike /register-worker, which re-enters the verification queue on purpose).
+app.get('/worker/profile', async (req, res, next) => {
+  try {
+    const session = await Session.getSession(req, res, { sessionRequired: true });
+    const { authUserId, phone } = await resolveSession(session);
+    const user = await getOrCreateUserByAuthId(authUserId, phone);
+    const worker = await getOwnWorkerProfile(user.id);
+    res.json({ ok: true, worker });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.patch('/worker/profile', async (req, res, next) => {
+  try {
+    const session = await Session.getSession(req, res, { sessionRequired: true });
+    const { authUserId, phone } = await resolveSession(session);
+    const user = await getOrCreateUserByAuthId(authUserId, phone);
+    const worker = await updateOwnWorkerProfile(user.id, req.body ?? {});
+    res.json({ ok: true, worker });
   } catch (error) {
     next(error);
   }

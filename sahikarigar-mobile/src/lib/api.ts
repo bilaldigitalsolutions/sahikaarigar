@@ -369,6 +369,45 @@ export async function getWorkerDashboard(): Promise<ApiWorkerDashboard> {
   }
 }
 
+// -----------------------------------------------------------------------------
+// Worker profile — the kaarigar's own editable registration details
+// (Edit Profile screen reads/writes `worker_profiles` through these).
+// -----------------------------------------------------------------------------
+
+/** The signed-in worker's profile, or `null` when they have none (not a worker). */
+export async function getWorkerProfile(): Promise<ApiWorker | null> {
+  try {
+    const data = await apiFetch<{ worker: ApiWorker | null }>('/worker/profile');
+    return data.worker ?? null;
+  } catch (e) {
+    if (!(e instanceof NetworkError)) throw e;
+    return null;
+  }
+}
+
+/**
+ * Update the worker's own registration details. `serviceAreas` is optional —
+ * only sent when the worker actually picked a new area, so untouched edits
+ * never overwrite the geocoded lat/lng already stored on the profile.
+ */
+export async function updateWorkerProfile(payload: {
+  skills: string[];
+  experience: number;
+  hourlyRate: number;
+  serviceAreas?: string[];
+}): Promise<ApiWorker | null> {
+  try {
+    const data = await apiFetch<{ worker: ApiWorker | null }>('/worker/profile', {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+    return data.worker ?? null;
+  } catch (e) {
+    if (!(e instanceof NetworkError)) throw e;
+    return null; // demo build — no live worker profile to update
+  }
+}
+
 export async function setWorkerAvailability(
   availability: ApiAvailability,
 ): Promise<{ worker: ApiWorker | null }> {

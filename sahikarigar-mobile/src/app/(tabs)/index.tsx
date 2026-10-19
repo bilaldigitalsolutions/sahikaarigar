@@ -59,17 +59,23 @@ export default function HomeScreen() {
       setLoadingExtra(false);
       return;
     }
+    setLoadingExtra(true);
     try {
       const result = await getWorkerDashboard();
       setDashboard(result);
     } catch {
-      setDashboard(null);
+      // Keep the last known dashboard. A dropped request must never flip an
+      // approved worker back to "Verification Pending" — the refetch below
+      // simply runs again on the next tab focus.
     } finally {
       setLoadingExtra(false);
     }
   }, [user]);
 
-  // Refetch on every tab focus so the worker dashboard stays live.
+  // Refetch on every tab focus AND whenever the session user arrives/changes,
+  // so an admin approval (is_approved flips server-side) shows the Active
+  // dashboard on the very next visit to this tab — plus a spinner while fresh
+  // data is in flight.
   useFocusEffect(
     useCallback(() => {
       load();
@@ -325,6 +331,9 @@ function WorkerHomeScreen({
   const stats = dashboard?.stats;
 
   // Not approved yet — show verification pending message.
+  // While a refetch is in flight show a small "checking" spinner, so the
+  // worker can tell this card can flip to the Active dashboard at any moment
+  // (one second after the admin approves).
   if (!isApproved) {
     return (
       <Screen scroll>
@@ -337,6 +346,12 @@ function WorkerHomeScreen({
           <Text style={styles.pendingText}>
             Aapka profile verification ke under hai. Approve hone par aapko jobs milna shuru honge.
           </Text>
+          {loadingExtra ? (
+            <ActivityIndicator
+              color={colors.warning}
+              style={styles.pendingSpinner}
+            />
+          ) : null}
         </View>
       </Screen>
     );
@@ -484,6 +499,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
+  pendingSpinner: { marginTop: spacing.md },
   // Dashboard cards row
   cardsRow: {
     flexDirection: 'row',

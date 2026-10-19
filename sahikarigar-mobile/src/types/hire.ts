@@ -9,7 +9,8 @@ export type HireStatus =
   | 'completed'
   | 'cancelled'
   | 'en_route'
-  | 'arrived';
+  | 'arrived'
+  | 'in_progress';
 
 /** Every state transition the API understands for a hire request. */
 export type HireAction =
@@ -17,6 +18,7 @@ export type HireAction =
   | 'reject'
   | 'en_route'
   | 'arrived'
+  | 'start'
   | 'complete'
   | 'cancel';
 
@@ -43,6 +45,7 @@ export interface Hire {
   completedAt?: string | null;
   enRouteAt?: string | null;
   arrivedAt?: string | null;
+  startedAt?: string | null;
   workerLat?: number | null;
   workerLng?: number | null;
   phoneRevealed: boolean;

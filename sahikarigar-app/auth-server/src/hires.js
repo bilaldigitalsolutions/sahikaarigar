@@ -5,9 +5,11 @@
 // and the location the worker shares. Mirrors src/services/hire.service.ts, but
 // runs on the auth-server so the Firebase-hosted static build can use it.
 //
-//   pending -> accepted -> en_route -> arrived -> completed
+//   pending -> accepted -> en_route -> arrived -> in_progress -> completed
 //   (cancelled / rejected can happen before completion)
 // =============================================================================
+
+import crypto from 'node:crypto';
 
 import { db } from './users.js';
 import { getWorkerProfileIdForUser } from './workers.js';
@@ -20,8 +22,42 @@ export const HIRE_SELECT =
   'worker:worker_profiles(id, user_id, skills, hourly_rate, rating_average, ' +
   'rating_count, availability, user:users!user_id(id, name, avatar, phone, location_area, location_city))';
 
-/** Statuses from which a job can still be completed / cancelled. */
-const TRACKABLE = ['accepted', 'en_route', 'arrived'];
+/** Statuses from which a job can still be completed / cancelled.
+ *  `in_progress` = the kaarigar reached the site and verified the start OTP. */
+const TRACKABLE = ['accepted', 'en_route', 'arrived', 'in_progress'];
+
+const OTP_SECRET = process.env.OTP_SECRET || 'sahikaarigar-start-otp-secret';
+
+/**
+ * Deterministic 4-digit "start work" code derived from the hire id + a server
+ * secret. Stable across restarts and instances, needs no DB write — this is
+ * the OTP for any hire whose `start_otp` column is empty (hires created
+ * before the OTP migration ran, or by code paths that never stored one).
+ */
+export function hireStartOtp(hireId) {
+  const digest = crypto
+    .createHmac('sha256', OTP_SECRET)
+    .update(`start-otp:${hireId}`)
+    .digest('hex');
+  return String(parseInt(digest.slice(0, 8), 16) % 10000).padStart(4, '0');
+}
+
+/** The hire's stored start_otp (null when the column is not there yet, or no code was stored). */
+async function storedStartOtp(hireId) {
+  try {
+    const { data, error } = await db
+      .from('hire_requests')
+      .select('id, start_otp')
+      .eq('id', hireId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data?.start_otp ?? null;
+  } catch {
+    // Column not added yet, or a transient read failure — the derived code
+    // above decides the OTP in that case, so this must never break the flow.
+    return null;
+  }
+}
 
 function mapUser(row) {
   if (!row) return null;
@@ -62,6 +98,7 @@ export function mapHire(row) {
     completedAt: row.completed_at ?? null,
     enRouteAt: row.en_route_at ?? null,
     arrivedAt: row.arrived_at ?? null,
+    startedAt: row.started_at ?? null,
     workerLat: row.worker_lat ?? null,
     workerLng: row.worker_lng ?? null,
     startOtp: row.start_otp ?? null,
@@ -188,10 +225,27 @@ export async function getHireById(hireId) {
 }
 
 /**
- * One endpoint for every state change, guarded by who is allowed to do what.
- * @param {{ hireId: string, userId: string, action: string, lat?: number, lng?: number }} input
+ * The "start work" OTP, for the EMPLOYER's eyes only. Reads the stored code
+ * when one exists (older mirror rows), otherwise the deterministic derived
+ * code. Only revealed once the kaarigar has reached the site.
+ * @param {{ hireId: string, userId: string }} input
  */
-export async function hireAction({ hireId, userId, action, lat, lng }) {
+export async function getHireStartOtp({ hireId, userId }) {
+  const raw = await fetchRaw(hireId);
+  if (!raw) throw new Error('Hire request nahi mila');
+  if (raw.employer_id !== userId) throw new Error('Sirf customer hi OTP dekh sakta hai');
+  if (!['arrived', 'in_progress'].includes(raw.status)) {
+    throw new Error('OTP kaam ke waqt hi dikhta hai — pehle kaarigar pahunchne de');
+  }
+  const otp = (await storedStartOtp(hireId)) || hireStartOtp(hireId);
+  return { otp };
+}
+
+/**
+ * One endpoint for every state change, guarded by who is allowed to do what.
+ * @param {{ hireId: string, userId: string, action: string, lat?: number, lng?: number, otp?: string }} input
+ */
+export async function hireAction({ hireId, userId, action, lat, lng, otp }) {
   const raw = await fetchRaw(hireId);
   if (!raw) throw new Error('Hire request nahi mila');
 
@@ -218,7 +272,7 @@ export async function hireAction({ hireId, userId, action, lat, lng }) {
           .select('id')
           .eq('worker_id', workerProfileId)
           .neq('id', hireId)
-          .in('status', ['accepted', 'en_route', 'arrived'])
+          .in('status', ['accepted', 'en_route', 'arrived', 'in_progress'])
           .maybeSingle();
         if (activeError) throw new Error(activeError.message);
         if (activeJob) {
@@ -254,13 +308,32 @@ export async function hireAction({ hireId, userId, action, lat, lng }) {
       // Business rule: only the employer can close a job as completed.
       if (!isEmployer) throw new Error('Sirf employer hi request complete kar sakta hai');
       if (!TRACKABLE.includes(raw.status)) {
-        throw new Error('Sirf accepted / en route / reached request complete ho sakti hai');
+        throw new Error('Sirf accepted / on the way / reached / in-progress request complete ho sakti hai');
       }
       patch.status = 'completed';
       patch.completed_at = new Date().toISOString();
       countJob = true;
       workerBecomesFree = true;
       break;
+
+    case 'start': {
+      // "Start Work" — only the kaarigar, only once they are on site, and only
+      // with the 4-digit OTP the customer sees on their tracking screen. The
+      // OTP is the proof the customer witnessed the work beginning.
+      if (!isWorker) throw new Error('Sirf kaarigar hi kaam shuru kar sakta hai');
+      if (raw.status !== 'arrived') {
+        throw new Error('Kaarigar pehle customer ke paas pahunche bina kaam shuru nahi kar sakte');
+      }
+      const code = String(otp ?? '').trim();
+      if (!/^\d{4}$/.test(code)) throw new Error('4 digit ka OTP daalo');
+      const expected = (await storedStartOtp(hireId)) || hireStartOtp(hireId);
+      if (code !== expected) {
+        throw new Error('OTP galat hai — customer ke screen ka sahi code daalo');
+      }
+      patch.status = 'in_progress';
+      patch.started_at = new Date().toISOString();
+      break;
+    }
 
     case 'cancel':
       if (!isEmployer) throw new Error('Sirf user hi cancel kar sakta hai');
@@ -283,7 +356,16 @@ export async function hireAction({ hireId, userId, action, lat, lng }) {
     .select(HIRE_SELECT)
     .maybeSingle();
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    // The status CHECK constraint still lists only the old states — the
+    // 0010_hire_start_flow.sql migration has not been applied to this database.
+    if (/hire_requests_status/i.test(error.message)) {
+      throw new Error(
+        'Kaam shuru ka status abhi database me support nahi hai — Supabase me 0010_hire_start_flow.sql migration chalao',
+      );
+    }
+    throw new Error(error.message);
+  }
   if (!data) throw new Error('Status pehle hi badal chuka hai — refresh karke dobara try karo');
 
   if (countJob) {

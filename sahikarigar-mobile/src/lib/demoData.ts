@@ -278,6 +278,7 @@ export function createLocalHire(input: {
     workerLat: null,
     workerLng: null,
     phoneRevealed: false,
+    startOtp: String(Math.floor(1000 + Math.random() * 9000)),
     createdAt: nowIso(),
     updatedAt: nowIso(),
     employer: {
@@ -310,6 +311,7 @@ const NEXT_STATUS: Record<HireAction, ApiHire['status']> = {
   reject: 'rejected',
   en_route: 'en_route',
   arrived: 'arrived',
+  start: 'in_progress',
   complete: 'completed',
   cancel: 'cancelled',
 };
@@ -318,7 +320,16 @@ export function applyLocalAction(
   hire: ApiHire,
   action: HireAction,
   coords?: { lat?: number; lng?: number },
+  otp?: string,
 ): ApiHire {
+  // "Start Work" needs the same 4-digit OTP the demo employer screen shows —
+  // a wrong code must fail here too, exactly like the real server would.
+  if (action === 'start') {
+    const code = String(otp ?? '').trim();
+    if (!hire.startOtp || code !== hire.startOtp) {
+      throw new Error('OTP galat hai — customer ke screen ka sahi code daalo');
+    }
+  }
   const updated: ApiHire = {
     ...hire,
     status: NEXT_STATUS[action],
@@ -326,6 +337,8 @@ export function applyLocalAction(
     phoneRevealed: action === 'accept' ? true : hire.phoneRevealed,
     enRouteAt: action === 'en_route' ? nowIso() : hire.enRouteAt,
     arrivedAt: action === 'arrived' ? nowIso() : hire.arrivedAt,
+    startedAt: action === 'start' ? nowIso() : hire.startedAt,
+    startOtp: action === 'start' ? null : hire.startOtp,
     completedAt: action === 'complete' ? nowIso() : hire.completedAt,
     workerLat: coords?.lat ?? hire.workerLat,
     workerLng: coords?.lng ?? hire.workerLng,

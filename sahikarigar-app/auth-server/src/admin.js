@@ -283,7 +283,7 @@ const ADMIN_HIRE_SELECT =
   'id, employer_id, worker_id, description, location, proposed_rate, status, scheduled_date, ' +
   'completed_at, created_at, updated_at, employer:users(id, name, phone), ' +
   'worker:worker_profiles(id, user:users!user_id(id, name, phone))';
-const HIRE_STATUSES = ['pending', 'accepted', 'rejected', 'completed', 'cancelled', 'en_route', 'arrived'];
+const HIRE_STATUSES = ['pending', 'accepted', 'rejected', 'completed', 'cancelled', 'en_route', 'arrived', 'in_progress'];
 
 function emptyPerformance() {
   return { accepted: 0, rejected: 0, completed: 0, cancelled: 0, pending: 0, total: 0 };
@@ -310,7 +310,7 @@ async function workerPerformanceMap(workerIds) {
     const stats = performance.get(row.worker_id);
     if (!stats) continue;
     stats.total += 1;
-    if (row.status === 'accepted' || row.status === 'en_route' || row.status === 'arrived') {
+    if (['accepted', 'en_route', 'arrived', 'in_progress'].includes(row.status)) {
       stats.accepted += 1;
     } else if (row.status === 'rejected') {
       stats.rejected += 1;

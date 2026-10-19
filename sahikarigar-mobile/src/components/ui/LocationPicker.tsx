@@ -53,6 +53,9 @@ export interface LocationPickerProps {
 }
 
 const ERROR_MESSAGE = 'Location could not be loaded. Please check your internet connection.';
+/** Shown when the live search API fails / is too slow and only local results remain. */
+const FALLBACK_HINT =
+  'Live search is unavailable right now — showing the saved Hyderabad areas. Aap koi bhi area type karke neeche “Use …” tap kar sakte ho.';
 
 /**
  * Area / location picker.
@@ -76,6 +79,9 @@ export function LocationPicker({
   const [error, setError] = useState<string | null>(null);
   const [deviceBias, setDeviceBias] = useState<{ lat?: number; lng?: number } | undefined>(undefined);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Always-current copy of the query — guards async callbacks against stale writes. */
+  const queryRef = useRef(query);
+  queryRef.current = query;
 
   const googleEnabled = GOOGLE_MAPS_API_KEY.length > 0;
 
@@ -122,53 +128,67 @@ export function LocationPicker({
 
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(async () => {
-      setLoading(true);
-      setError(null);
+      // Show the built-in list IMMEDIATELY — typing always has something to
+      // pick from, even with zero internet. Remote results merge in later.
+      setResults(localResults);
+      // The spinner only makes sense when the local list came back empty.
+      if (localResults.length === 0) {
+        setLoading(true);
+        setError(null);
+      }
 
-      // 5-second timeout so the UI never hangs on a slow/blocked network.
+      // 2-second timeout: if the provider (Mappls / Google / Photon) doesn't
+      // answer in time we abort and stick with the fallback list above,
+      // instead of leaving the user staring at a spinner.
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000);
+      const timeout = setTimeout(() => controller.abort(), 2000);
 
+      const remote: PickerItem[] = [];
       try {
-        let remote: PickerItem[] = [];
-
         // 1) The configured provider — Mappls first, then Google.
         if (mapplsEnabled) {
-          remote = await mapplsAutosuggest(q, deviceBias, controller.signal);
+          remote.push(...(await mapplsAutosuggest(q, deviceBias, controller.signal)));
         } else if (googleEnabled) {
           const url =
             'https://maps.googleapis.com/maps/api/place/autocomplete/json' +
             `?input=${encodeURIComponent(q)}&components=country:in&language=en&key=${GOOGLE_MAPS_API_KEY}`;
           const res = await fetch(url, { signal: controller.signal });
           const data = (await res.json()) as AutocompleteResponse;
-          remote = (data.predictions ?? []).map((p) => ({
+          remote.push(...(data.predictions ?? []).map((p) => ({
             description: p.description,
             placeId: p.place_id,
-          }));
+          })));
         }
 
         // 2) Keyless fallback so suggestions work with no API key at all.
         if (remote.length === 0) {
-          remote = await photonAutosuggest(q, deviceBias, controller.signal);
-        }
-
-        // Merge local + remote so the built-in list is never lost.
-        const merged: PickerItem[] = [...localResults];
-        for (const r of remote) {
-          if (!merged.some((m) => m.description === r.description)) merged.push(r);
-        }
-        setResults(merged);
-        if (merged.length === 0) {
-          setError(ERROR_MESSAGE);
+          remote.push(...(await photonAutosuggest(q, deviceBias, controller.signal)));
         }
       } catch {
-        // Keep local results on error — never leave the field blank.
-        setResults(localResults);
-        setError(ERROR_MESSAGE);
-      } finally {
-        clearTimeout(timeout);
-        setLoading(false);
+        // But a slow/failing provider is silent — the fallback message below.
       }
+
+      clearTimeout(timeout);
+
+      // Ignore the response if the user has typed again since this request.
+      if (queryRef.current !== q) return;
+
+      if (remote.length === 0) {
+        // Local list already visible — just explain why, never block.
+        setResults(localResults);
+        setError(FALLBACK_HINT);
+        setLoading(false);
+        return;
+      }
+
+      // Merge local + remote so the built-in list is never lost.
+      const merged: PickerItem[] = [...localResults];
+      for (const r of remote) {
+        if (!merged.some((m) => m.description === r.description)) merged.push(r);
+      }
+      setResults(merged);
+      setError(null);
+      setLoading(false);
     }, 300);
 
     return () => {

@@ -23,7 +23,7 @@ const WORKER_WITH_USER =
 const AVAILABILITY_VALUES = ['available', 'busy', 'offline'];
 
 /** Statuses where a job has been accepted but not finished yet. */
-const ACTIVE_STATUSES = ['accepted', 'en_route', 'arrived'];
+const ACTIVE_STATUSES = ['accepted', 'en_route', 'arrived', 'in_progress'];
 
 /** How many finished jobs the dashboard keeps for display. */
 const COMPLETED_LIMIT = 10;

@@ -70,7 +70,12 @@ const STATUS_MESSAGES = {
   arrived: {
     to: 'employer',
     title: 'Kaarigar pahunch gaya 📍',
-    body: (hire) => `${hire?.worker?.user?.name ?? 'Kaarigar'} aapki jagah pahunch gaya hai.`,
+    body: (hire) => `${hire?.worker?.user?.name ?? 'Kaarigar'} aapki jagah pahunch gaya hai. OTP dekh kar kaam shuru karne dein.`,
+  },
+  start: {
+    to: 'employer',
+    title: 'Kaam shuru ho gaya 🛠️',
+    body: (hire) => `${hire?.worker?.user?.name ?? 'Kaarigar'} ne OTP verify karke kaam shuru kar diya hai.`,
   },
   complete: {
     to: 'both',

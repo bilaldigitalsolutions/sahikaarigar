@@ -15,7 +15,7 @@ import { listHires, type ApiHire } from '@/lib/api';
 import { colors, fontSize, fontWeight, spacing } from '@/theme';
 
 /** Statuses where a booking is still live (everything else is history). */
-const OPEN_STATUSES = ['pending', 'accepted', 'en_route', 'arrived'] as const;
+const OPEN_STATUSES = ['pending', 'accepted', 'en_route', 'arrived', 'in_progress'] as const;
 
 type StatusFilter = 'all' | 'active' | 'history';
 

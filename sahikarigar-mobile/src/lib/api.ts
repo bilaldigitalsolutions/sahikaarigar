@@ -125,6 +125,7 @@ export interface ApiHire {
   completedAt?: string | null;
   enRouteAt?: string | null;
   arrivedAt?: string | null;
+  startedAt?: string | null;
   workerLat?: number | null;
   workerLng?: number | null;
   startOtp?: string | null;
@@ -305,20 +306,37 @@ export async function hireAction(
   id: string,
   action: HireAction,
   coords?: { lat?: number; lng?: number },
+  otp?: string,
 ): Promise<{ hire: ApiHire }> {
   try {
     const result = await apiFetch<{ hire: ApiHire }>(`/hires/${encodeURIComponent(id)}`, {
       method: 'PATCH',
-      body: JSON.stringify({ action, ...(coords ?? {}) }),
+      body: JSON.stringify({ action, ...(coords ?? {}), ...(otp ? { otp } : {}) }),
     });
     if (action === 'accept') trackEvent('hire_accepted');
+    if (action === 'start') trackEvent('hire_started');
     if (action === 'complete') trackEvent('hire_completed');
     return result;
   } catch (e) {
     if (!(e instanceof NetworkError)) throw e;
     const hire = getLocalHire(id);
     if (!hire) throw e;
-    return { hire: applyLocalAction(hire, action, coords) };
+    return { hire: applyLocalAction(hire, action, coords, otp) };
+  }
+}
+
+/**
+ * The 4-digit "start work" OTP shown on the EMPLOYER's tracking screen once
+ * the kaarigar has arrived. Employer-only — the worker types it in their app.
+ */
+export async function getHireStartOtp(id: string): Promise<{ otp: string }> {
+  try {
+    return await apiFetch<{ otp: string }>(`/hires/${encodeURIComponent(id)}/start-otp`);
+  } catch (e) {
+    if (!(e instanceof NetworkError)) throw e;
+    const hire = getLocalHire(id);
+    if (!hire?.startOtp) throw e;
+    return { otp: hire.startOtp };
   }
 }
 

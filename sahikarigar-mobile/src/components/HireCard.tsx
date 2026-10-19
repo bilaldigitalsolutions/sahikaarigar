@@ -18,6 +18,7 @@ const TONE: Record<string, 'neutral' | 'success' | 'warning' | 'danger' | 'prima
   accepted: 'primary',
   en_route: 'primary',
   arrived: 'primary',
+  in_progress: 'primary',
   completed: 'success',
   cancelled: 'neutral',
   rejected: 'danger',

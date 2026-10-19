@@ -105,6 +105,7 @@ export type AnalyticsEvent =
   | 'worker_registered'
   | 'hire_created'
   | 'hire_accepted'
+  | 'hire_started'
   | 'hire_completed'
   | 'feedback_submitted'
   | 'search_performed';

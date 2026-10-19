@@ -70,6 +70,7 @@ export const HIRE_STATUS = {
   CANCELLED: 'cancelled',
   EN_ROUTE: 'en_route',
   ARRIVED: 'arrived',
+  IN_PROGRESS: 'in_progress',
 } as const;
 
 /** User-facing label for a hire status. */
@@ -81,6 +82,7 @@ export const HIRE_STATUS_LABELS: Record<HireStatus, string> = {
   cancelled: 'Cancelled',
   en_route: 'On the way',
   arrived: 'Arrived',
+  in_progress: 'In progress',
 };
 
 // Availability Status

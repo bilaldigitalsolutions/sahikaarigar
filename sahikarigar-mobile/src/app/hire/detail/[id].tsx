@@ -9,13 +9,14 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 
-import { Avatar, BrandLogo, Header, Screen, Timeline, type TimelineStep } from '@/components';
+import { Avatar, BrandLogo, Button, Header, Screen, Timeline, type TimelineStep } from '@/components';
 import { SUPPORT_PHONE } from '@/constants';
 import { useAuth } from '@/contexts/AuthContext';
-import { getHire, hireAction, type ApiHire } from '@/lib/api';
+import { getHire, getHireStartOtp, hireAction, type ApiHire } from '@/lib/api';
 import { getDeviceCoords } from '@/lib/location';
 import { colors, fontSize, fontWeight, radius, spacing } from '@/theme';
 import type { HireAction } from '@/types';
@@ -36,6 +37,7 @@ const DEMO_ACTIONS: { action: HireAction; label: string }[] = [
   { action: 'accept', label: 'Accept' },
   { action: 'en_route', label: 'On the way' },
   { action: 'arrived', label: 'Arrived' },
+  { action: 'start', label: 'Start Work' },
   { action: 'complete', label: 'Complete' },
 ];
 
@@ -106,8 +108,8 @@ export default function HireDetailScreen() {
     ]);
   };
 
-  /** Advance the booking (accept / en_route / arrived / complete / cancel). */
-  const runAction = async (action: HireAction) => {
+  /** Advance the booking (accept / en_route / arrived / start / complete / cancel). */
+  const runAction = async (action: HireAction, otp?: string) => {
     if (!hire) return;
     setBusy(true);
     try {
@@ -116,9 +118,15 @@ export default function HireDetailScreen() {
       // when permission is denied.
       const coords =
         action === 'en_route' || action === 'arrived' ? await getDeviceCoords() : null;
-      const { hire: updated } = await hireAction(hire.id, action, coords ?? undefined);
+      // Demo: the demo employer "shares" the OTP automatically so the
+      // simulated Start Work verifies without typing anything.
+      const otpToSend = otp ?? (action === 'start' && isDemo ? hire?.startOtp ?? undefined : undefined);
+      const { hire: updated } = await hireAction(hire.id, action, coords ?? undefined, otpToSend);
       setHire(updated);
     } catch (e) {
+      // The inline OTP entry passes a code and wants to show the error next
+      // to its own field — let it bubble. Everything else surfaces an Alert.
+      if (otp != null) throw e;
       Alert.alert('Could not update', e instanceof Error ? e.message : 'Please try again.');
     } finally {
       setBusy(false);
@@ -201,13 +209,56 @@ function BookingBody({
   isWorkerViewer: boolean;
   onCall: () => void;
   onCancel: () => void;
-  onAction: (action: HireAction) => void;
+  /** Runs a hire action; it rethrows (instead of alerting) when an `otp` is
+   *  given, so the inline OTP entry can show the error next to the field. */
+  onAction: (action: HireAction, otp?: string) => Promise<void>;
   onFeedback: () => void;
 }) {
-  const accepted = ['accepted', 'en_route', 'arrived', 'completed'].includes(hire.status);
-  const enRoute = ['en_route', 'arrived', 'completed'].includes(hire.status);
-  const arrived = ['arrived', 'completed'].includes(hire.status);
   const completed = hire.status === 'completed';
+  const [startOtp, setStartOtp] = useState<string | null>(null);
+  const [otpError, setOtpError] = useState<string | null>(null);
+  const [otpEntry, setOtpEntry] = useState('');
+  const [otpEntryVisible, setOtpEntryVisible] = useState(false);
+  const [otpEntryError, setOtpEntryError] = useState<string | null>(null);
+
+  // The employer's tracking screen must clearly show the OTP once the
+  // worker is 'arrived' — fetch it from the employer-only endpoint.
+  useEffect(() => {
+    if (isWorkerViewer || hire.status !== 'arrived') return;
+    let active = true;
+    getHireStartOtp(hire.id)
+      .then(({ otp }) => {
+        if (active) {
+          setStartOtp(otp);
+          setOtpError(null);
+        }
+      })
+      .catch((e) => {
+        if (active) setOtpError(e instanceof Error ? e.message : 'OTP load nahi hua');
+      });
+    return () => {
+      active = false;
+    };
+  }, [hire.id, hire.status, isWorkerViewer]);
+
+  /** Worker: verify the OTP shared by the customer and start the job.
+   *  Errors surface inline — `onAction` rethrows when an `otp` is passed. */
+  const verifyStartOtp = async () => {
+    setOtpEntryError(null);
+    try {
+      await onAction('start', otpEntry.trim());
+      setOtpEntryVisible(false);
+      setOtpEntry('');
+    } catch (e) {
+      setOtpEntryError(e instanceof Error ? e.message : 'OTP galat hai — dobara try karo');
+    }
+  };
+
+  const accepted = ['accepted', 'en_route', 'arrived', 'in_progress', 'completed'].includes(hire.status);
+  const enRoute = ['en_route', 'arrived', 'in_progress', 'completed'].includes(hire.status);
+  const arrived = ['arrived', 'in_progress', 'completed'].includes(hire.status);
+  /** OTP verified — the kaarigar is actually working now. */
+  const workStarted = hire.status === 'in_progress' || completed;
   const cancelled = hire.status === 'cancelled' || hire.status === 'rejected';
 
   const steps: TimelineStep[] = [
@@ -225,8 +276,15 @@ function BookingBody({
     },
     {
       label: 'Work Started',
-      time: arrived ? fmtTime(hire.arrivedAt) : 'Pending',
-      state: arrived ? (completed ? 'done' : 'active') : 'pending',
+      time: workStarted
+        ? hire.startedAt
+          ? fmtTime(hire.startedAt)
+          : 'Active'
+        : hire.status === 'arrived'
+          ? 'Waiting for OTP'
+          : 'Pending',
+      note: hire.status === 'arrived' ? 'Customer ke screen ka OTP darj karain' : undefined,
+      state: workStarted ? (completed ? 'done' : 'active') : 'pending',
     },
   ];
 
@@ -235,23 +293,27 @@ function BookingBody({
       ? 'Arriving in 45 mins'
       : hire.status === 'arrived'
         ? 'Worker has arrived'
-        : hire.status === 'completed'
-          ? 'Work completed'
-          : hire.status === 'accepted'
-            ? 'Arriving soon'
-            : hire.status === 'pending'
-              ? 'Waiting for worker'
-              : 'Booking closed';
+        : hire.status === 'in_progress'
+          ? 'Work in progress'
+          : hire.status === 'completed'
+            ? 'Work completed'
+            : hire.status === 'accepted'
+              ? 'Arriving soon'
+              : hire.status === 'pending'
+                ? 'Waiting for worker'
+                : 'Booking closed';
 
   const heading = cancelled
     ? 'Booking Cancelled'
     : completed
       ? 'Work Completed!'
-      : hire.status === 'pending'
-        ? isWorkerViewer
-          ? 'New Booking Request'
-          : 'Waiting for Kaarigar'
-        : 'Booking Confirmed!';
+      : workStarted
+        ? 'Work in Progress'
+        : hire.status === 'pending'
+          ? isWorkerViewer
+            ? 'New Booking Request'
+            : 'Waiting for worker to accept your request'
+          : 'Booking Confirmed!';
 
   return (
     <>
@@ -263,38 +325,60 @@ function BookingBody({
         <Text style={styles.subtitle}>
           {cancelled
             ? 'Ye booking cancel ho gayi hai.'
-            : 'Your booking is confirmed. We’ll keep you updated.'}
+            : hire.status === 'pending'
+              ? 'Request kaarigar ko bhej di gayi hai — accept karte hi aapko notification milega.'
+              : 'Your booking is confirmed. We’ll keep you updated.'}
         </Text>
 
-        <View style={styles.workerCard}>
-          <Avatar uri={workerAvatar} name={workerName} size={54} />
-          <View style={styles.workerInfo}>
-            <Text style={styles.workerTag}>Worker assigned</Text>
-            <Text style={styles.workerName}>{workerName}</Text>
-            <View style={styles.workerMetaRow}>
-              <Ionicons name="time-outline" size={13} color={colors.primaryDark} />
-              <Text style={styles.workerMeta}>{eta}</Text>
-              {distance != null ? (
-                <>
-                  <Ionicons name="location-outline" size={13} color={colors.primaryDark} />
-                  <Text style={styles.workerMeta}>• ~{distance} km away</Text>
-                </>
-              ) : null}
+        {accepted || cancelled ? (
+          <View style={styles.workerCard}>
+            <Avatar uri={workerAvatar} name={workerName} size={54} />
+            <View style={styles.workerInfo}>
+              <Text style={styles.workerTag}>Worker assigned</Text>
+              <Text style={styles.workerName}>{workerName}</Text>
+              <View style={styles.workerMetaRow}>
+                <Ionicons name="time-outline" size={13} color={colors.primaryDark} />
+                <Text style={styles.workerMeta}>{eta}</Text>
+                {distance != null ? (
+                  <>
+                    <Ionicons name="location-outline" size={13} color={colors.primaryDark} />
+                    <Text style={styles.workerMeta}>• ~{distance} km away</Text>
+                  </>
+                ) : null}
+              </View>
             </View>
           </View>
-        </View>
+        ) : null}
 
         <Text style={styles.sectionTitle}>Live Tracking</Text>
         <Timeline steps={steps} />
 
-        <View style={styles.otpCard}>
-          <Ionicons name="lock-closed" size={16} color={colors.primaryDark} />
-          <Text style={styles.otpLabel}>OTP for start work</Text>
-          <Text style={styles.otpValue}>{hire.startOtp ?? '----'}</Text>
-          <Text style={styles.otpHint}>
-            Share this OTP with the worker once they arrive to start the work
-          </Text>
-        </View>
+        {/* "Start work" OTP — shown to the EMPLOYER only, and only from the
+            moment the kaarigar has arrived. Formats as a huge, unmistakable
+            code they read out to the worker. */}
+        {!isWorkerViewer && hire.status === 'arrived' ? (
+          <View style={styles.otpCard}>
+            <Ionicons name="lock-closed" size={16} color={colors.primaryDark} />
+            <Text style={styles.otpLabel}>OTP for start work</Text>
+            <Text style={styles.otpValue}>{startOtp ?? '----'}</Text>
+            <Text style={styles.otpHint}>
+              {otpError
+                ? otpError
+                : 'Worker pe pahunch gaya hai! Ye OTP worker ko dijiye — wahi enter karke kaam shuru hogi.'}
+            </Text>
+          </View>
+        ) : null}
+        {workStarted ? (
+          <View style={[styles.otpCard, styles.otpCardDone]}>
+            <Ionicons name="checkmark-circle" size={16} color="#16A34A" />
+            <Text style={[styles.otpLabel, styles.otpLabelDone]}>
+              OTP verified — kaam shuru ho gaya
+            </Text>
+            <Text style={styles.otpHint}>
+              Kaarigar aapke diye OTP se kaam shuru kar chuka hai.
+            </Text>
+          </View>
+        ) : null}
 
         <View style={styles.feeCard}>
           <View style={styles.feeRow}>
@@ -340,18 +424,64 @@ function BookingBody({
         ) : null}
       </ScrollView>
 
+      {/* Worker-entered OTP gate: "Start Work" only verifies with the code
+          the customer sees on their tracking screen. */}
+      {isWorkerViewer && hire.status === 'arrived' && otpEntryVisible ? (
+        <View style={styles.otpEntryCard}>
+          <Text style={styles.otpEntryTitle}>Enter OTP from customer</Text>
+          <Text style={styles.otpEntrySub}>
+            Customer ke screen par OTP check karain aur yahan darj karain.
+          </Text>
+          <View style={styles.otpEntryRow}>
+            <TextInput
+              style={styles.otpEntryInput}
+              value={otpEntry}
+              onChangeText={(text) => {
+                setOtpEntry(text.replace(/\D/g, '').slice(0, 4));
+                if (otpEntryError) setOtpEntryError(null);
+              }}
+              placeholder="‒ ‒ ‒ ‒"
+              placeholderTextColor={colors.muted}
+              keyboardType="number-pad"
+              maxLength={4}
+              autoFocus
+            />
+            <Button
+              label="Verify & start"
+              onPress={verifyStartOtp}
+              loading={busy}
+              disabled={otpEntry.trim().length !== 4}
+            />
+          </View>
+          <Pressable onPress={() => setOtpEntryVisible(false)} hitSlop={8}>
+            <Text style={styles.otpEntryCancel}>Cancel</Text>
+          </Pressable>
+          {otpEntryError ? <Text style={styles.otpEntryError}>{otpEntryError}</Text> : null}
+        </View>
+      ) : null}
+
       <View style={styles.bottomBar}>
-        <Pressable
-          style={[styles.callBtn, !accepted && styles.disabled]}
-          onPress={onCall}
-          disabled={!accepted}
-        >
-          <Ionicons name="call" size={17} color={colors.primaryDark} />
-          <Text style={styles.callText}>{isWorkerViewer ? 'Call Customer' : 'Call Worker'}</Text>
-        </Pressable>
+        <View style={styles.callWrap}>
+          <Pressable
+            style={[styles.callBtn, !accepted && styles.disabled]}
+            onPress={onCall}
+            disabled={!accepted}
+          >
+            <Ionicons name="call" size={17} color={colors.primaryDark} />
+            <Text style={styles.callText}>{isWorkerViewer ? 'Call Customer' : 'Call Worker'}</Text>
+          </Pressable>
+          {!accepted ? (
+            <Text style={styles.callHint}>
+              {isWorkerViewer
+                ? 'Number revealed once you accept the request'
+                : 'Number revealed once worker accepts'}
+            </Text>
+          ) : null}
+        </View>
         {isWorkerViewer ? (
           // Kaarigar's own actions — mirrors what the auth-server allows:
-          // accept / reject (pending) → on the way → arrived → complete.
+          // accept / reject (pending) → on the way → arrived → start (OTP) →
+          // the CUSTOMER completes the job.
           completed ? (
             <Pressable style={styles.primaryAction} onPress={onFeedback}>
               <Text style={styles.primaryActionText}>Give Feedback</Text>
@@ -389,13 +519,13 @@ function BookingBody({
             >
               <Text style={styles.primaryActionText}>Arrived</Text>
             </Pressable>
-          ) : arrived ? (
+          ) : hire.status === 'arrived' ? (
             <Pressable
               style={[styles.primaryAction, busy && styles.disabled]}
-              onPress={() => onAction('complete')}
+              onPress={() => setOtpEntryVisible(true)}
               disabled={busy}
             >
-              <Text style={styles.primaryActionText}>Mark Complete</Text>
+              <Text style={styles.primaryActionText}>Start Work</Text>
             </Pressable>
           ) : null
         ) : (
@@ -507,9 +637,62 @@ const styles = StyleSheet.create({
     borderColor: colors.primaryBorder,
     backgroundColor: colors.primaryTint,
   },
+  otpCardDone: {
+    borderColor: '#BBF7D0',
+    backgroundColor: '#F0FDF4',
+  },
   otpLabel: { fontSize: fontSize.caption, fontWeight: fontWeight.semibold, color: colors.primaryDark, marginTop: spacing.xs },
+  otpLabelDone: { color: '#16A34A' },
   otpValue: { fontSize: 40, fontWeight: fontWeight.bold, color: colors.primaryDark, letterSpacing: 6, marginVertical: spacing.xs },
   otpHint: { fontSize: fontSize.caption, color: colors.textSecondary, textAlign: 'center' },
+  otpEntryCard: {
+    padding: spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    backgroundColor: colors.card,
+  },
+  otpEntryTitle: {
+    fontSize: fontSize.body,
+    fontWeight: fontWeight.bold,
+    color: colors.textPrimary,
+  },
+  otpEntrySub: {
+    fontSize: fontSize.caption,
+    color: colors.textSecondary,
+    marginTop: 2,
+    marginBottom: spacing.md,
+  },
+  otpEntryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  otpEntryInput: {
+    flex: 1,
+    height: 48,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.button,
+    backgroundColor: colors.white,
+    textAlign: 'center',
+    fontSize: 22,
+    fontWeight: fontWeight.bold,
+    letterSpacing: 8,
+    color: colors.textPrimary,
+  },
+  otpEntryCancel: {
+    fontSize: fontSize.caption,
+    fontWeight: fontWeight.semibold,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginTop: spacing.md,
+  },
+  otpEntryError: {
+    fontSize: fontSize.caption,
+    color: colors.danger,
+    textAlign: 'center',
+    marginTop: spacing.sm,
+  },
   feeCard: {
     alignSelf: 'stretch',
     marginTop: spacing.xl,
@@ -544,8 +727,8 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
     backgroundColor: colors.card,
   },
+  callWrap: { flex: 1.2 },
   callBtn: {
-    flex: 1.2,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -557,6 +740,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
   },
   callText: { fontSize: fontSize.caption, fontWeight: fontWeight.semibold, color: colors.primaryDark },
+  callHint: {
+    fontSize: fontSize.caption - 2,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginTop: 4,
+  },
   primaryAction: {
     flex: 1.2,
     alignItems: 'center',

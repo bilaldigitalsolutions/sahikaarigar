@@ -2,7 +2,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Keyboard, KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
 
-import { Button, Input, LocationPicker, OtpVerifier, RateInput, Screen, type PlaceResult } from '@/components';
+import { Button, Input, LocationPicker, RateInput, Screen, type PlaceResult } from '@/components';
 import { VALIDATION } from '@/constants';
 import { useAuth } from '@/contexts/AuthContext';
 import { createHire } from '@/lib/api';
@@ -31,10 +31,8 @@ export default function CreateHireScreen() {
   const [rate, setRate] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showOtp, setShowOtp] = useState(false);
-  const [otpVerified, setOtpVerified] = useState(false);
   // Keyboard overlap guard: when the software keyboard shows, push the scroll
-  // content down so "Confirm with OTP"/"Send request" never hides behind it.
+  // content down so "Confirm booking" never hides behind it.
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   useEffect(() => {
@@ -50,7 +48,8 @@ export default function CreateHireScreen() {
     };
   }, []);
 
-  /** Creates the hire request — runs after the OTP step. */
+  /** Creates the hire request directly — the SuperTokens session already
+   *  proves who the user is, so no extra phone OTP is needed here. */
   const send = async () => {
     setBusy(true);
     setError(null);
@@ -86,13 +85,6 @@ export default function CreateHireScreen() {
       proposedRate > VALIDATION.MAX_RATE
     ) {
       setError(`Enter a rate between ₹${VALIDATION.MIN_RATE} and ₹${VALIDATION.MAX_RATE}.`);
-      return;
-    }
-
-    // Every hire must be confirmed with a phone OTP. In demo mode there is no
-    // backend to send one, so we skip straight to creating the request.
-    if (!otpVerified && !isDemo) {
-      setShowOtp(true);
       return;
     }
     await send();
@@ -155,32 +147,8 @@ export default function CreateHireScreen() {
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-        {showOtp && !otpVerified ? (
-          <View style={styles.mt}>
-            <OtpVerifier
-              title="Confirm with OTP"
-              subtitle="For your safety, verify your mobile number to send this request."
-              defaultPhone={user?.phone ?? ''}
-              actionLabel="Verify & send request"
-              onVerified={() => {
-                setOtpVerified(true);
-                setShowOtp(false);
-                send();
-              }}
-            />
-            <Button
-              label="Cancel"
-              variant="ghost"
-              disabled={busy}
-              onPress={() => setShowOtp(false)}
-            />
-          </View>
-        ) : (
-          <>
-            <Button label="Send request" onPress={onSubmit} loading={busy} size="lg" />
-            <Button label="Cancel" variant="ghost" onPress={() => router.back()} disabled={busy} />
-          </>
-        )}
+        <Button label="Confirm booking" onPress={onSubmit} loading={busy} size="lg" />
+        <Button label="Cancel" variant="ghost" onPress={() => router.back()} disabled={busy} />
       </Screen>
     </KeyboardAvoidingView>
   );

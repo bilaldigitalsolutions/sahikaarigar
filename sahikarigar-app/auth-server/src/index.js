@@ -31,7 +31,13 @@ import {
 } from './users.js';
 import { searchWorkers, getWorkerById } from './workers.js';
 import { getWorkerDashboard, setWorkerAvailability } from './worker-dashboard.js';
-import { createHireRequest, listHiresForUser, getHireById, hireAction } from './hires.js';
+import {
+  createHireRequest,
+  listHiresForUser,
+  getHireById,
+  getHireStartOtp,
+  hireAction,
+} from './hires.js';
 import {
   createReview,
   createPlatformFeedback,
@@ -359,8 +365,23 @@ app.get('/hires/:id', async (req, res, next) => {
   }
 });
 
+// The "start work" OTP — EMPLOYER only, so the customer's screen can show the
+// code the kaarigar must type to begin the job (privacy: the worker's own
+// session can never read it).
+app.get('/hires/:id/start-otp', async (req, res, next) => {
+  try {
+    const session = await Session.getSession(req, res, { sessionRequired: true });
+    const { authUserId, phone } = await resolveSession(session);
+    const user = await getOrCreateUserByAuthId(authUserId, phone);
+    const { otp } = await getHireStartOtp({ hireId: req.params.id, userId: user.id });
+    res.json({ ok: true, otp });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // One route for every state change: accept | reject | en_route | arrived |
-// complete | cancel. `hires.js` decides who is allowed to do what.
+// start | complete | cancel. `hires.js` decides who is allowed to do what.
 app.patch('/hires/:id', async (req, res, next) => {
   try {
     // The admin panel uses our HMAC admin token as a Bearer header. Valid
@@ -391,6 +412,7 @@ app.patch('/hires/:id', async (req, res, next) => {
       action: req.body?.action,
       lat: req.body?.lat,
       lng: req.body?.lng,
+      otp: req.body?.otp,
     });
     // Fire-and-forget: the OTHER party gets a push about the status change.
     void notifyHireUpdate(hire, req.body?.action);

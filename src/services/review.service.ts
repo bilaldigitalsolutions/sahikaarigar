@@ -101,7 +101,7 @@ export async function getReviewsByReviewer(
   const { data, error, count } = await getSupabaseAdmin()
     .from('reviews')
     .select(
-      '*, worker:worker_profiles(id, user_id, skills, hourly_rate, rating_average, rating_count, user:users(id, name, avatar))',
+      '*, worker:worker_profiles(id, user_id, skills, hourly_rate, rating_average, rating_count, user:users!user_id(id, name, avatar))',
       { count: 'exact' }
     )
     .eq('reviewer_id', reviewerId)

@@ -17,8 +17,11 @@ export const HIRE_SELECT =
   'scheduled_date, completed_at, phone_revealed, created_at, updated_at, ' +
   'en_route_at, arrived_at, worker_lat, worker_lng, ' +
   'employer:users(id, name, phone, avatar, location_area, location_city), ' +
+  // `!user_id` pins the FK: worker_profiles also references users through
+  // `reviewed_by`, and without the hint PostgREST fails with
+  // "more than one relationship was found for 'worker_profiles' and 'users'".
   'worker:worker_profiles(id, user_id, skills, hourly_rate, rating_average, ' +
-  'rating_count, availability, user:users(id, name, avatar, phone, location_area, location_city))';
+  'rating_count, availability, user:users!user_id(id, name, avatar, phone, location_area, location_city))';
 
 /** Statuses from which a job can still be completed / cancelled. */
 const TRACKABLE = ['accepted', 'en_route', 'arrived'];

@@ -76,7 +76,8 @@ export default function FAQScreen() {
         <Text style={styles.header}>Frequently Asked Questions</Text>
       </View>
 
-      <View style={styles.tabBar}>
+      {/* Segmented control — two equal pill buttons inside one rounded track. */}
+      <View style={styles.tabTrack}>
         {[
           { value: 'employer' as Tab, label: 'For Employers' },
           { value: 'worker' as Tab, label: 'For Workers' },
@@ -87,10 +88,9 @@ export default function FAQScreen() {
               key={t.value}
               onPress={() => setTab(t.value)}
               style={[styles.tabItem, active && styles.tabActive]}
+              accessibilityState={{ selected: active }}
             >
-              <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>
-                {t.label}
-              </Text>
+              <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{t.label}</Text>
             </Pressable>
           );
         })}
@@ -149,26 +149,30 @@ const styles = StyleSheet.create({
     fontWeight: fontWeight.bold,
     color: colors.textPrimary,
   },
-  tabBar: {
+  // Segmented control: one rounded grey track, two equal pills inside, the
+  // active one filled green. Equal flex keeps both labels from overlapping.
+  tabTrack: {
     flexDirection: 'row',
+    backgroundColor: colors.border,
+    borderRadius: radius.pill,
+    padding: spacing.xs,
     marginBottom: spacing.xl,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
   },
   tabItem: {
-    flexDirection: 'row',
+    flex: 1,
     alignItems: 'center',
     paddingVertical: spacing.md,
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
+    borderRadius: radius.pill,
   },
-  tabActive: { borderBottomColor: colors.primaryDark },
+  tabActive: {
+    backgroundColor: colors.primaryDark,
+  },
   tabLabel: {
-    fontSize: fontSize.small,
-    fontWeight: fontWeight.medium,
+    fontSize: fontSize.caption,
+    fontWeight: fontWeight.semibold,
     color: colors.textSecondary,
   },
-  tabLabelActive: { color: colors.primaryDark },
+  tabLabelActive: { color: colors.white },
   list: { gap: spacing.sm },
   faqCard: {
     backgroundColor: colors.card,

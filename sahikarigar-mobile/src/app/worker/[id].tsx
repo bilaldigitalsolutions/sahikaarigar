@@ -1,3 +1,13 @@
+// =============================================================================
+// Worker Profile — premium detail screen (occupies the "reference design")
+// =============================================================================
+//  * Hero header: large circular photo, name, green Verified badge, star
+//    rating + review count, experience stat.
+//  * Location card: map pin, area + city, distance from the user.
+//  * 3 in-profile tabs: About | Services | Reviews.
+//  * Sticky bottom bar: Call (outlined) + Book Now (solid green).
+// =============================================================================
+
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -16,14 +26,15 @@ import { Avatar, Header, Rating, Screen } from '@/components';
 import { areaLabel, skillIconName, skillLabel, skillServices } from '@/constants';
 import { useAuth } from '@/contexts/AuthContext';
 import { getWorker, type ApiReview, type ApiWorker } from '@/lib/api';
-import { colors, fontSize, fontWeight, radius, spacing } from '@/theme';
+import { colors, fontSize, fontWeight, radius, shadows, spacing } from '@/theme';
 import { calculateDistance, formatCurrency, formatRelativeDate, generateStars } from '@/utils';
 
-type Tab = 'about' | 'services';
+type Tab = 'about' | 'services' | 'reviews';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'about', label: 'About' },
   { id: 'services', label: 'Services' },
+  { id: 'reviews', label: 'Reviews' },
 ];
 
 export default function WorkerDetailScreen() {
@@ -99,148 +110,225 @@ export default function WorkerDetailScreen() {
       ) : (
         <>
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <View style={styles.profileHeader}>
-            <Avatar uri={workerUser?.avatar} name={name} size={104} />
-            <View style={styles.nameRow}>
-              <Text style={styles.name}>{name}</Text>
-              {workerUser?.isVerified ? (
-                <View style={styles.verified}>
-                  <Ionicons name="checkmark-circle" size={15} color={colors.white} />
-                  <Text style={styles.verifiedText}>Verified</Text>
-                </View>
-              ) : null}
-            </View>
-            <View style={styles.ratingRow}>
-              <Text style={styles.ratingValue}>{worker.ratingAverage.toFixed(1)}</Text>
-              <Rating value={worker.ratingAverage} size={15} />
-              <Text style={styles.ratingMeta}>
-                {worker.experience} yrs experience
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.tabs}>
-            {TABS.map((t) => {
-              const active = tab === t.id;
-              return (
-                <Pressable key={t.id} style={styles.tab} onPress={() => setTab(t.id)}>
-                  <Text style={[styles.tabText, active && styles.tabTextActive]}>{t.label}</Text>
-                  <View style={[styles.tabUnderline, active && styles.tabUnderlineActive]} />
-                </Pressable>
-              );
-            })}
-          </View>
-
-            {tab === 'services' ? (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Services & Pricing</Text>
-                {worker.skills
-                  .flatMap((s) => skillServices(s))
-                  .slice(0, 6)
-                  .map((svc, i) => (
-                    <View key={`${svc.title}-${i}`} style={styles.serviceRow}>
-                      <View style={styles.serviceIcon}>
-                        <Ionicons name="construct" size={18} color={colors.white} />
-                      </View>
-                      <View style={styles.serviceInfo}>
-                        <Text style={styles.serviceTitle}>{svc.title}</Text>
-                        <Text style={styles.serviceDesc}>{svc.desc}</Text>
-                      </View>
-                      <Text style={styles.servicePrice}>{formatCurrency(worker.hourlyRate)}</Text>
-                    </View>
-                  ))}
+            {/* ---------------- Hero header ---------------- */}
+            <View style={styles.hero}>
+              <View style={styles.avatarRing}>
+                <Avatar uri={workerUser?.avatar} name={name} size={108} />
+                {workerUser?.isVerified ? (
+                  <View style={styles.verifiedDot}>
+                    <Ionicons name="checkmark" size={16} color={colors.white} />
+                  </View>
+                ) : null}
               </View>
-            ) : null}
 
+              <View style={styles.nameRow}>
+                <Text style={styles.name} numberOfLines={1}>
+                  {name}
+                </Text>
+                {workerUser?.isVerified ? (
+                  <View style={styles.verifiedBadge}>
+                    <Ionicons name="checkmark-circle" size={14} color={colors.white} />
+                    <Text style={styles.verifiedBadgeText}>Verified</Text>
+                  </View>
+                ) : null}
+              </View>
+
+              <View style={styles.ratingRow}>
+                <Ionicons name="star" size={16} color={colors.star} />
+                <Text style={styles.ratingValue}>{worker.ratingAverage.toFixed(1)}</Text>
+                <Text style={styles.ratingMeta}>
+                  ({worker.ratingCount} {worker.ratingCount === 1 ? 'review' : 'reviews'})
+                </Text>
+              </View>
+
+              <View style={styles.statRow}>
+                <View style={styles.statPill}>
+                  <Ionicons name="briefcase-outline" size={14} color={colors.primaryDark} />
+                  <Text style={styles.statPillText}>
+                    {worker.experience} {worker.experience === 1 ? 'yr' : 'yrs'} experience
+                  </Text>
+                </View>
+                <View style={styles.statPill}>
+                  <Ionicons name="checkmark-done-outline" size={14} color={colors.primaryDark} />
+                  <Text style={styles.statPillText}>
+                    {worker.completedJobs} jobs done
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* ---------------- Location ---------------- */}
+            <View style={styles.locationCard}>
+              <View style={styles.locationIconBox}>
+                <Ionicons name="location" size={18} color={colors.primaryDark} />
+              </View>
+              <View style={styles.locationInfo}>
+                <Text style={styles.locationText}>
+                  {workerUser?.locationArea
+                    ? areaLabel(workerUser.locationArea)
+                    : worker.serviceAreas[0]
+                      ? areaLabel(worker.serviceAreas[0])
+                      : 'Hyderabad'}
+                  {workerUser?.locationCity ? `, ${workerUser.locationCity}` : ''}
+                </Text>
+                <Text style={styles.locationMeta}>
+                  {distance != null ? `${distance} km from you` : 'Serves all Hyderabad areas'}
+                </Text>
+              </View>
+            </View>
+
+            {/* ---------------- Tabs ---------------- */}
+            <View style={styles.tabTrack}>
+              {TABS.map((t) => {
+                const active = tab === t.id;
+                return (
+                  <Pressable
+                    key={t.id}
+                    style={[styles.tabPill, active && styles.tabPillActive]}
+                    onPress={() => setTab(t.id)}
+                    accessibilityState={{ selected: active }}
+                  >
+                    <Text style={[styles.tabText, active && styles.tabTextActive]}>{t.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {/* ---------------- About ---------------- */}
             {tab === 'about' ? (
-              <View style={styles.section}>
+              <View style={styles.sectionCard}>
                 <Text style={styles.sectionTitle}>About</Text>
                 <Text style={styles.aboutText}>
                   {worker.description || 'This worker has not added a description yet.'}
                 </Text>
-                <Text style={[styles.sectionTitle, styles.mt]}>Skills</Text>
+
+                <Text style={[styles.sectionTitle, styles.sectionGap]}>Skills</Text>
                 <View style={styles.skillWrap}>
-                  {worker.skills.map((s) => (
-                    <View key={s} style={styles.skillChip}>
-                      <Ionicons
-                        name={skillIconName(s) as keyof typeof Ionicons.glyphMap}
-                        size={14}
-                        color={colors.primaryDark}
-                      />
-                      <Text style={styles.skillChipText}>{skillLabel(s)}</Text>
-                    </View>
-                  ))}
+                  {worker.skills.length > 0 ? (
+                    worker.skills.map((s) => (
+                      <View key={s} style={styles.skillChip}>
+                        <Ionicons
+                          name={skillIconName(s) as keyof typeof Ionicons.glyphMap}
+                          size={14}
+                          color={colors.primaryDark}
+                        />
+                        <Text style={styles.skillChipText}>{skillLabel(s)}</Text>
+                      </View>
+                    ))
+                  ) : (
+                    <Text style={styles.emptyText}>No skills added yet.</Text>
+                  )}
+                </View>
+
+                <Text style={[styles.sectionTitle, styles.sectionGap]}>Availability</Text>
+                <View style={styles.availabilityRow}>
+                  <View
+                    style={[
+                      styles.availabilityDot,
+                      worker.availability === 'available' && styles.availabilityDotOn,
+                    ]}
+                  />
+                  <Text style={styles.availabilityText}>
+                    {worker.availability === 'available'
+                      ? 'Available for new work'
+                      : worker.availability === 'busy'
+                        ? 'Currently busy'
+                        : 'Currently offline'}
+                  </Text>
                 </View>
               </View>
             ) : null}
 
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Location</Text>
-              <View style={styles.locationRow}>
-                <Ionicons name="location" size={18} color={colors.primaryDark} />
-                <Text style={styles.locationText}>
-                  {workerUser?.locationArea ? areaLabel(workerUser.locationArea) : 'Hyderabad'}
-                  {workerUser?.locationCity ? `, ${workerUser.locationCity}` : ''}
-                  {distance != null ? ` • ${distance} km away` : ''}
-                </Text>
-              </View>
-            </View>
-
-            {/* Reviews — in-app list straight from the API (matches the design's
-                "Recent reviews" cards), with Google kept as a secondary source. */}
-            <View style={styles.section}>
-              <View style={styles.reviewsHead}>
-                <Text style={styles.sectionTitle}>
-                  Reviews{worker.ratingCount > 0 ? ` (${worker.ratingCount})` : ''}
-                </Text>
-                {worker.ratingCount > 0 ? (
-                  <View style={styles.reviewScore}>
-                    <Text style={styles.reviewScoreValue}>{worker.ratingAverage.toFixed(1)}</Text>
-                    <Ionicons name="star" size={13} color={colors.warning} />
-                  </View>
+            {/* ---------------- Services ---------------- */}
+            {tab === 'services' ? (
+              <View style={styles.sectionCard}>
+                <Text style={styles.sectionTitle}>Services &amp; Pricing</Text>
+                {worker.skills.flatMap((s) => skillServices(s)).slice(0, 6).length > 0 ? (
+                  worker.skills
+                    .flatMap((s) => skillServices(s))
+                    .slice(0, 6)
+                    .map((svc, i) => (
+                      <View key={`${svc.title}-${i}`} style={styles.serviceRow}>
+                        <View style={styles.serviceIcon}>
+                          <Ionicons
+                            name={skillIconName(worker.skills[0] ?? '') as keyof typeof Ionicons.glyphMap}
+                            size={16}
+                            color={colors.primaryDark}
+                          />
+                        </View>
+                        <View style={styles.serviceInfo}>
+                          <Text style={styles.serviceTitle}>{svc.title}</Text>
+                          <Text style={styles.serviceDesc}>{svc.desc}</Text>
+                        </View>
+                        <Text style={styles.servicePrice}>{formatCurrency(worker.hourlyRate)}</Text>
+                      </View>
+                    ))
                 ) : (
-                  <Pressable onPress={openGoogleReviews} hitSlop={8}>
-                    <Text style={styles.recentLink}>See on Google</Text>
-                  </Pressable>
+                  <Text style={styles.emptyText}>
+                    No service list yet — rate is {formatCurrency(worker.hourlyRate)} per hour.
+                  </Text>
                 )}
               </View>
+            ) : null}
 
-              {reviews.length > 0 ? (
-                reviews.map((review) => (
-                  <View key={review.id} style={styles.reviewCard}>
-                    <Avatar
-                      uri={review.reviewer?.avatar ?? null}
-                      name={review.reviewer?.name ?? 'User'}
-                      size={40}
-                    />
-                    <View style={styles.reviewBody}>
-                      <View style={styles.reviewTop}>
-                        <Text style={styles.reviewer}>{review.reviewer?.name ?? 'User'}</Text>
-                        <Text style={styles.reviewDate}>
-                          {formatRelativeDate(review.createdAt)}
-                        </Text>
+            {/* ---------------- Reviews ---------------- */}
+            {tab === 'reviews' ? (
+              <View style={styles.sectionCard}>
+                <View style={styles.reviewsHead}>
+                  <Text style={styles.sectionTitle}>
+                    Reviews{worker.ratingCount > 0 ? ` (${worker.ratingCount})` : ''}
+                  </Text>
+                  {worker.ratingCount > 0 ? (
+                    <Rating value={worker.ratingAverage} size={14} />
+                  ) : (
+                    <Pressable onPress={openGoogleReviews} hitSlop={8}>
+                      <Text style={styles.googleLink}>See on Google ›</Text>
+                    </Pressable>
+                  )}
+                </View>
+
+                {reviews.length > 0 ? (
+                  reviews.map((review) => (
+                    <View key={review.id} style={styles.reviewCard}>
+                      <Avatar
+                        uri={review.reviewer?.avatar ?? null}
+                        name={review.reviewer?.name ?? 'User'}
+                        size={40}
+                      />
+                      <View style={styles.reviewBody}>
+                        <View style={styles.reviewTop}>
+                          <Text style={styles.reviewer} numberOfLines={1}>
+                            {review.reviewer?.name ?? 'User'}
+                          </Text>
+                          <Text style={styles.reviewDate}>
+                            {formatRelativeDate(review.createdAt)}
+                          </Text>
+                        </View>
+                        <Text style={styles.reviewStars}>{generateStars(review.rating)}</Text>
+                        {review.comment ? (
+                          <Text style={styles.reviewComment}>{review.comment}</Text>
+                        ) : null}
                       </View>
-                      <Text style={styles.reviewStars}>{generateStars(review.rating)}</Text>
-                      {review.comment ? (
-                        <Text style={styles.reviewComment}>{review.comment}</Text>
-                      ) : null}
                     </View>
-                  </View>
-                ))
-              ) : (
-                <Text style={styles.reviewEmpty}>
-                  Abhi koi review nahi hai. Pehla kaam aap karwao! 😊
-                </Text>
-              )}
+                  ))
+                ) : (
+                  <Text style={styles.emptyText}>
+                    Abhi koi review nahi hai. Pehla kaam aap karwao! 😊
+                  </Text>
+                )}
 
-              <Pressable style={styles.googleBtn} onPress={openGoogleReviews}>
-                <Ionicons name="logo-google" size={18} color={colors.primaryDark} />
-                <Text style={styles.googleBtnText}>See reviews on Google</Text>
-                <Ionicons name="open-outline" size={16} color={colors.primaryDark} />
-              </Pressable>
-            </View>
+                {reviews.length > 0 ? (
+                  <Pressable style={styles.googleBtn} onPress={openGoogleReviews}>
+                    <Ionicons name="logo-google" size={18} color={colors.primaryDark} />
+                    <Text style={styles.googleBtnText}>See reviews on Google</Text>
+                    <Ionicons name="open-outline" size={16} color={colors.primaryDark} />
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : null}
           </ScrollView>
 
+          {/* ---------------- Sticky bottom bar ---------------- */}
           <View style={styles.bottomBar}>
             <Pressable style={styles.callBtn} onPress={onCall}>
               <Ionicons name="call" size={18} color={colors.primaryDark} />
@@ -248,7 +336,7 @@ export default function WorkerDetailScreen() {
             </Pressable>
             <Pressable style={styles.bookNowBtn} onPress={bookNow}>
               <Ionicons name="calendar" size={18} color={colors.white} />
-              <Text style={styles.bookNowText}>Hire</Text>
+              <Text style={styles.bookNowText}>Book Now</Text>
             </Pressable>
           </View>
         </>
@@ -261,60 +349,139 @@ const styles = StyleSheet.create({
   content: { padding: spacing.lg, paddingBottom: spacing.xxl },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.xxl },
   errorText: { marginTop: spacing.md, fontSize: fontSize.small, color: colors.textSecondary },
-  profileHeader: { alignItems: 'center', marginBottom: spacing.lg },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.md },
+
+  // ---- Hero header ----
+  hero: {
+    alignItems: 'center',
+    paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+    borderRadius: radius.card,
+    backgroundColor: colors.card,
+    ...shadows.card,
+  },
+  avatarRing: {
+    padding: 5,
+    borderRadius: 64,
+    borderWidth: 3,
+    borderColor: colors.primaryBorder,
+    backgroundColor: colors.white,
+  },
+  verifiedDot: {
+    position: 'absolute',
+    right: 2,
+    bottom: 6,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: colors.primary,
+    borderWidth: 2,
+    borderColor: colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+    maxWidth: '100%',
+  },
   name: { fontSize: fontSize.h2, fontWeight: fontWeight.bold, color: colors.textPrimary },
-  verified: {
+  verifiedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
     paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
+    paddingVertical: 3,
     borderRadius: radius.pill,
     backgroundColor: colors.primaryDark,
   },
-  verifiedText: { fontSize: fontSize.caption - 1, fontWeight: fontWeight.semibold, color: colors.white },
-  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.sm },
+  verifiedBadgeText: {
+    fontSize: fontSize.caption - 2,
+    fontWeight: fontWeight.semibold,
+    color: colors.white,
+  },
+  ratingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: spacing.sm,
+  },
   ratingValue: { fontSize: fontSize.body, fontWeight: fontWeight.bold, color: colors.textPrimary },
   ratingMeta: { fontSize: fontSize.caption, color: colors.textSecondary },
-  tabs: {
+  statRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
+  statPill: {
     flexDirection: 'row',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    marginBottom: spacing.lg,
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primaryBg,
   },
-  tab: { flex: 1, alignItems: 'center', paddingVertical: spacing.md },
-  tabText: { fontSize: fontSize.small, fontWeight: fontWeight.medium, color: colors.textSecondary },
-  tabTextActive: { color: colors.textPrimary, fontWeight: fontWeight.semibold },
-  tabUnderline: { height: 2, width: '55%', marginTop: spacing.sm, borderRadius: 1 },
-  tabUnderlineActive: { backgroundColor: colors.primaryDark },
-  section: { marginBottom: spacing.lg },
-  sectionTitle: { fontSize: fontSize.body, fontWeight: fontWeight.bold, color: colors.textPrimary },
-  mt: { marginTop: spacing.lg },
-  serviceRow: {
+  statPillText: {
+    fontSize: fontSize.caption - 2,
+    fontWeight: fontWeight.semibold,
+    color: colors.primaryDark,
+  },
+
+  // ---- Location card ----
+  locationCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
     padding: spacing.md,
-    marginTop: spacing.md,
+    marginBottom: spacing.lg,
     borderRadius: radius.card,
+    backgroundColor: colors.primaryTint,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
+    borderColor: colors.primaryBorder,
   },
-  serviceIcon: {
+  locationIconBox: {
     width: 40,
     height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.primaryDark,
+    borderRadius: 12,
+    backgroundColor: colors.white,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  serviceInfo: { flex: 1 },
-  serviceTitle: { fontSize: fontSize.small, fontWeight: fontWeight.semibold, color: colors.textPrimary },
-  serviceDesc: { fontSize: fontSize.caption, color: colors.textSecondary, marginTop: 2 },
-  servicePrice: { fontSize: fontSize.body, fontWeight: fontWeight.bold, color: colors.primaryDark },
-  aboutText: { fontSize: fontSize.small, color: colors.textSecondary, marginTop: spacing.sm, lineHeight: 22 },
+  locationInfo: { flex: 1 },
+  locationText: { fontSize: fontSize.small, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+  locationMeta: { fontSize: fontSize.caption, color: colors.textSecondary, marginTop: 2 },
+
+  // ---- Tabs (segmented control) ----
+  tabTrack: {
+    flexDirection: 'row',
+    backgroundColor: colors.border,
+    borderRadius: radius.pill,
+    padding: spacing.xs,
+    marginBottom: spacing.lg,
+  },
+  tabPill: { flex: 1, alignItems: 'center', paddingVertical: spacing.md, borderRadius: radius.pill },
+  tabPillActive: { backgroundColor: colors.primaryDark },
+  tabText: { fontSize: fontSize.caption, fontWeight: fontWeight.semibold, color: colors.textSecondary },
+  tabTextActive: { color: colors.white },
+
+  // ---- Section cards ----
+  sectionCard: {
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+    borderRadius: radius.card,
+    backgroundColor: colors.card,
+    ...shadows.card,
+  },
+  sectionTitle: { fontSize: fontSize.body, fontWeight: fontWeight.bold, color: colors.textPrimary },
+  sectionGap: { marginTop: spacing.lg },
+  emptyText: { fontSize: fontSize.caption, color: colors.textSecondary, marginTop: spacing.sm, lineHeight: 20 },
+
+  // ---- About ----
+  aboutText: {
+    fontSize: fontSize.small,
+    color: colors.textSecondary,
+    marginTop: spacing.sm,
+    lineHeight: 22,
+  },
   skillWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.md },
   skillChip: {
     flexDirection: 'row',
@@ -326,10 +493,74 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryBg,
   },
   skillChipText: { fontSize: fontSize.caption, fontWeight: fontWeight.medium, color: colors.primaryDark },
-  locationRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.md },
-  locationText: { flex: 1, fontSize: fontSize.small, color: colors.textPrimary },
-  reviewsHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  recentLink: { fontSize: fontSize.caption, fontWeight: fontWeight.semibold, color: colors.primaryDark },
+  availabilityRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.md },
+  availabilityDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.muted },
+  availabilityDotOn: { backgroundColor: colors.success },
+  availabilityText: { fontSize: fontSize.caption, color: colors.textPrimary, fontWeight: fontWeight.medium },
+
+  // ---- Services ----
+  serviceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    padding: spacing.md,
+    marginTop: spacing.md,
+    borderRadius: radius.button,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  serviceIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: colors.primaryBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  serviceInfo: { flex: 1 },
+  serviceTitle: { fontSize: fontSize.small, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+  serviceDesc: {
+    fontSize: fontSize.caption - 2,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  /** Service price — green, right-aligned like the reference design. */
+  servicePrice: {
+    fontSize: fontSize.body,
+    fontWeight: fontWeight.bold,
+    color: colors.primaryDark,
+  },
+
+  // ---- Reviews ----
+  reviewsHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.xs,
+  },
+  googleLink: { fontSize: fontSize.caption, fontWeight: fontWeight.semibold, color: colors.primaryDark },
+  reviewCard: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    padding: spacing.md,
+    marginTop: spacing.md,
+    borderRadius: radius.button,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  reviewBody: { flex: 1 },
+  reviewTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  reviewer: { flex: 1, fontSize: fontSize.small, fontWeight: fontWeight.semibold, color: colors.textPrimary, marginRight: spacing.sm },
+  reviewDate: { fontSize: fontSize.caption - 2, color: colors.muted },
+  reviewComment: {
+    fontSize: fontSize.caption,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+    lineHeight: 20,
+  },
+  reviewStars: { fontSize: fontSize.small, color: colors.star, marginTop: 3, letterSpacing: 2 },
   googleBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -343,33 +574,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryTint,
   },
   googleBtnText: { flex: 1, fontSize: fontSize.small, fontWeight: fontWeight.semibold, color: colors.primaryDark },
-  reviewCard: {
-    flexDirection: 'row',
-    gap: spacing.md,
-    padding: spacing.md,
-    marginTop: spacing.md,
-    borderRadius: radius.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
-  },
-  reviewBody: { flex: 1 },
-  reviewTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  reviewer: { fontSize: fontSize.small, fontWeight: fontWeight.semibold, color: colors.textPrimary },
-  reviewDate: { fontSize: fontSize.caption, color: colors.textSecondary },
-  reviewComment: { fontSize: fontSize.caption, color: colors.textSecondary, marginTop: spacing.xs, lineHeight: 19 },
-  reviewStars: { fontSize: fontSize.small, color: colors.warning, marginTop: 3, letterSpacing: 2 },
-  reviewEmpty: { fontSize: fontSize.caption, color: colors.textSecondary, marginTop: spacing.md, lineHeight: 19 },
-  reviewScore: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  reviewScoreValue: {
-    fontSize: fontSize.caption,
-    fontWeight: fontWeight.semibold,
-    color: colors.textPrimary,
-  },
+
+  // ---- Sticky bottom bar ----
   bottomBar: {
     flexDirection: 'row',
     gap: spacing.md,
-    padding: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
     borderTopWidth: 1,
     borderTopColor: colors.border,
     backgroundColor: colors.card,
@@ -386,9 +597,9 @@ const styles = StyleSheet.create({
     borderColor: colors.primaryDark,
     backgroundColor: colors.white,
   },
-  callText: { fontSize: fontSize.small, fontWeight: fontWeight.semibold, color: colors.primaryDark },
+  callText: { fontSize: fontSize.small, fontWeight: fontWeight.bold, color: colors.primaryDark },
   bookNowBtn: {
-    flex: 1.4,
+    flex: 1.5,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -396,8 +607,7 @@ const styles = StyleSheet.create({
     height: 52,
     borderRadius: radius.button,
     backgroundColor: colors.primaryDark,
+    ...shadows.button,
   },
-  bookNowText: { fontSize: fontSize.small, fontWeight: fontWeight.semibold, color: colors.white },
+  bookNowText: { fontSize: fontSize.small, fontWeight: fontWeight.bold, color: colors.white },
 });
-
-

@@ -8,7 +8,7 @@ const EMPLOYER_SELECT =
 
 /** Embedded worker (with its own user) for the worker side of a hire request. */
 const WORKER_SELECT =
-  'worker:worker_profiles(id, user_id, skills, hourly_rate, rating_average, rating_count, availability, user:users(id, name, avatar, location_area, location_city))';
+  'worker:worker_profiles(id, user_id, skills, hourly_rate, rating_average, rating_count, availability, user:users!user_id(id, name, avatar, location_area, location_city))';
 
 /**
  * Create a hire request (employer -> worker).

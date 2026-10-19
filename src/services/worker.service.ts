@@ -16,7 +16,7 @@ import type {
 
 /** Columns selected whenever a worker profile is returned together with its user. */
 const WORKER_WITH_USER_SELECT =
-  '*, user:users(id, name, avatar, location_area, location_city)';
+  '*, user:users!user_id(id, name, avatar, location_area, location_city)';
 
 /**
  * Create a worker profile for an existing user.

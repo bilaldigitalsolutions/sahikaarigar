@@ -8,10 +8,12 @@
 
 import { db } from './users.js';
 
-/** Everything the public is allowed to see about a worker (phone is included
- *  only because the caller decides whether to expose it). */
+// Everything the public is allowed to see about a worker (phone is included
+// only because the caller decides whether to expose it). `!user_id` pins the
+// FK — worker_profiles also references users via reviewed_by, and without the
+// hint PostgREST errors with "more than one relationship was found".
 const WORKER_WITH_USER =
-  '*, user:users(id, name, avatar, phone, location_area, location_city, is_verified, trust_score)';
+  '*, user:users!user_id(id, name, avatar, phone, location_area, location_city, is_verified, trust_score)';
 
 function mapPublicUser(row) {
   if (!row) return null;

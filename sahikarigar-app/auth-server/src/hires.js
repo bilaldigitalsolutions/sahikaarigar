@@ -205,12 +205,32 @@ export async function hireAction({ hireId, userId, action, lat, lng }) {
   let countJob = false;
 
   switch (action) {
-    case 'accept':
+    case 'accept': {
       if (!isWorker) throw new Error('Sirf kaarigar hi accept kar sakta hai');
       if (raw.status !== 'pending') throw new Error('Ye request pending nahi hai');
+      // Business rule: one active job at a time. Before flipping this request
+      // to 'accepted', make sure the worker is not already mid-job — otherwise
+      // they could juggle two jobs (e.g. accept a second request from another
+      // device while the first is still in progress).
+      {
+        const { data: activeJob, error: activeError } = await db
+          .from('hire_requests')
+          .select('id')
+          .eq('worker_id', workerProfileId)
+          .neq('id', hireId)
+          .in('status', ['accepted', 'en_route', 'arrived'])
+          .maybeSingle();
+        if (activeError) throw new Error(activeError.message);
+        if (activeJob) {
+          throw new Error(
+            'You already have an active job. Please complete it before accepting a new one.',
+          );
+        }
+      }
       patch.status = 'accepted';
       workerBecomesBusy = true;
       break;
+    }
 
     case 'reject':
       if (!isWorker) throw new Error('Sirf kaarigar hi reject kar sakta hai');

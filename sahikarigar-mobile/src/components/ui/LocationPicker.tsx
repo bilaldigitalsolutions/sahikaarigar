@@ -53,9 +53,9 @@ export interface LocationPickerProps {
 }
 
 const ERROR_MESSAGE = 'Location could not be loaded. Please check your internet connection.';
-/** Shown when the live search API fails / is too slow and only local results remain. */
-const FALLBACK_HINT =
-  'Live search is unavailable right now — showing the saved Hyderabad areas. Aap koi bhi area type karke neeche “Use …” tap kar sakte ho.';
+/** Subtle grey hint shown when the live search API fails / is too slow and only
+ *  local results remain — this is a graceful fallback, NOT an error. */
+const FALLBACK_HINT = 'Showing saved Hyderabad areas (Live search offline)';
 
 /**
  * Area / location picker.
@@ -322,9 +322,15 @@ export function LocationPicker({
               ) : null}
 
               {error ? (
-                <View style={styles.errorBox}>
-                  <Ionicons name="alert-circle-outline" size={18} color={colors.danger} />
-                  <Text style={styles.errorText}>{error}</Text>
+                // Neutral grey hint — never a scary red error box (offline
+                // fallback is normal behaviour, not a failure).
+                <View style={styles.hintRow}>
+                  <Ionicons
+                    name="information-circle-outline"
+                    size={14}
+                    color={colors.textSecondary}
+                  />
+                  <Text style={styles.hintText}>{error}</Text>
                 </View>
               ) : null}
 
@@ -441,21 +447,19 @@ const styles = StyleSheet.create({
     fontSize: fontSize.small,
     color: colors.textSecondary,
   },
-  errorBox: {
+  // Subtle grey hint row (offline fallback / GPS note) — deliberately NOT a
+  // red bordered alarm box.
+  hintRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-    backgroundColor: '#FEF2F2',
-    borderWidth: 1,
-    borderColor: '#FECACA',
-    borderRadius: radius.sm,
-    padding: spacing.md,
-    marginTop: spacing.sm,
+    gap: 6,
+    paddingVertical: spacing.sm,
+    marginTop: spacing.xs,
   },
-  errorText: {
+  hintText: {
     flex: 1,
-    fontSize: fontSize.small,
-    color: colors.danger,
+    fontSize: fontSize.caption - 1,
+    color: colors.textSecondary,
   },
   currentLocationBtn: {
     flexDirection: 'row',

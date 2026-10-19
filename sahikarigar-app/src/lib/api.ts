@@ -440,6 +440,15 @@ export function setAdminUserActive(
 
 export type AdminHireStatus = HireStatus;
 
+export interface ApiWorkerPerformance {
+  accepted: number;
+  rejected: number;
+  completed: number;
+  cancelled: number;
+  pending: number;
+  total: number;
+}
+
 export interface ApiAdminHire {
   id: string;
   employerId: string;
@@ -453,7 +462,10 @@ export interface ApiAdminHire {
   createdAt: string;
   updatedAt: string;
   employer: { id: string; name: string; phone: string | null } | null;
-  worker: { id: string; name: string; phone: string | null } | null;
+  worker:
+    | { id: string; name: string; phone: string | null; performance?: ApiWorkerPerformance }
+    | null;
+  workerPerformance?: ApiWorkerPerformance;
 }
 
 export function listAdminHires(status = 'all', page = 1): Promise<{
@@ -462,14 +474,4 @@ export function listAdminHires(status = 'all', page = 1): Promise<{
 }> {
   const query = new URLSearchParams({ status, page: String(page) });
   return adminApiFetch(`/admin/hires?${query.toString()}`);
-}
-
-export function setAdminHireStatus(
-  id: string,
-  status: AdminHireStatus,
-): Promise<{ hire: { id: string; status: AdminHireStatus; updatedAt: string } }> {
-  return adminApiFetch(`/admin/hires/${encodeURIComponent(id)}`, {
-    method: 'PATCH',
-    body: JSON.stringify({ status }),
-  });
 }

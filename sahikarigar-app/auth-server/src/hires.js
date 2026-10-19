@@ -231,7 +231,8 @@ export async function hireAction({ hireId, userId, action, lat, lng }) {
     }
 
     case 'complete':
-      if (!isEmployer && !isWorker) throw new Error('Aap is request me shamil nahi ho');
+      // Business rule: only the employer can close a job as completed.
+      if (!isEmployer) throw new Error('Sirf employer hi request complete kar sakta hai');
       if (!TRACKABLE.includes(raw.status)) {
         throw new Error('Sirf accepted / en route / reached request complete ho sakti hai');
       }

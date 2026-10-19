@@ -46,7 +46,6 @@ import {
   listAdminHires,
   listAdminUsers,
   listAdminWorkers,
-  setAdminHireStatus,
   setUserActive,
   setWorkerApproval,
 } from './admin.js';
@@ -364,6 +363,25 @@ app.get('/hires/:id', async (req, res, next) => {
 // complete | cancel. `hires.js` decides who is allowed to do what.
 app.patch('/hires/:id', async (req, res, next) => {
   try {
+    // The admin panel uses our HMAC admin token as a Bearer header. Valid
+    // admin tokens must never mutate hires — only the assigned worker
+    // (accept/reject) and employer (complete/cancel) may, through their
+    // SuperTokens session (which the mobile SDK also sends as a Bearer JWT).
+    const bearer = (req.get('authorization') || '').match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
+    let isAdminToken = false;
+    try {
+      isAdminToken = Boolean(bearer && getAdminSession(bearer));
+    } catch {
+      isAdminToken = false;
+    }
+    if (isAdminToken) {
+      res.status(403).json({
+        ok: false,
+        code: 'FORBIDDEN',
+        message: 'Admin hire status nahi badal sakta.',
+      });
+      return;
+    }
     const session = await Session.getSession(req, res, { sessionRequired: true });
     const { authUserId, phone } = await resolveSession(session);
     const user = await getOrCreateUserByAuthId(authUserId, phone);
@@ -673,12 +691,20 @@ app.get('/admin/hires', async (req, res, next) => {
   }
 });
 
+// Admins can monitor hires but must never change their status: only the
+// assigned worker may accept/reject (PATCH /hires/:id with a user session) and
+// only the employer may complete/cancel. Keep an explicit 403 here so stale
+// clients get a clear answer instead of silently mutating data.
 app.patch('/admin/hires/:id', async (req, res, next) => {
   try {
     const admin = await requireAdmin(req, res);
     if (!admin) return;
-    const hire = await setAdminHireStatus(req.params.id, req.body?.status);
-    res.json({ ok: true, hire });
+    res.status(403).json({
+      ok: false,
+      code: 'FORBIDDEN',
+      message:
+        'Admin hire status nahi badal sakta. Worker accept/reject karta hai aur employer complete/cancel.',
+    });
   } catch (error) {
     next(error);
   }

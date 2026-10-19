@@ -285,6 +285,46 @@ const ADMIN_HIRE_SELECT =
   'worker:worker_profiles(id, user:users!user_id(id, name, phone))';
 const HIRE_STATUSES = ['pending', 'accepted', 'rejected', 'completed', 'cancelled', 'en_route', 'arrived'];
 
+function emptyPerformance() {
+  return { accepted: 0, rejected: 0, completed: 0, cancelled: 0, pending: 0, total: 0 };
+}
+
+/**
+ * Aggregate each worker's hire history for the admin monitoring view.
+ * "Accepted" includes jobs that are currently en_route/arrived, so it reflects
+ * every request the worker said yes to.
+ */
+async function workerPerformanceMap(workerIds) {
+  const unique = [...new Set((workerIds ?? []).filter(Boolean))];
+  const performance = new Map();
+  for (const id of unique) performance.set(id, emptyPerformance());
+  if (unique.length === 0) return performance;
+
+  const { data, error } = await db
+    .from('hire_requests')
+    .select('worker_id, status')
+    .in('worker_id', unique);
+  if (error) throw new Error(error.message);
+
+  for (const row of data ?? []) {
+    const stats = performance.get(row.worker_id);
+    if (!stats) continue;
+    stats.total += 1;
+    if (row.status === 'accepted' || row.status === 'en_route' || row.status === 'arrived') {
+      stats.accepted += 1;
+    } else if (row.status === 'rejected') {
+      stats.rejected += 1;
+    } else if (row.status === 'completed') {
+      stats.completed += 1;
+    } else if (row.status === 'cancelled') {
+      stats.cancelled += 1;
+    } else if (row.status === 'pending') {
+      stats.pending += 1;
+    }
+  }
+  return performance;
+}
+
 export async function listAdminHires(status, page = 1, limit = 50) {
   const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 100);
   const safePage = Math.max(Number(page) || 1, 1);
@@ -298,22 +338,34 @@ export async function listAdminHires(status, page = 1, limit = 50) {
   }
   const { data, error, count } = await query;
   if (error) throw new Error(error.message);
+
+  const rows = data ?? [];
+  const performance = await workerPerformanceMap(rows.map((row) => row.worker_id));
+
   return {
-    hires: (data ?? []).map((row) => ({
-      id: row.id,
-      employerId: row.employer_id,
-      workerId: row.worker_id,
-      description: row.description,
-      location: row.location,
-      proposedRate: row.proposed_rate,
-      status: row.status,
-      scheduledDate: row.scheduled_date,
-      completedAt: row.completed_at,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-      employer: row.employer,
-      worker: row.worker?.user ?? null,
-    })),
+    hires: rows.map((row) => {
+      const stats = performance.get(row.worker_id) ?? emptyPerformance();
+      const worker = row.worker?.user
+        ? { ...row.worker.user, performance: stats }
+        : null;
+      return {
+        id: row.id,
+        employerId: row.employer_id,
+        workerId: row.worker_id,
+        description: row.description,
+        location: row.location,
+        proposedRate: row.proposed_rate,
+        status: row.status,
+        scheduledDate: row.scheduled_date,
+        completedAt: row.completed_at,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        employer: row.employer,
+        worker,
+        // Also exposed at the top level so older clients can show the stats.
+        workerPerformance: stats,
+      };
+    }),
     pagination: {
       page: safePage,
       limit: safeLimit,
@@ -321,19 +373,4 @@ export async function listAdminHires(status, page = 1, limit = 50) {
       pages: Math.ceil((count ?? 0) / safeLimit),
     },
   };
-}
-
-export async function setAdminHireStatus(hireId, status) {
-  if (!HIRE_STATUSES.includes(status)) throw new Error('Invalid hire status');
-  const { data, error } = await db.from('hire_requests')
-    .update({
-      status,
-      completed_at: status === 'completed' ? new Date().toISOString() : null,
-    })
-    .eq('id', hireId)
-    .select('id, status, updated_at')
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  if (!data) throw new Error('Hire request nahi mili');
-  return { id: data.id, status: data.status, updatedAt: data.updated_at };
 }

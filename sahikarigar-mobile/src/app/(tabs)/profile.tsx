@@ -21,7 +21,7 @@ const ROLE_LABEL: Record<string, string> = {
 export default function ProfileScreen() {
   const router = useRouter();
   const { user, signOut } = useAuth();
-  const { role } = useMode();
+  const { role, setRole } = useMode();
   const [savedArea, setSavedArea] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
 
@@ -64,6 +64,14 @@ export default function ProfileScreen() {
   const onSignOut = async () => {
     await signOut();
     router.replace('/(auth)/login');
+  };
+
+  /** Worker → employer browse mode. No inline switch anywhere else — this
+   *  explicit card (a separate screen away from the jobs dashboard) is the
+   *  only place kaarigars can change the app's role. */
+  const switchToEmployer = () => {
+    setRole('employer');
+    router.replace('/(tabs)');
   };
 
   /** Two-step in-app delete (Play policy). Server wipes the rows; the local
@@ -121,10 +129,21 @@ export default function ProfileScreen() {
         <InfoRow icon="star-outline" label="Trust Score" value={String(user.trustScore ?? 0)} />
       </Card>
 
-      
-
-
-
+      {role === 'worker' ? (
+        <Card style={styles.card}>
+          <Text style={styles.ctaTitle}>Kaam karwana hai?</Text>
+          <Text style={styles.ctaText}>
+            Customer mode me jao — verified kaarigar dhundo aur hire karo. Aapki kaarigar
+            profile safe rahegi.
+          </Text>
+          <Button
+            label="Customer Mode Kholo"
+            variant="secondary"
+            onPress={switchToEmployer}
+            style={styles.ctaBtn}
+          />
+        </Card>
+      ) : null}
 
       {user.role === 'employer' ? (
         <Card style={styles.card}>

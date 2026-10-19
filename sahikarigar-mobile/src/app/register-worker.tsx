@@ -22,7 +22,6 @@ import {
   Header,
   Input,
   LocationPicker,
-  OtpVerifier,
   Screen,
   Select,
   type PlaceResult,
@@ -134,30 +133,15 @@ export default function RegisterWorkerScreen() {
     }
   };
 
-  // Registering as a Kaarigar requires a verified mobile number (OTP).
+  // Registering as a Kaarigar requires a verified mobile number. The OTP comes
+  // during LOGIN only ("registration ke time OTP") — so an unverified visitor is
+  // auto-routed there and lands right back on this form after the OTP screen.
   if (!user) {
-    return (
-      <Screen
-        scroll
-        padded={false}
-        edges={['bottom']}
-        contentStyle={styles.content}
-        header={<Header center={<BrandLogo size={28} />} />}
-      >
-        <Text style={styles.title}>Join as Kaarigar</Text>
-        <Text style={styles.subtitle}>
-          Create your profile and start receiving jobs • 100% Free to register
-        </Text>
-
-        <View style={styles.mt}>
-          <OtpVerifier
-            title="Verify your mobile number"
-            subtitle="We'll send a 6-digit OTP to confirm your number, then you can fill in the form."
-            onVerified={() => {}}
-          />
-        </View>
-      </Screen>
-    );
+    router.replace({
+      pathname: '/(auth)/login',
+      params: { next: '/register-worker' },
+    });
+    return null;
   }
 
   return (

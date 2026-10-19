@@ -12,7 +12,7 @@ import {
   View,
 } from 'react-native';
 
-import { Avatar, Header, Screen, Slider } from '@/components';
+import { Avatar, Header, LocationPicker, Screen, Select, Slider } from '@/components';
 import {
   POPULAR_FILTERS,
   RECENT_SEARCHES,
@@ -32,6 +32,8 @@ import { colors, fontSize, fontWeight, radius, spacing } from '@/theme';
 import { calculateDistance, formatCurrency } from '@/utils';
 
 const PRICE_MAX = 1000;
+/** Select option id shown as "All skills" (maps back to no skill filter). */
+const ALL_SKILLS = '__all__';
 
 /**
  * Sample profiles shown when the API has no approved workers yet, so the
@@ -199,6 +201,29 @@ export function SearchScreen() {
                   <Ionicons name="close-circle" size={20} color={colors.textSecondary} />
                 </Pressable>
               ) : null}
+            </View>
+
+            {/* Skills dropdown — kaunsa kaam karnewala chahiye. */}
+            <View style={styles.skillsWrap}>
+              <Select
+                placeholder="All skills"
+                value={skill ?? ALL_SKILLS}
+                options={[
+                  { value: ALL_SKILLS, label: 'All skills' },
+                  ...SKILLS.map((s) => ({ value: s.id, label: s.label })),
+                ]}
+                onChange={(v) => setSkill(v === ALL_SKILLS ? null : v)}
+              />
+            </View>
+
+            {/* Area search — kis area ke kaarigar dikhane hain. */}
+            <View style={styles.areaWrap}>
+              <LocationPicker
+                placeholder="Search area — e.g. Madhapur, Kukatpally"
+                value={areaFilter}
+                onSelect={(p) => setAreaFilter(p.description)}
+                icon="location-outline"
+              />
             </View>
           </View>
         </View>
@@ -412,6 +437,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
   },
   searchInput: { flex: 1, fontSize: fontSize.small, color: colors.textPrimary, paddingVertical: 0 },
+  skillsWrap: { marginTop: spacing.md },
+  areaWrap: { marginTop: spacing.md },
   sectionTitle: { fontSize: fontSize.body, fontWeight: fontWeight.bold, color: colors.textPrimary },
   sectionRow: {
     flexDirection: 'row',

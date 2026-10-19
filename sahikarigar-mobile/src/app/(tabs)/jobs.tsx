@@ -13,7 +13,7 @@ import {
   View,
 } from 'react-native';
 
-import { Badge, Button, Card, EmptyState, HireCard, ModeSwitch, Screen } from '@/components';
+import { Badge, Button, Card, EmptyState, HireCard, Screen } from '@/components';
 import {
   getWorkerDashboard,
   hireAction,
@@ -133,14 +133,7 @@ export default function WorkerJobsScreen() {
   const isWorkerBusy = data.active.length > 0;
 
   return (
-    <Screen
-      scroll={false}
-      padded={false}
-      // Same Customer ⇄ Kaarigar switch as the home screen. Without it the
-      // worker side would have no way back to customer mode (the Home tab is
-      // hidden in worker mode).
-      header={<ModeSwitch style={styles.modeSwitch} />}
-    >
+    <Screen scroll={false} padded={false}>
       <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={
@@ -450,7 +443,6 @@ function JobRow({ hire, onPress }: { hire: ApiHire; onPress: () => void }) {
 
 const styles = StyleSheet.create({
   content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl },
-  modeSwitch: { marginTop: spacing.lg, marginHorizontal: spacing.lg },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   heading: { fontSize: fontSize.h2, fontWeight: fontWeight.bold, color: colors.textPrimary },
   sub: { fontSize: fontSize.small, color: colors.textSecondary, marginTop: spacing.xs },

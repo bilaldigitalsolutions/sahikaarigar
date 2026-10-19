@@ -329,6 +329,10 @@ function WorkerHomeScreen({
   const router = useRouter();
   const isApproved = dashboard?.worker?.isApproved ?? false;
   const stats = dashboard?.stats;
+  // "New Job Requests" = sirf pending. listHires() sab statuses laata hai —
+  // bina filter ke accepted/active jobs bhi yahan aa jaate the, jisse
+  // "Active jobs 2 dikh rahi hain" jaisa dup effect hota tha.
+  const newRequests = hires.filter((hire) => hire?.status === 'pending');
 
   // Not approved yet — show verification pending message.
   // While a refetch is in flight show a small "checking" spinner, so the
@@ -397,13 +401,13 @@ function WorkerHomeScreen({
           <Text style={styles.sectionTitle}>New Job Requests</Text>
           {loadingExtra ? (
             <ActivityIndicator color={colors.primaryDark} style={styles.loader} />
-          ) : hires.length === 0 ? (
+          ) : newRequests.length === 0 ? (
             <View style={styles.emptyBox}>
               <Ionicons name="briefcase-outline" size={36} color={colors.muted} />
               <Text style={styles.emptyText}>No new job requests right now.</Text>
             </View>
           ) : (
-            hires.map((hire) => (
+            newRequests.map((hire) => (
               <HireCard key={hire.id} hire={hire} perspective="worker" onPress={() => {}} />
             ))
           )}

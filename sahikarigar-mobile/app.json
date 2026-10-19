@@ -5,7 +5,7 @@
     "owner": "mohammadbilalmd",
     "version": "1.0.1",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/app-icon.png",
     "scheme": "sahikarigar",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,

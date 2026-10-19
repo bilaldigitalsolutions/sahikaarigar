@@ -6,7 +6,7 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { BrandLogo } from '@/components';
+import { BrandLogo, TopNotificationBanner } from '@/components';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { ModeProvider } from '@/contexts/ModeContext';
 import { requestLocationPermission } from '@/lib/location';
@@ -84,35 +84,40 @@ function RootNavigator() {
   if (initializing) return <AppLoading />;
 
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-        headerStyle: { backgroundColor: colors.card },
-        headerTintColor: colors.primaryDark,
-        headerTitleStyle: { color: colors.textPrimary },
-        contentStyle: { backgroundColor: colors.background },
-      }}
-    >
-      <Stack.Screen name="(auth)" />
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="index" />
-      <Stack.Screen name="onboarding/location" />
-      <Stack.Screen name="onboarding/role" />
-      <Stack.Screen name="role-selection" />
-      <Stack.Screen name="welcome" />
-      <Stack.Screen name="worker/[id]" options={{ headerShown: false }} />
-      <Stack.Screen
-        name="hire/[workerId]"
-        options={{ headerShown: true, title: 'Book a Worker', headerBackTitle: 'Back' }}
-      />
-      <Stack.Screen name="hire/detail/[id]" options={{ headerShown: false }} />
-      <Stack.Screen name="hire/feedback/[id]" options={{ headerShown: false }} />
-      <Stack.Screen name="/help/faq" />
-      <Stack.Screen name="register-worker" options={{ headerShown: false }} />
-      <Stack.Screen name="edit-profile" options={{ headerShown: false }} />
-      <Stack.Screen name="search" options={{ headerShown: false }} />
-      <Stack.Screen name="map" options={{ headerShown: false }} />
-    </Stack>
+    <>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          headerStyle: { backgroundColor: colors.card },
+          headerTintColor: colors.primaryDark,
+          headerTitleStyle: { color: colors.textPrimary },
+          contentStyle: { backgroundColor: colors.background },
+        }}
+      >
+        <Stack.Screen name="(auth)" />
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="index" />
+        <Stack.Screen name="onboarding/location" />
+        <Stack.Screen name="onboarding/role" />
+        <Stack.Screen name="role-selection" />
+        <Stack.Screen name="welcome" />
+        <Stack.Screen name="worker/[id]" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="hire/[workerId]"
+          options={{ headerShown: true, title: 'Book a Worker', headerBackTitle: 'Back' }}
+        />
+        <Stack.Screen name="hire/detail/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="hire/feedback/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="/help/faq" />
+        <Stack.Screen name="register-worker" options={{ headerShown: false }} />
+        <Stack.Screen name="edit-profile" options={{ headerShown: false }} />
+        <Stack.Screen name="search" options={{ headerShown: false }} />
+        <Stack.Screen name="map" options={{ headerShown: false }} />
+      </Stack>
+      {/* Rapido/Porter-style in-app push banner — slides down under the status
+          bar when a new job request notification arrives. */}
+      <TopNotificationBanner />
+    </>
   );
 }
 

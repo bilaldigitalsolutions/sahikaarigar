@@ -13,7 +13,8 @@ import {
   View,
 } from 'react-native';
 
-import { Badge, Button, Card, EmptyState, HireCard, ModeSwitch, Screen } from '@/components';
+import { Avatar, Badge, Button, Card, EmptyState, HireCard, ModeSwitch, Screen } from '@/components';
+import { skillIconName, skillLabel } from '@/constants';
 import {
   getWorkerDashboard,
   hireAction,
@@ -21,8 +22,8 @@ import {
   type ApiHire,
   type ApiWorkerDashboard,
 } from '@/lib/api';
-import { colors, fontSize, fontWeight, radius, spacing } from '@/theme';
-import { formatCurrency } from '@/utils';
+import { colors, fontSize, fontWeight, radius, shadows, spacing } from '@/theme';
+import { formatCurrency, formatRelativeDate } from '@/utils';
 
 /**
  * "My Work" — the kaarigar's own dashboard: availability switch, headline stats
@@ -246,16 +247,16 @@ export default function WorkerJobsScreen() {
           empty="Abhi koi naya request nahi hai. Available raho — customers aapko dhundhenge."
         >
           {data.requests.map((hire) => (
-            <View key={hire.id} style={styles.requestCard}>
-              <RequestRow hire={hire} onPress={() => router.push({ pathname: '/hire/detail/[id]', params: { id: hire.id } })} />
-              <RequestActions
-                acceptDisabled={isWorkerBusy || busy === hire.id}
-                acceptBusy={busy === hire.id}
-                rejectDisabled={busy === hire.id}
-                onAccept={() => onRequestAction(hire.id, 'accept')}
-                onReject={() => onRequestAction(hire.id, 'reject')}
-              />
-            </View>
+            <RequestCard
+              key={hire.id}
+              hire={hire}
+              onPress={() => router.push({ pathname: '/hire/detail/[id]', params: { id: hire.id } })}
+              acceptDisabled={isWorkerBusy || busy === hire.id}
+              acceptBusy={busy === hire.id}
+              rejectDisabled={busy === hire.id}
+              onAccept={() => onRequestAction(hire.id, 'accept')}
+              onReject={() => onRequestAction(hire.id, 'reject')}
+            />
           ))}
         </Section>
 
@@ -337,13 +338,101 @@ function Section({
   );
 }
 
-/** A pending request: the worker is the headline here, so perspective="worker". */
-function RequestRow({ hire, onPress }: { hire: ApiHire; onPress: () => void }) {
-  return <HireCard hire={hire} perspective="worker" onPress={onPress} />;
+/**
+ * Pending booking request card — matches the reference design:
+ *   [SAHIKAARIGAR • BOOKING REQUEST]          (small caps label on green)
+ *   ┌ white card ─────────────────────────────┐
+ *   │ avatar  Name                (• Pending)  │
+ *   │ ⚡  Skill - work description              │
+ *   │ ₹ rate   📍 location   🕐 relative time  │
+ *   └──────────────────────────────────────────┘
+ *   [ ✕ Reject (red) ]   [ ✓ Accept (green) ]
+ */
+function RequestCard({
+  hire,
+  onPress,
+  acceptDisabled,
+  acceptBusy,
+  rejectDisabled,
+  onAccept,
+  onReject,
+}: {
+  hire: ApiHire;
+  onPress: () => void;
+  acceptDisabled: boolean;
+  acceptBusy: boolean;
+  rejectDisabled: boolean;
+  onAccept: () => void;
+  onReject: () => void;
+}) {
+  const employer = hire.employer;
+  const primarySkill = hire.worker?.skills?.[0] ?? '';
+  const serviceName = primarySkill
+    ? `${skillLabel(primarySkill)} - ${hire.description}`
+    : hire.description;
+
+  return (
+    <View style={styles.requestCard}>
+      <Text style={styles.requestLabel}>SAHIKAARIGAR • BOOKING REQUEST</Text>
+
+      {/* White inner card — pressable to open the full detail screen. */}
+      <Pressable style={styles.requestInner} onPress={onPress}>
+        <View style={styles.requestHeader}>
+          <Avatar uri={employer?.avatar ?? null} name={employer?.name ?? 'User'} size={46} />
+          <Text style={styles.requestName} numberOfLines={1}>
+            {employer?.name ?? 'User'}
+          </Text>
+          <View style={styles.statusPill}>
+            <View style={styles.statusDot} />
+            <Text style={styles.statusText}>Pending</Text>
+          </View>
+        </View>
+
+        <View style={styles.requestServiceRow}>
+          <View style={styles.serviceIconBox}>
+            <Ionicons
+              name={skillIconName(primarySkill) as keyof typeof Ionicons.glyphMap}
+              size={15}
+              color={colors.primaryDark}
+            />
+          </View>
+          <Text style={styles.requestService}>{serviceName}</Text>
+        </View>
+
+        <View style={styles.tagRow}>
+          <RequestTag icon="cash-outline" text={formatCurrency(hire.proposedRate)} />
+          <RequestTag icon="location" text={hire.location} />
+          <RequestTag icon="time-outline" text={formatRelativeDate(hire.createdAt)} />
+        </View>
+      </Pressable>
+
+      <RequestActions
+        acceptDisabled={acceptDisabled}
+        acceptBusy={acceptBusy}
+        rejectDisabled={rejectDisabled}
+        onAccept={onAccept}
+        onReject={onReject}
+      />
+    </View>
+  );
+}
+
+/** One soft-green icon + label tag under the service line. */
+function RequestTag({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; text: string }) {
+  return (
+    <View style={styles.requestTag}>
+      <View style={styles.tagIconBox}>
+        <Ionicons name={icon} size={12} color={colors.primaryDark} />
+      </View>
+      <Text style={styles.tagText} numberOfLines={1}>
+        {text}
+      </Text>
+    </View>
+  );
 }
 
 /**
- * The two prominent per-request actions (matched to the design):
+ * The two prominent per-request actions (matched to the reference):
  *   Accept — solid green (#10B981) + checkmark
  *   Reject — solid red (#EF4444) + cross
  * When the worker is busy, Accept greys out and does nothing.
@@ -460,6 +549,9 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: fontSize.title, fontWeight: fontWeight.semibold, color: colors.textPrimary },
   sectionEmpty: { fontSize: fontSize.caption, color: colors.textSecondary },
 
+  // ---- Request card (reference design) ----
+  // Soft green container; a white inner card holds the details; the two big
+  // action buttons sit below the white card, on the green background.
   requestCard: {
     borderRadius: radius.card,
     borderWidth: 1,
@@ -468,7 +560,94 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     marginBottom: spacing.md,
   },
-  actions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
+  requestLabel: {
+    fontSize: fontSize.caption - 4,
+    fontWeight: fontWeight.semibold,
+    color: colors.primaryDark,
+    letterSpacing: 0.6,
+    textAlign: 'center',
+    marginBottom: spacing.md,
+  },
+  requestInner: {
+    borderRadius: 14,
+    backgroundColor: colors.card,
+    padding: spacing.md,
+    ...shadows.card,
+  },
+  requestHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  requestName: {
+    flex: 1,
+    fontSize: fontSize.title,
+    fontWeight: fontWeight.bold,
+    color: colors.textPrimary,
+  },
+  statusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.warning + '26',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.pill,
+  },
+  statusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.warning },
+  statusText: {
+    fontSize: fontSize.caption - 2,
+    fontWeight: fontWeight.semibold,
+    color: '#A16207',
+  },
+  requestServiceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    marginTop: spacing.lg,
+  },
+  serviceIconBox: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: colors.primaryBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  requestService: {
+    flex: 1,
+    fontSize: fontSize.small,
+    fontWeight: fontWeight.medium,
+    color: colors.textPrimary,
+    lineHeight: 22,
+  },
+  tagRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.lg,
+    marginTop: spacing.lg,
+  },
+  requestTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    flexShrink: 1,
+  },
+  tagIconBox: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: colors.primaryBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tagText: {
+    fontSize: fontSize.caption - 2,
+    color: colors.textPrimary,
+    fontWeight: fontWeight.medium,
+  },
+
+  actions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
 
   // One-active-job banner
   busyBanner: {
@@ -488,14 +667,14 @@ const styles = StyleSheet.create({
     lineHeight: 19,
   },
 
-  // Accept (green + check) / Reject (red + X)
+  // Accept (green + check) / Reject (red + X) — big and bold like the reference
   acceptBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    height: 44,
+    height: 50,
     borderRadius: radius.button,
     backgroundColor: '#10B981',
   },
@@ -505,12 +684,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    height: 44,
+    height: 50,
     borderRadius: radius.button,
     backgroundColor: '#EF4444',
   },
   actionBtnDisabled: { backgroundColor: colors.border },
-  acceptText: { fontSize: fontSize.caption, fontWeight: fontWeight.bold, color: colors.white },
-  rejectText: { fontSize: fontSize.caption, fontWeight: fontWeight.bold, color: colors.white },
+  acceptText: {
+    fontSize: fontSize.small,
+    fontWeight: fontWeight.bold,
+    color: colors.white,
+  },
+  rejectText: {
+    fontSize: fontSize.small,
+    fontWeight: fontWeight.bold,
+    color: colors.white,
+  },
   actionTextDisabled: { color: colors.muted },
 });

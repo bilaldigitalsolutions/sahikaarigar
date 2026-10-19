@@ -16,6 +16,7 @@ export { Select } from './Select';
 export { Slider } from './Slider';
 export { StarInput } from './StarInput';
 export { Timeline } from './Timeline';
+export { TopNotificationBanner } from './TopNotificationBanner';
 export type { AvatarProps } from './Avatar';
 export type { BadgeProps } from './Badge';
 export type { BrandLogoProps } from './BrandLogo';

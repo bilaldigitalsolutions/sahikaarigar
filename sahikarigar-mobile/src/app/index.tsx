@@ -66,12 +66,15 @@ export default function LoadingScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.content}>
+        {/* Loading banner — the new branded artwork. `contain` keeps the full
+            image visible on every screen size, no awkward cropping. */}
         <Image
-          source={require('../../assets/images/icon.png')}
-          style={styles.logo}
+          source={require('../../assets/images/loading-banner.png')}
+          style={styles.banner}
           resizeMode="contain"
         />
         <Text style={styles.tagline}>{TAGLINE}</Text>
+        {/* Spinner block pinned towards the bottom, unchanged. */}
         <View style={styles.spinnerWrap}>
           <ActivityIndicator size="large" color={colors.white} />
           <Text style={styles.elapsed}>{Math.floor(elapsed / 1000)}s</Text>
@@ -89,12 +92,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   content: {
+    flex: 1,
     alignItems: 'center',
-    padding: spacing.lg,
+    justifyContent: 'center',
+    padding: spacing.xl,
+    width: '100%',
   },
-  logo: {
-    width: 80,
-    height: 80,
+  // Banner spans the width; "contain" derives height so it never crops.
+  banner: {
+    width: '100%',
+    height: 320,
     marginBottom: spacing.lg,
   },
   tagline: {
@@ -103,12 +110,15 @@ const styles = StyleSheet.create({
     color: colors.white,
     textAlign: 'center',
     lineHeight: 24,
-    marginBottom: spacing.xl,
+    marginBottom: spacing.md,
   },
+  // Pushes the spinner towards the bottom of the screen (loading "overlay").
   spinnerWrap: {
+    marginTop: 'auto',
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
+    paddingBottom: spacing.md,
   },
   elapsed: {
     fontSize: fontSize.caption,

@@ -94,10 +94,51 @@ function isNewRequestPush(
   return data?.action === 'created';
 }
 
+// -----------------------------------------------------------------------------
+// In-app top banner (Rapido/Porter style) — "Nayi Kaam ki Request 🛠️"
+// -----------------------------------------------------------------------------
+// lib emits; the <TopNotificationBanner /> component mounted in the root layout
+// listens and slides down. No circular imports: notifications.ts never imports
+// components.
+
+export interface AppBannerPayload {
+  title: string;
+  body: string;
+}
+
+const bannerListeners = new Set<(payload: AppBannerPayload) => void>();
+
+/** Subscribe to in-app banner events. Returns an unsubscribe function. */
+export function onAppBanner(listener: (payload: AppBannerPayload) => void): () => void {
+  bannerListeners.add(listener);
+  return () => {
+    bannerListeners.delete(listener);
+  };
+}
+
+/** Fire an in-app banner. A broken listener must never block the others. */
+export function emitAppBanner(payload: AppBannerPayload): void {
+  bannerListeners.forEach((listener) => {
+    try {
+      listener(payload);
+    } catch {
+      // ignore — banner UI issues must never affect the notification flow
+    }
+  });
+}
+
+function bannerPayloadOf(content: Notifications.NotificationContent): AppBannerPayload {
+  return {
+    title: content.title ?? 'Nayi Kaam ki Request 🛠️',
+    body: content.body ?? '',
+  };
+}
+
 /**
  * Tapping a new-job-request push lands the kaarigar straight on the Job
  * Requests tab. Handles both taps while the app runs and cold starts
- * (Android/iOS deep-open). Best-effort — a failed navigation never blocks.
+ * (Android/iOS deep-open). Also pops the in-app top banner whenever a new
+ * request push arrives. Best-effort — a failed step never blocks the next.
  *
  * @param enabled pass `false` while the session is still restoring.
  */
@@ -115,19 +156,32 @@ export function useHireRequestNotificationRoute(enabled: boolean) {
       }
     };
 
-    // Foreground/background tap.
+    // Push RECEIVED while the app is open — pop the in-app banner.
+    const receivedSubscription = Notifications.addNotificationReceivedListener((notification) => {
+      const data = notification.request.content.data as { action?: string } | undefined;
+      if (data?.action === 'created') emitAppBanner(bannerPayloadOf(notification.request.content));
+    });
+
+    // Foreground/background tap — navigate + show the banner.
     const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
-      if (isNewRequestPush(response)) openRequests();
+      if (isNewRequestPush(response)) {
+        openRequests();
+        emitAppBanner(bannerPayloadOf(response.notification.request.content));
+      }
     });
 
     // Cold start — the app process began with this tap.
     void Notifications.getLastNotificationResponseAsync().then((response) => {
-      if (response && mounted && isNewRequestPush(response)) openRequests();
+      if (response && mounted && isNewRequestPush(response)) {
+        openRequests();
+        emitAppBanner(bannerPayloadOf(response.notification.request.content));
+      }
     });
 
     return () => {
       mounted = false;
       subscription.remove();
+      receivedSubscription.remove();
     };
   }, [enabled, router]);
 }

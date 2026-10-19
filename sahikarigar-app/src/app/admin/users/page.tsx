@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Search, UserRound, Users } from 'lucide-react';
 import { AdminPagination } from '@/components/admin/AdminPagination';
-import { listAdminUsers, setAdminUserActive, type ApiAdminUser } from '@/lib/api';
+import { listAdminUsers, setAdminUserActive, setAdminUserFlagged, type ApiAdminUser } from '@/lib/api';
 
 type ManagedRole = 'employer' | 'worker';
 
@@ -52,6 +52,23 @@ export default function AdminUsersPage() {
         : item));
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'User status update nahi hua.');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  // Trust & Penalty: flag sirf ek REVIEW marker hai — blocking ise alag button
+  // (Block / suspend) se hota hai. Flagged badge dikhta hai, admin decide karta hai.
+  async function toggleFlagged(user: ApiAdminUser) {
+    setBusyId(user.id);
+    setError(null);
+    try {
+      const { user: updated } = await setAdminUserFlagged(user.id, !user.isFlagged);
+      setUsers((current) => current.map((item) => item.id === user.id
+        ? { ...item, isFlagged: updated.isFlagged }
+        : item));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Flag update nahi hua.');
     } finally {
       setBusyId(null);
     }
@@ -159,29 +176,50 @@ export default function AdminUsersPage() {
                       {new Date(managedUser.createdAt).toLocaleDateString('en-IN')}
                     </td>
                     <td className="px-5 py-3.5">
-                      <span className={`rounded-full px-2.5 py-1 text-[12px] font-semibold ${
-                        managedUser.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
-                      }`}>
-                        {managedUser.isActive ? 'Active' : 'Suspended'}
+                      <span className="flex flex-wrap items-center gap-1.5">
+                        <span className={`rounded-full px-2.5 py-1 text-[12px] font-semibold ${
+                          managedUser.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
+                        }`}>
+                          {managedUser.isActive ? 'Active' : 'Suspended'}
+                        </span>
+                        {managedUser.isFlagged && (
+                          <span className="rounded-full bg-red-500 px-2.5 py-1 text-[12px] font-semibold text-white">
+                            ⚑ Flagged
+                          </span>
+                        )}
                       </span>
                     </td>
                     <td className="px-5 py-3.5 text-right">
-                      <button
-                        type="button"
-                        disabled={busyId === managedUser.id}
-                        onClick={() => void toggleActive(managedUser)}
-                        className={`rounded-full px-4 py-2 text-[13px] font-semibold disabled:opacity-60 ${
-                          managedUser.isActive
-                            ? 'border border-gray-200 text-gray-600 hover:bg-gray-50'
-                            : 'bg-[#111827] text-white hover:bg-black'
-                        }`}
-                      >
-                        {busyId === managedUser.id
-                          ? 'Saving…'
-                          : managedUser.isActive
-                            ? 'Block / suspend'
-                            : 'Restore account'}
-                      </button>
+                      <span className="inline-flex items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={busyId === managedUser.id}
+                          onClick={() => void toggleFlagged(managedUser)}
+                          className={`rounded-full px-3.5 py-2 text-[13px] font-semibold disabled:opacity-60 ${
+                            managedUser.isFlagged
+                              ? 'border border-red-200 text-red-600 hover:bg-red-50'
+                              : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
+                          }`}
+                        >
+                          {busyId === managedUser.id ? 'Saving…' : managedUser.isFlagged ? 'Unflag' : 'Flag'}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busyId === managedUser.id}
+                          onClick={() => void toggleActive(managedUser)}
+                          className={`rounded-full px-4 py-2 text-[13px] font-semibold disabled:opacity-60 ${
+                            managedUser.isActive
+                              ? 'border border-gray-200 text-gray-600 hover:bg-gray-50'
+                              : 'bg-[#111827] text-white hover:bg-black'
+                          }`}
+                        >
+                          {busyId === managedUser.id
+                            ? 'Saving…'
+                            : managedUser.isActive
+                              ? 'Block / suspend'
+                              : 'Restore account'}
+                        </button>
+                      </span>
                     </td>
                   </tr>
                 ))

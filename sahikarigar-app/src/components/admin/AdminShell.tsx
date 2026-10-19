@@ -6,6 +6,7 @@ import {
   Bell,
   ChevronRight,
   ClipboardList,
+  Flag,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -24,6 +25,7 @@ const NAV_LINKS = [
   { href: '/admin/workers', label: 'Worker Verification', icon: UserCheck, badgeKey: 'verification' as const },
   { href: '/admin/users', label: 'Users', icon: Users, badgeKey: null as null },
   { href: '/admin/hires', label: 'Hire Requests', icon: ClipboardList, badgeKey: 'hires' as const },
+  { href: '/admin/reports', label: 'User Reports', icon: Flag, badgeKey: null as null },
 ] as const;
 
 function getInitials(nameOrEmail: string): string {

@@ -195,8 +195,15 @@ export default function WorkerApprovalsPage() {
                       <td className="px-5 py-3.5 text-gray-500">{category}</td>
                       <td className="whitespace-nowrap px-5 py-3.5 text-gray-500">{location}</td>
                       <td className="px-5 py-3.5">
-                        <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[12px] font-semibold capitalize ring-1 ring-inset ${statusPillClasses(worker.verificationStatus)}`}>
-                          {worker.verificationStatus}
+                        <span className="flex flex-wrap items-center gap-1.5">
+                          <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[12px] font-semibold capitalize ring-1 ring-inset ${statusPillClasses(worker.verificationStatus)}`}>
+                            {worker.verificationStatus}
+                          </span>
+                          {worker.isFlagged && (
+                            <span className="rounded-full bg-red-500 px-2.5 py-1 text-[12px] font-semibold text-white">
+                              ⚑ Flagged
+                            </span>
+                          )}
                         </span>
                       </td>
                       <td className="whitespace-nowrap px-5 py-3.5 text-gray-400">

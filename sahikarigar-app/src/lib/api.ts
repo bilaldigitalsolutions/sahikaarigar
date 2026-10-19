@@ -341,6 +341,9 @@ export interface ApiAdminWorker {
   reviewedAt?: string | null;
   aadhaarNumber?: string | null;
   aadhaarPhotoUrl?: string | null;
+  /** Trust & Penalty (record-only, admin decides any action). */
+  cancelCount?: number;
+  isFlagged?: boolean;
   createdAt: string;
   updatedAt?: string | null;
   user: {
@@ -412,6 +415,8 @@ export interface ApiAdminUser {
   role: 'worker' | 'employer';
   avatar: string | null;
   isActive: boolean;
+  /** Trust & Penalty red flag (record-only). */
+  isFlagged: boolean;
   createdAt: string;
 }
 
@@ -435,6 +440,62 @@ export function setAdminUserActive(
   return adminApiFetch(`/admin/users/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     body: JSON.stringify({ isActive }),
+  });
+}
+
+/** Trust & Penalty — admin flag / unflag for a user (record-only). */
+export function setAdminUserFlagged(
+  id: string,
+  isFlagged: boolean,
+): Promise<{ user: { id: string; isFlagged: boolean } }> {
+  return adminApiFetch(`/admin/users/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ isFlagged }),
+  });
+}
+
+/** Trust & Penalty — admin flag / unflag for a kaarigar profile (record-only). */
+export function setAdminWorkerFlagged(
+  id: string,
+  isFlagged: boolean,
+): Promise<{ worker: ApiAdminWorker }> {
+  return adminApiFetch(`/admin/workers/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ isFlagged }),
+  });
+}
+
+// -----------------------------------------------------------------------------
+// User reports (POST /reports) — admin review queue
+// -----------------------------------------------------------------------------
+
+export interface ApiAdminReport {
+  id: string;
+  reason: string;
+  description: string | null;
+  status: 'pending' | 'reviewed' | 'resolved' | 'dismissed';
+  createdAt: string;
+  reporter: { id: string; name: string; phone: string | null } | null;
+  reported: { id: string; name: string; phone: string | null } | null;
+}
+
+export type AdminReportStatus = ApiAdminReport['status'];
+
+export function listAdminReports(status: 'all' | AdminReportStatus = 'all', page = 1): Promise<{
+  reports: ApiAdminReport[];
+  pagination: { total: number; page: number; pages: number; limit: number };
+}> {
+  const query = new URLSearchParams({ status, page: String(page) });
+  return adminApiFetch(`/admin/reports?${query.toString()}`);
+}
+
+export function setAdminReportStatus(
+  id: string,
+  status: Exclude<AdminReportStatus, 'pending'>,
+): Promise<{ report: { id: string; status: AdminReportStatus } }> {
+  return adminApiFetch(`/admin/reports/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
   });
 }
 

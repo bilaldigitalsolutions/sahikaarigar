@@ -17,14 +17,21 @@ import { getWorkerProfileIdForUser } from './workers.js';
 export const HIRE_SELECT =
   'id, employer_id, worker_id, description, location, proposed_rate, status, ' +
   'scheduled_date, completed_at, phone_revealed, created_at, updated_at, ' +
-  'en_route_at, arrived_at, worker_lat, worker_lng, start_otp, ' +
+  'en_route_at, arrived_at, worker_lat, worker_lng, ' +
   'employer:users(id, name, phone, avatar, location_area, location_city), ' +
+  // `!user_id` pins the FK: worker_profiles also references users through
+  // `reviewed_by`, and without the hint PostgREST fails with
+  // "more than one relationship was found for 'worker_profiles' and 'users'".
   'worker:worker_profiles(id, user_id, skills, hourly_rate, rating_average, ' +
   'rating_count, availability, user:users!user_id(id, name, avatar, phone, location_area, location_city))';
 
 /** Statuses from which a job can still be completed / cancelled.
  *  `in_progress` = the kaarigar reached the site and verified the start OTP. */
 const TRACKABLE = ['accepted', 'en_route', 'arrived', 'in_progress'];
+
+/** Worker cancels count AFTER accepting — at this many the profile is FLAGGED
+ *  in the admin panel. Record-only: the admin decides any actual penalty. */
+const WORKER_CANCEL_FLAG_LIMIT = 3;
 
 const OTP_SECRET = process.env.OTP_SECRET || 'sahikaarigar-start-otp-secret';
 
@@ -101,7 +108,6 @@ export function mapHire(row) {
     startedAt: row.started_at ?? null,
     workerLat: row.worker_lat ?? null,
     workerLng: row.worker_lng ?? null,
-    startOtp: row.start_otp ?? null,
     phoneRevealed: row.phone_revealed ?? false,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -161,9 +167,6 @@ export async function createHireRequest({
   if (existingError) throw new Error(existingError.message);
   if (existing) throw new Error('Is kaarigar ke saath aapki ek request pehle se chal rahi hai');
 
-  // 4-digit "start work" OTP the customer shares with the worker.
-  const startOtp = String(Math.floor(1000 + Math.random() * 9000));
-
   const { data, error } = await db
     .from('hire_requests')
     .insert({
@@ -173,7 +176,6 @@ export async function createHireRequest({
       location: place,
       proposed_rate: Math.round(rate),
       scheduled_date: scheduledDate ? new Date(scheduledDate).toISOString() : null,
-      start_otp: startOtp,
     })
     .select(HIRE_SELECT)
     .single();
@@ -257,6 +259,8 @@ export async function hireAction({ hireId, userId, action, lat, lng, otp }) {
   let workerBecomesBusy = false;
   let workerBecomesFree = false;
   let countJob = false;
+  /** Set by the cancel case — Trust & Penalty bookkeeping AFTER the update. */
+  let trustPenalty = null;
 
   switch (action) {
     case 'accept': {
@@ -335,14 +339,33 @@ export async function hireAction({ hireId, userId, action, lat, lng, otp }) {
       break;
     }
 
-    case 'cancel':
-      if (!isEmployer) throw new Error('Sirf user hi cancel kar sakta hai');
+    case 'cancel': {
+      // Both sides may step out of the booking: the employer before/at any
+      // stage, the kaarigar too (genuine emergencies happen) — but every
+      // cancellation is RECORDED, never auto-blocked (Trust & Penalty).
+      if (!isEmployer && !isWorker) {
+        throw new Error('Sirf is booking ke employer ya kaarigar hi cancel kar sakte hain');
+      }
       if (![...TRACKABLE, 'pending'].includes(raw.status)) {
         throw new Error('Ye request ab cancel nahi ho sakti');
       }
       patch.status = 'cancelled';
+      patch.cancelled_by = isWorker ? 'worker' : 'employer';
+      patch.cancelled_at = new Date().toISOString();
       workerBecomesFree = raw.status !== 'pending';
+
+      // Trust & Penalty — only RECORD for admin review, never block:
+      //   worker cancels after committing (accepted/en_route/arrived) →
+      //     cancel_count++, is_flagged at the 3rd strike;
+      //   employer cancels while the kaarigar is already en_route/arrived →
+      //     their account gets flagged (no-show behaviour).
+      if (isWorker && ['accepted', 'en_route', 'arrived'].includes(raw.status)) {
+        trustPenalty = { kind: 'worker_cancelled_late' };
+      } else if (isEmployer && ['en_route', 'arrived'].includes(raw.status)) {
+        trustPenalty = { kind: 'employer_cancelled_after_travel' };
+      }
       break;
+    }
 
     default:
       throw new Error(`Unknown action "${action}"`);
@@ -364,9 +387,47 @@ export async function hireAction({ hireId, userId, action, lat, lng, otp }) {
         'Kaam shuru ka status abhi database me support nahi hai — Supabase me 0010_hire_start_flow.sql migration chalao',
       );
     }
+    // Trust & Penalty columns are missing — 0011_trust_penalty.sql not applied.
+    if (/cancelled_by|cancelled_at|cancel_count|is_flagged/i.test(error.message)) {
+      throw new Error(
+        'Cancel tracking abhi database me support nahi hai — Supabase me 0011_trust_penalty.sql migration chalao',
+      );
+    }
     throw new Error(error.message);
   }
   if (!data) throw new Error('Status pehle hi badal chuka hai — refresh karke dobara try karo');
+
+  // ------------------------- Trust & Penalty bookkeeping ---------------------
+  // Record-only: bump counters / set flags for the ADMIN PANEL to show. No
+  // blocking, no availability changes, no punishing automation — a human in
+  // the admin panel decides what happens to a flagged account.
+  if (trustPenalty?.kind === 'worker_cancelled_late') {
+    const { data: profileRow, error: profileError } = await db
+      .from('worker_profiles')
+      .select('cancel_count, is_flagged')
+      .eq('id', raw.worker_id)
+      .maybeSingle();
+    if (profileError) {
+      console.error('worker cancel tracking failed:', profileError.message);
+    } else if (profileRow) {
+      const cancelCount = (profileRow.cancel_count ?? 0) + 1;
+      const trustUpdate = { cancel_count: cancelCount };
+      if (cancelCount >= WORKER_CANCEL_FLAG_LIMIT && !profileRow.is_flagged) {
+        trustUpdate.is_flagged = true;
+      }
+      const { error: trustError } = await db
+        .from('worker_profiles')
+        .update(trustUpdate)
+        .eq('id', raw.worker_id);
+      if (trustError) console.error('worker cancel tracking failed:', trustError.message);
+    }
+  } else if (trustPenalty?.kind === 'employer_cancelled_after_travel') {
+    const { error: trustError } = await db
+      .from('users')
+      .update({ is_flagged: true })
+      .eq('id', raw.employer_id);
+    if (trustError) console.error('employer flag failed:', trustError.message);
+  }
 
   if (countJob) {
     const { error: rpcError } = await db.rpc('increment_worker_completed_jobs', {

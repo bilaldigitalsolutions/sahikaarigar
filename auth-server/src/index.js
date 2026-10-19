@@ -57,10 +57,14 @@ import {
   getAdminWorker,
   loginAdmin,
   listAdminHires,
+  listAdminReports,
   listAdminUsers,
   listAdminWorkers,
+  setReportStatus,
   setUserActive,
+  setUserFlagged,
   setWorkerApproval,
+  setWorkerFlagged,
 } from './admin.js';
 import { notifyHireUpdate, notifyWorkerOfNewHire } from './push.js';
 
@@ -716,19 +720,27 @@ app.patch('/admin/workers/:id', async (req, res, next) => {
   try {
     const admin = await requireAdmin(req, res);
     if (!admin) return;
-    if (typeof req.body?.approved !== 'boolean') {
-      res.status(400).json({ ok: false, code: 'BAD_REQUEST', message: 'approved boolean chahiye' });
+    const hasApproval = typeof req.body?.approved === 'boolean';
+    const hasFlagged = typeof req.body?.isFlagged === 'boolean';
+    if (!hasApproval && !hasFlagged) {
+      res.status(400).json({
+        ok: false,
+        code: 'BAD_REQUEST',
+        message: 'approved ya isFlagged boolean chahiye',
+      });
       return;
     }
-    if (req.body?.adminNotes !== undefined && typeof req.body.adminNotes !== 'string') {
-      res.status(400).json({ ok: false, code: 'BAD_REQUEST', message: 'adminNotes string chahiye' });
-      return;
+    let worker = null;
+    // Flag toggle first so the approval response (when both are sent) carries
+    // the approval result — the modal refreshes from it.
+    if (hasFlagged) worker = await setWorkerFlagged(req.params.id, req.body.isFlagged);
+    if (hasApproval) {
+      if (req.body?.adminNotes !== undefined && typeof req.body.adminNotes !== 'string') {
+        res.status(400).json({ ok: false, code: 'BAD_REQUEST', message: 'adminNotes string chahiye' });
+        return;
+      }
+      worker = await setWorkerApproval(req.params.id, req.body.approved, req.body.adminNotes);
     }
-    const worker = await setWorkerApproval(
-      req.params.id,
-      req.body?.approved,
-      req.body?.adminNotes,
-    );
     res.json({ ok: true, worker });
   } catch (error) {
     next(error);
@@ -765,12 +777,45 @@ app.patch('/admin/users/:id', async (req, res, next) => {
   try {
     const admin = await requireAdmin(req, res);
     if (!admin) return;
-    if (typeof req.body?.isActive !== 'boolean') {
-      res.status(400).json({ ok: false, code: 'BAD_REQUEST', message: 'isActive boolean chahiye' });
+    const hasActive = typeof req.body?.isActive === 'boolean';
+    const hasFlagged = typeof req.body?.isFlagged === 'boolean';
+    // Trust & Penalty: block/suspend (isActive) aur flag (isFlagged) — dono
+    // admin ke manual decisions, dono PATCH ke through.
+    if (!hasActive && !hasFlagged) {
+      res
+        .status(400)
+        .json({ ok: false, code: 'BAD_REQUEST', message: 'isActive ya isFlagged boolean chahiye' });
       return;
     }
-    const user = await setUserActive(req.params.id, req.body.isActive);
+    let user;
+    if (hasActive) user = await setUserActive(req.params.id, req.body.isActive);
+    if (hasFlagged) user = await setUserFlagged(req.params.id, req.body.isFlagged);
     res.json({ ok: true, user });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// User reports — admin review queue for POST /reports submissions.
+// ---------------------------------------------------------------------------
+app.get('/admin/reports', async (req, res, next) => {
+  try {
+    const admin = await requireAdmin(req, res);
+    if (!admin) return;
+    const result = await listAdminReports(req.query.status, req.query.page, req.query.limit);
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.patch('/admin/reports/:id', async (req, res, next) => {
+  try {
+    const admin = await requireAdmin(req, res);
+    if (!admin) return;
+    const report = await setReportStatus(req.params.id, req.body?.status);
+    res.json({ ok: true, report });
   } catch (error) {
     next(error);
   }

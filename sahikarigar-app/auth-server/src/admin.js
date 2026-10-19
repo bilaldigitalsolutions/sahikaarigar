@@ -106,6 +106,9 @@ function mapAdminWorker(row, aadhaarPhotoUrl) {
     // Full number is only exposed to authenticated admins.
     aadhaarNumber: row.aadhaar_number ?? null,
     aadhaarPhotoUrl,
+    // Trust & Penalty — cancel record for the admin panel (record-only).
+    cancelCount: row.cancel_count ?? 0,
+    isFlagged: row.is_flagged ?? false,
     createdAt: row.created_at,
     updatedAt: row.updated_at ?? null,
     user: row.user
@@ -240,7 +243,7 @@ export async function listAdminUsers(role, search = '', page = 1, limit = 50) {
   const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 100);
   const safePage = Math.max(Number(page) || 1, 1);
   let query = db.from('users')
-    .select('id, name, phone, role, avatar, is_active, created_at', { count: 'exact' })
+    .select('id, name, phone, role, avatar, is_active, is_flagged, created_at', { count: 'exact' })
     .order('created_at', { ascending: false })
     .range((safePage - 1) * safeLimit, safePage * safeLimit - 1);
   if (filterByRole) query = query.eq('role', normalizedRole);
@@ -256,6 +259,8 @@ export async function listAdminUsers(role, search = '', page = 1, limit = 50) {
       role: row.role,
       avatar: row.avatar,
       isActive: row.is_active,
+      // Red "Flagged" badge input for the admin panel (record-only).
+      isFlagged: row.is_flagged ?? false,
       createdAt: row.created_at,
     })),
     pagination: {
@@ -277,6 +282,108 @@ export async function setUserActive(userId, isActive) {
   if (error) throw new Error(error.message);
   if (!data) throw new Error('User nahi mila');
   return { id: data.id, isActive: data.is_active };
+}
+
+/** Trust & Penalty — admin manually flags / unflags a user. Record-only: the
+ *  automated cancel tracking may SET the flag, only a human clears it. */
+export async function setUserFlagged(userId, isFlagged) {
+  const { data, error } = await db.from('users')
+    .update({ is_flagged: Boolean(isFlagged) })
+    .eq('id', userId)
+    .in('role', ['employer', 'worker'])
+    .select('id, is_flagged')
+    .maybeSingle();
+  if (error) {
+    if (/is_flagged/i.test(error.message)) {
+      throw new Error('Flag column abhi database me nahi hai — 0011_trust_penalty.sql migration chalao');
+    }
+    throw new Error(error.message);
+  }
+  if (!data) throw new Error('User nahi mila');
+  return { id: data.id, isFlagged: data.is_flagged };
+}
+
+/** Trust & Penalty — admin manually flags / unflags a kaarigar profile. */
+export async function setWorkerFlagged(workerId, isFlagged) {
+  const { data, error } = await db.from('worker_profiles')
+    .update({ is_flagged: Boolean(isFlagged) })
+    .eq('id', workerId)
+    .select(ADMIN_WORKER_SELECT)
+    .maybeSingle();
+  if (error) {
+    if (/is_flagged/i.test(error.message)) {
+      throw new Error('Flag column abhi database me nahi hai — 0011_trust_penalty.sql migration chalao');
+    }
+    throw new Error(error.message);
+  }
+  if (!data) throw new Error('Worker profile nahi mila');
+  return mapAdminWorker(data, await signedAadhaarUrl(data.aadhaar_photo_path));
+}
+
+// -----------------------------------------------------------------------------
+// User reports (POST /reports se aane wale) — admin ki review queue.
+// -----------------------------------------------------------------------------
+const REPORT_SELECT =
+  'id, reporter_id, reported_id, reason, description, status, created_at, ' +
+  'reporter:users!reporter_id(id, name, phone), reported:users!reported_id(id, name, phone)';
+
+const REPORT_STATUSES = ['pending', 'reviewed', 'resolved', 'dismissed'];
+
+function mapReport(row) {
+  return {
+    id: row.id,
+    reason: row.reason,
+    description: row.description ?? null,
+    status: row.status ?? 'pending',
+    createdAt: row.created_at,
+    reporter: row.reporter
+      ? { id: row.reporter.id, name: row.reporter.name, phone: row.reporter.phone ?? null }
+      : null,
+    reported: row.reported
+      ? { id: row.reported.id, name: row.reported.name, phone: row.reported.phone ?? null }
+      : null,
+  };
+}
+
+/** Reports list for the admin panel, newest first, optional status filter. */
+export async function listAdminReports(status = 'all', page = 1, limit = 50) {
+  const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 100);
+  const safePage = Math.max(Number(page) || 1, 1);
+  const from = (safePage - 1) * safeLimit;
+  let query = db.from('user_reports')
+    .select(REPORT_SELECT, { count: 'exact' })
+    .order('created_at', { ascending: false })
+    .range(from, from + safeLimit - 1);
+  if (status && status !== 'all') {
+    if (!REPORT_STATUSES.includes(status)) throw new Error('Invalid report status');
+    query = query.eq('status', status);
+  }
+  const { data, error, count } = await query;
+  if (error) throw new Error(error.message);
+  return {
+    reports: (data ?? []).map(mapReport),
+    pagination: {
+      page: safePage,
+      limit: safeLimit,
+      total: count ?? 0,
+      pages: Math.ceil((count ?? 0) / safeLimit),
+    },
+  };
+}
+
+/** Admin verdict on a report — marks it reviewed / resolved / dismissed. */
+export async function setReportStatus(reportId, status) {
+  if (!REPORT_STATUSES.includes(status) || status === 'pending') {
+    throw new Error('Invalid report status');
+  }
+  const { data, error } = await db.from('user_reports')
+    .update({ status })
+    .eq('id', reportId)
+    .select('id, status')
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error('Report nahi mila');
+  return { id: data.id, status: data.status };
 }
 
 const ADMIN_HIRE_SELECT =

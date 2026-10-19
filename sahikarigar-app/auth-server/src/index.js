@@ -11,6 +11,7 @@
 // =============================================================================
 
 import 'dotenv/config';
+import * as Sentry from '@sentry/node';
 import express from 'express';
 import cors from 'cors';
 import supertokens from 'supertokens-node';
@@ -22,15 +23,20 @@ import { sendOtpSms, resolveSmsProvider, SUPPORTED_SMS_PROVIDERS } from './sms.j
 import {
   getOrCreateUserByAuthId,
   upsertWorkerProfile,
+  uploadWorkerImages,
   updateUser,
   savePushToken,
   deleteUserAccount,
-  uploadWorkerImages,
   normalizeIndianPhone,
   isValidIndianPhone,
 } from './users.js';
 import { searchWorkers, getWorkerById } from './workers.js';
-import { getWorkerDashboard, setWorkerAvailability } from './worker-dashboard.js';
+import {
+  getOwnWorkerProfile,
+  getWorkerDashboard,
+  setWorkerAvailability,
+  updateOwnWorkerProfile,
+} from './worker-dashboard.js';
 import {
   createHireRequest,
   listHiresForUser,
@@ -44,16 +50,21 @@ import {
   listReviewsByWorker,
   getReviewByHireRequest,
 } from './reviews.js';
+import { createReport } from './reports.js';
 import {
   getAdminStats,
   getAdminSession,
   getAdminWorker,
   loginAdmin,
   listAdminHires,
+  listAdminReports,
   listAdminUsers,
   listAdminWorkers,
+  setReportStatus,
   setUserActive,
+  setUserFlagged,
   setWorkerApproval,
+  setWorkerFlagged,
 } from './admin.js';
 import { notifyHireUpdate, notifyWorkerOfNewHire } from './push.js';
 
@@ -62,9 +73,18 @@ const PORT = Number(process.env.PORT || 4000);
 // deployment works without hand-setting API_DOMAIN.
 const API_DOMAIN =
   process.env.API_DOMAIN || process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
-const WEBSITE_DOMAIN = (process.env.WEBSITE_DOMAIN || 'https://sahi-kaarigar.web.app').replace(/\/+$/, '');
+const WEBSITE_DOMAIN = (process.env.WEBSITE_DOMAIN || 'http://localhost:3000').replace(/\/+$/, '');
 const API_BASE_PATH = process.env.API_BASE_PATH || '/auth';
 const APP_NAME = process.env.APP_NAME || 'SahiKaarigar';
+
+// Sentry error tracking — optional; only active when SENTRY_DSN is set.
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV || 'production',
+    tracesSampleRate: 0.1,
+  });
+}
 
 if (!process.env.SUPERTOKENS_CONNECTION_URI) {
   console.error('✗ SUPERTOKENS_CONNECTION_URI is not set — see .env.example');
@@ -137,7 +157,6 @@ supertokens.init({
 });
 
 const app = express();
-app.set('trust proxy', 1);
 
 // Order matters: SuperTokens' middleware must see its own routes BEFORE the
 // JSON body parser consumes the request body.
@@ -147,9 +166,10 @@ const EXTRA_ORIGINS = (process.env.EXTRA_CORS_ORIGINS || '')
   .split(',')
   .map((o) => o.trim().replace(/\/+$/, ''))
   .filter(Boolean);
-const ALLOWED_ORIGINS = [
-  ...new Set(['https://sahi-kaarigar.web.app', WEBSITE_DOMAIN, ...EXTRA_ORIGINS]),
-];
+// The Firebase-hosted admin panel. Always allowed, even if WEBSITE_DOMAIN is
+// missing from the environment, so the admin API never fails CORS in prod.
+const PRODUCTION_ORIGIN = 'https://sahi-kaarigar.web.app';
+const ALLOWED_ORIGINS = [...new Set([PRODUCTION_ORIGIN, WEBSITE_DOMAIN, ...EXTRA_ORIGINS])];
 const LOCALHOST_RE = /^https?:\/\/(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?$/;
 
 app.use(
@@ -161,6 +181,8 @@ app.use(
       }
       return callback(null, false);
     },
+    // `authorization` is required for the admin panel's Bearer token. Without
+    // it the browser's preflight blocks every /admin/* request.
     allowedHeaders: ['content-type', 'authorization', ...supertokens.getAllCORSHeaders()],
     credentials: true,
   }),
@@ -267,7 +289,7 @@ app.delete('/account', async (req, res, next) => {
   try {
     const session = await Session.getSession(req, res, { sessionRequired: true });
     const { authUserId, phone } = await resolveSession(session);
-    const user = await getOrCreateUserByAuthId(authUserId, phone, undefined, { allowInactive: true });
+    const user = await getOrCreateUserByAuthId(authUserId, phone);
     await deleteUserAccount({ userId: user.id, authUserId });
     try {
       await Session.revokeAllSessionsForUser(authUserId);
@@ -350,9 +372,7 @@ app.post('/hires', async (req, res, next) => {
 
 app.get('/hires/:id', async (req, res, next) => {
   try {
-    const session = await Session.getSession(req, res, { sessionRequired: true });
-    const { authUserId, phone } = await resolveSession(session);
-    await getOrCreateUserByAuthId(authUserId, phone);
+    await Session.getSession(req, res, { sessionRequired: true });
     const hire = await getHireById(req.params.id);
     if (!hire) {
       res.status(404).json({ ok: false, code: 'NOT_FOUND', message: 'Hire request nahi mila' });
@@ -454,6 +474,34 @@ app.get('/worker/dashboard', async (req, res, next) => {
   }
 });
 
+// The signed-in worker's own profile — read + editable fields (skills,
+// experience, rate, service areas). Used by the mobile Edit Profile screen.
+// Editing an existing profile must NOT reset is_approved/verification_status
+// (unlike /register-worker, which re-enters the verification queue on purpose).
+app.get('/worker/profile', async (req, res, next) => {
+  try {
+    const session = await Session.getSession(req, res, { sessionRequired: true });
+    const { authUserId, phone } = await resolveSession(session);
+    const user = await getOrCreateUserByAuthId(authUserId, phone);
+    const worker = await getOwnWorkerProfile(user.id);
+    res.json({ ok: true, worker });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.patch('/worker/profile', async (req, res, next) => {
+  try {
+    const session = await Session.getSession(req, res, { sessionRequired: true });
+    const { authUserId, phone } = await resolveSession(session);
+    const user = await getOrCreateUserByAuthId(authUserId, phone);
+    const worker = await updateOwnWorkerProfile(user.id, req.body ?? {});
+    res.json({ ok: true, worker });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.patch('/worker/availability', async (req, res, next) => {
   try {
     const session = await Session.getSession(req, res, { sessionRequired: true });
@@ -479,10 +527,28 @@ app.post('/reviews', async (req, res, next) => {
       hireRequestId: req.body?.hireRequestId,
       rating: req.body?.rating,
       comment: req.body?.comment,
-      tip: req.body?.tip,
-      likes: req.body?.likes,
     });
     res.json({ ok: true, review });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Reports — lets any logged-in user report another user (Group 3).
+// ---------------------------------------------------------------------------
+app.post('/reports', async (req, res, next) => {
+  try {
+    const session = await Session.getSession(req, res, { sessionRequired: true });
+    const { authUserId, phone } = await resolveSession(session);
+    const user = await getOrCreateUserByAuthId(authUserId, phone);
+    const report = await createReport({
+      reporter_id: user.id,
+      reported_id: req.body?.reported_id,
+      reason: req.body?.reason,
+      description: req.body?.description,
+    });
+    res.json({ ok: true, report });
   } catch (error) {
     next(error);
   }
@@ -506,17 +572,20 @@ app.post('/feedback', async (req, res, next) => {
 });
 
 // ---------------------------------------------------------------------------
-// Admin — worker approval. New profiles start unapproved, so nothing appears in
-// search until an admin approves it here.
+// Admin — email/password panel. Sessions are stateless HMAC tokens:
+// `<base64url(payload)>.<base64url(hmac-sha256)>`, signed with
+// ADMIN_SESSION_SECRET. Every /admin/* route except POST /admin/login is
+// protected by requireAdmin(), which reads `Authorization: Bearer <token>`.
 // ---------------------------------------------------------------------------
-// JWT-style HMAC admin session — applied to EVERY /admin/* route except
-// POST /admin/login (public). Reads `Authorization: Bearer <token>`, trims
-// stray whitespace (some fetch wrappers add it) and 401s when missing/invalid.
+function isAdminAuthConfigured() {
+  return Buffer.byteLength(process.env.ADMIN_SESSION_SECRET || '', 'utf8') >= 32;
+}
+
 async function requireAdmin(req, res) {
   // A missing/short secret is a server misconfiguration, not an expired
   // session. Return 503 so the frontend keeps the token instead of logging
   // the admin out on every request.
-  if (Buffer.byteLength(process.env.ADMIN_SESSION_SECRET || '', 'utf8') < 32) {
+  if (!isAdminAuthConfigured()) {
     res.status(503).json({
       ok: false,
       code: 'ADMIN_AUTH_NOT_CONFIGURED',
@@ -546,6 +615,15 @@ const ADMIN_LOGIN_MAX_FAILURES = 5;
 
 app.post('/admin/login', (req, res, next) => {
   try {
+    if (!isAdminAuthConfigured()) {
+      res.status(503).json({
+        ok: false,
+        code: 'ADMIN_AUTH_NOT_CONFIGURED',
+        message: 'ADMIN_SESSION_SECRET must be at least 32 characters on the server.',
+      });
+      return;
+    }
+
     const clientKey = req.ip || req.socket.remoteAddress || 'unknown';
     const now = Date.now();
     const attempt = failedAdminLogins.get(clientKey);
@@ -642,19 +720,27 @@ app.patch('/admin/workers/:id', async (req, res, next) => {
   try {
     const admin = await requireAdmin(req, res);
     if (!admin) return;
-    if (typeof req.body?.approved !== 'boolean') {
-      res.status(400).json({ ok: false, code: 'BAD_REQUEST', message: 'approved boolean chahiye' });
+    const hasApproval = typeof req.body?.approved === 'boolean';
+    const hasFlagged = typeof req.body?.isFlagged === 'boolean';
+    if (!hasApproval && !hasFlagged) {
+      res.status(400).json({
+        ok: false,
+        code: 'BAD_REQUEST',
+        message: 'approved ya isFlagged boolean chahiye',
+      });
       return;
     }
-    if (req.body?.adminNotes !== undefined && typeof req.body.adminNotes !== 'string') {
-      res.status(400).json({ ok: false, code: 'BAD_REQUEST', message: 'adminNotes string chahiye' });
-      return;
+    let worker = null;
+    // Flag toggle first so the approval response (when both are sent) carries
+    // the approval result — the modal refreshes from it.
+    if (hasFlagged) worker = await setWorkerFlagged(req.params.id, req.body.isFlagged);
+    if (hasApproval) {
+      if (req.body?.adminNotes !== undefined && typeof req.body.adminNotes !== 'string') {
+        res.status(400).json({ ok: false, code: 'BAD_REQUEST', message: 'adminNotes string chahiye' });
+        return;
+      }
+      worker = await setWorkerApproval(req.params.id, req.body.approved, req.body.adminNotes);
     }
-    const worker = await setWorkerApproval(
-      req.params.id,
-      req.body?.approved,
-      req.body?.adminNotes,
-    );
     res.json({ ok: true, worker });
   } catch (error) {
     next(error);
@@ -691,12 +777,45 @@ app.patch('/admin/users/:id', async (req, res, next) => {
   try {
     const admin = await requireAdmin(req, res);
     if (!admin) return;
-    if (typeof req.body?.isActive !== 'boolean') {
-      res.status(400).json({ ok: false, code: 'BAD_REQUEST', message: 'isActive boolean chahiye' });
+    const hasActive = typeof req.body?.isActive === 'boolean';
+    const hasFlagged = typeof req.body?.isFlagged === 'boolean';
+    // Trust & Penalty: block/suspend (isActive) aur flag (isFlagged) — dono
+    // admin ke manual decisions, dono PATCH ke through.
+    if (!hasActive && !hasFlagged) {
+      res
+        .status(400)
+        .json({ ok: false, code: 'BAD_REQUEST', message: 'isActive ya isFlagged boolean chahiye' });
       return;
     }
-    const user = await setUserActive(req.params.id, req.body.isActive);
+    let user;
+    if (hasActive) user = await setUserActive(req.params.id, req.body.isActive);
+    if (hasFlagged) user = await setUserFlagged(req.params.id, req.body.isFlagged);
     res.json({ ok: true, user });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// User reports — admin review queue for POST /reports submissions.
+// ---------------------------------------------------------------------------
+app.get('/admin/reports', async (req, res, next) => {
+  try {
+    const admin = await requireAdmin(req, res);
+    if (!admin) return;
+    const result = await listAdminReports(req.query.status, req.query.page, req.query.limit);
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.patch('/admin/reports/:id', async (req, res, next) => {
+  try {
+    const admin = await requireAdmin(req, res);
+    if (!admin) return;
+    const report = await setReportStatus(req.params.id, req.body?.status);
+    res.json({ ok: true, report });
   } catch (error) {
     next(error);
   }
@@ -743,28 +862,32 @@ app.use(errorHandler());
 app.use((error, req, res, _next) => {
   const message = error instanceof Error ? error.message : 'Unexpected error';
   console.error('auth-server error:', message);
+  // Report the error to Sentry with request context (route + method only —
+  // no bodies or auth headers, so no PII leaks).
+  Sentry.withScope((scope) => {
+    scope.setTag('route', req.path);
+    scope.setTag('method', req.method);
+    Sentry.captureException(error);
+  });
   if (res.headersSent) return;
 
   if (req.path.startsWith(API_BASE_PATH)) {
     res.status(200).json({ status: 'GENERAL_ERROR', message });
     return;
   }
-  res.status(Number(error?.statusCode || error?.status) || 400).json({
-    ok: false,
-    code: Number(error?.statusCode) === 403 ? 'FORBIDDEN' : 'BAD_REQUEST',
-    message,
-  });
+  res.status(400).json({ ok: false, code: 'BAD_REQUEST', message });
 });
 
-console.log('=== REGISTERED ROUTES ===');
-app._router.stack.forEach((r) => {
-  if (r.route && r.route.path) {
+// Route logger — print all registered routes on server start (debug only).
+console.log("=== REGISTERED ROUTES ===");
+app._router.stack.forEach(function(r){
+  if (r.route && r.route.path){
     console.log(Object.keys(r.route.methods).join(', ').toUpperCase(), r.route.path);
   } else if (r.name === 'router') {
     console.log('Router mounted:', r.regexp);
   }
 });
-console.log('========================');
+console.log("========================");
 
 app.listen(PORT, () => {
   console.log(`\n✓ SahiKaarigar auth-server on ${API_DOMAIN}`);

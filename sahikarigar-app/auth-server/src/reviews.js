@@ -27,8 +27,6 @@ export function mapReview(row) {
     workerId: row.worker_id,
     rating: row.rating,
     comment: row.comment ?? null,
-    tip: row.tip_amount ?? 0,
-    likes: row.likes ?? [],
     createdAt: row.created_at,
     reviewer: mapUser(row.reviewer),
   };
@@ -43,15 +41,13 @@ function readRating(value) {
 }
 
 /** The user reviews the worker after the job is completed. */
-export async function createReview({ reviewerId, hireRequestId, rating, comment, tip, likes }) {
+export async function createReview({ reviewerId, hireRequestId, rating, comment }) {
   const value = readRating(rating);
   const text = typeof comment === 'string' ? comment.trim().slice(0, 500) : '';
-  const tipAmount = tip != null && Number.isFinite(Number(tip)) ? Math.max(0, Math.round(Number(tip))) : 0;
-  const likesList = Array.isArray(likes) ? likes.filter((l) => typeof l === 'string').slice(0, 10) : [];
 
   const { data: hire, error: hireError } = await db
     .from('hire_requests')
-    .select('id, employer_id, worker_id, status')
+    .select('id, employer_id, worker_id, status, workerProfile:worker_profiles(user_id)')
     .eq('id', hireRequestId)
     .maybeSingle();
 
@@ -59,6 +55,14 @@ export async function createReview({ reviewerId, hireRequestId, rating, comment,
   if (!hire) throw new Error('Hire request nahi mila');
   if (hire.status !== 'completed') throw new Error('Pehle kaam complete hona chahiye');
   if (hire.employer_id !== reviewerId) throw new Error('Sirf user hi review de sakta hai');
+
+  // Self-review guard: the hire's employer account and the kaarigar's account
+  // must never be the SAME person — e.g. someone booked their own worker
+  // profile to farm 5-star ratings for themselves.
+  const workerUserId = hire.workerProfile?.user_id ?? null;
+  if (workerUserId && workerUserId === hire.employer_id) {
+    throw new Error('You cannot review yourself.');
+  }
 
   const { data: existing, error: existingError } = await db
     .from('reviews')
@@ -77,8 +81,6 @@ export async function createReview({ reviewerId, hireRequestId, rating, comment,
       worker_id: hire.worker_id,
       rating: value,
       comment: text || null,
-      tip_amount: tipAmount,
-      likes: likesList,
     })
     .select('*, reviewer:users(id, name, avatar)')
     .single();

@@ -47,7 +47,7 @@ export async function createReview({ reviewerId, hireRequestId, rating, comment 
 
   const { data: hire, error: hireError } = await db
     .from('hire_requests')
-    .select('id, employer_id, worker_id, status')
+    .select('id, employer_id, worker_id, status, workerProfile:worker_profiles(user_id)')
     .eq('id', hireRequestId)
     .maybeSingle();
 
@@ -55,6 +55,14 @@ export async function createReview({ reviewerId, hireRequestId, rating, comment 
   if (!hire) throw new Error('Hire request nahi mila');
   if (hire.status !== 'completed') throw new Error('Pehle kaam complete hona chahiye');
   if (hire.employer_id !== reviewerId) throw new Error('Sirf user hi review de sakta hai');
+
+  // Self-review guard: the hire's employer account and the kaarigar's account
+  // must never be the SAME person — e.g. someone booked their own worker
+  // profile to farm 5-star ratings for themselves.
+  const workerUserId = hire.workerProfile?.user_id ?? null;
+  if (workerUserId && workerUserId === hire.employer_id) {
+    throw new Error('You cannot review yourself.');
+  }
 
   const { data: existing, error: existingError } = await db
     .from('reviews')

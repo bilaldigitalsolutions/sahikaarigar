@@ -10,6 +10,8 @@
 // =============================================================================
 
 import * as Notifications from 'expo-notifications';
+import { useRouter } from 'expo-router';
+import { useEffect } from 'react';
 import { Platform } from 'react-native';
 
 import { savePushToken } from './api';
@@ -82,4 +84,50 @@ export async function registerForPushNotifications(): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+/** True when a tapped notification is a "Nayi kaam ki request" for the worker. */
+function isNewRequestPush(
+  response: Notifications.NotificationResponse | null | undefined,
+): boolean {
+  const data = response?.notification.request.content.data as { action?: string } | undefined;
+  return data?.action === 'created';
+}
+
+/**
+ * Tapping a new-job-request push lands the kaarigar straight on the Job
+ * Requests tab. Handles both taps while the app runs and cold starts
+ * (Android/iOS deep-open). Best-effort — a failed navigation never blocks.
+ *
+ * @param enabled pass `false` while the session is still restoring.
+ */
+export function useHireRequestNotificationRoute(enabled: boolean) {
+  const router = useRouter();
+  useEffect(() => {
+    if (!enabled) return undefined;
+    let mounted = true;
+
+    const openRequests = () => {
+      try {
+        router.push('/(tabs)/jobs');
+      } catch {
+        // Router not wired yet — the Jobs tab refetches on focus anyway.
+      }
+    };
+
+    // Foreground/background tap.
+    const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
+      if (isNewRequestPush(response)) openRequests();
+    });
+
+    // Cold start — the app process began with this tap.
+    void Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (response && mounted && isNewRequestPush(response)) openRequests();
+    });
+
+    return () => {
+      mounted = false;
+      subscription.remove();
+    };
+  }, [enabled, router]);
 }

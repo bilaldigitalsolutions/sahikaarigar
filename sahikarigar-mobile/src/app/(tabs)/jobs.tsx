@@ -3,6 +3,8 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
+  Alert,
+  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -84,7 +86,16 @@ export default function WorkerJobsScreen() {
       await hireAction(hireId, action);
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not update the request.');
+      const message = e instanceof Error ? e.message : 'Could not update the request.';
+      setError(message);
+      // Edge case: the worker accepted another request from a second device
+      // (or the dashboard JSON is a moment stale) — the server answers with
+      // 400 "You already have an active job…". Show a clean alert and refresh
+      // so the busy banner / disabled buttons line up again.
+      if (/already have an active job/i.test(message)) {
+        Alert.alert('Request accept nahi hui', 'Aapke paas pehle se ek active job hai.');
+        await load();
+      }
     } finally {
       setBusy(null);
     }
@@ -118,6 +129,8 @@ export default function WorkerJobsScreen() {
   const worker = data.worker;
   const stats = data.stats;
   const isAvailable = worker.availability === 'available';
+  /** Business rule: a worker can hold exactly ONE active job at a time. */
+  const isWorkerBusy = data.active.length > 0;
 
   return (
     <Screen
@@ -217,6 +230,16 @@ export default function WorkerJobsScreen() {
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
+        {/* One-active-job banner: Accept is disabled while a job is running. */}
+        {isWorkerBusy ? (
+          <View style={styles.busyBanner}>
+            <Ionicons name="information-circle" size={20} color={colors.textPrimary} />
+            <Text style={styles.busyBannerText}>
+              Aap abhi ek kaam par hain. Naya kaam accept karne ke liye pehle use complete karein.
+            </Text>
+          </View>
+        ) : null}
+
         <Section
           title="New requests"
           count={data.requests.length}
@@ -225,23 +248,13 @@ export default function WorkerJobsScreen() {
           {data.requests.map((hire) => (
             <View key={hire.id} style={styles.requestCard}>
               <RequestRow hire={hire} onPress={() => router.push({ pathname: '/hire/detail/[id]', params: { id: hire.id } })} />
-              <View style={styles.actions}>
-                <Button
-                  label="Reject"
-                  variant="secondary"
-                  size="sm"
-                  disabled={busy === hire.id}
-                  onPress={() => onRequestAction(hire.id, 'reject')}
-                  style={styles.actionBtn}
-                />
-                <Button
-                  label="Accept"
-                  size="sm"
-                  loading={busy === hire.id}
-                  onPress={() => onRequestAction(hire.id, 'accept')}
-                  style={styles.actionBtn}
-                />
-              </View>
+              <RequestActions
+                acceptDisabled={isWorkerBusy || busy === hire.id}
+                acceptBusy={busy === hire.id}
+                rejectDisabled={busy === hire.id}
+                onAccept={() => onRequestAction(hire.id, 'accept')}
+                onReject={() => onRequestAction(hire.id, 'reject')}
+              />
             </View>
           ))}
         </Section>
@@ -329,6 +342,55 @@ function RequestRow({ hire, onPress }: { hire: ApiHire; onPress: () => void }) {
   return <HireCard hire={hire} perspective="worker" onPress={onPress} />;
 }
 
+/**
+ * The two prominent per-request actions (matched to the design):
+ *   Accept — solid green (#10B981) + checkmark
+ *   Reject — solid red (#EF4444) + cross
+ * When the worker is busy, Accept greys out and does nothing.
+ */
+function RequestActions({
+  acceptDisabled,
+  acceptBusy,
+  rejectDisabled,
+  onAccept,
+  onReject,
+}: {
+  acceptDisabled: boolean;
+  acceptBusy: boolean;
+  rejectDisabled: boolean;
+  onAccept: () => void;
+  onReject: () => void;
+}) {
+  return (
+    <View style={styles.actions}>
+      <Pressable
+        style={[styles.rejectBtn, rejectDisabled && styles.actionBtnDisabled]}
+        disabled={rejectDisabled}
+        onPress={onReject}
+        accessibilityLabel="Reject this request"
+      >
+        <Ionicons name="close" size={16} color={colors.white} />
+        <Text style={[styles.rejectText, rejectDisabled && styles.actionTextDisabled]}>Reject</Text>
+      </Pressable>
+      <Pressable
+        style={[styles.acceptBtn, acceptDisabled && styles.actionBtnDisabled]}
+        disabled={acceptDisabled}
+        onPress={onAccept}
+        accessibilityLabel="Accept this request"
+      >
+        {acceptBusy ? (
+          <ActivityIndicator size="small" color={colors.white} />
+        ) : (
+          <Ionicons name="checkmark" size={16} color={colors.white} />
+        )}
+        <Text style={[styles.acceptText, acceptDisabled && styles.actionTextDisabled]}>
+          Accept
+        </Text>
+      </Pressable>
+    </View>
+  );
+}
+
 /** An accepted / completed job row. */
 function JobRow({ hire, onPress }: { hire: ApiHire; onPress: () => void }) {
   return <HireCard hire={hire} perspective="worker" onPress={onPress} />;
@@ -406,6 +468,49 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     marginBottom: spacing.md,
   },
-  actions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.sm },
-  actionBtn: { flex: 1 },
+  actions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
+
+  // One-active-job banner
+  busyBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+    padding: spacing.md,
+    borderRadius: radius.button,
+    backgroundColor: colors.warning,
+  },
+  busyBannerText: {
+    flex: 1,
+    fontSize: fontSize.caption,
+    fontWeight: fontWeight.semibold,
+    color: colors.textPrimary,
+    lineHeight: 19,
+  },
+
+  // Accept (green + check) / Reject (red + X)
+  acceptBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    height: 44,
+    borderRadius: radius.button,
+    backgroundColor: '#10B981',
+  },
+  rejectBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    height: 44,
+    borderRadius: radius.button,
+    backgroundColor: '#EF4444',
+  },
+  actionBtnDisabled: { backgroundColor: colors.border },
+  acceptText: { fontSize: fontSize.caption, fontWeight: fontWeight.bold, color: colors.white },
+  rejectText: { fontSize: fontSize.caption, fontWeight: fontWeight.bold, color: colors.white },
+  actionTextDisabled: { color: colors.muted },
 });

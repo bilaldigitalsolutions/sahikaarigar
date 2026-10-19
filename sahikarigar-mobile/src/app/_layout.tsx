@@ -13,6 +13,7 @@ import { requestLocationPermission } from '@/lib/location';
 import {
   configureNotificationHandler,
   requestNotificationPermission,
+  useHireRequestNotificationRoute,
 } from '@/lib/notifications';
 import { initObservability, reportError, setObservabilityUser } from '@/lib/observability';
 import { PostHogProvider } from 'posthog-react-native';
@@ -74,6 +75,10 @@ function RootNavigator() {
     void requestLocationPermission();
     void requestNotificationPermission();
   }, []);
+
+  // Tapping a "Nayi kaam ki request 🛠️" push opens the Job Requests tab once
+  // the session is restored (route exists only for signed-in workers).
+  useHireRequestNotificationRoute(!initializing && Boolean(user));
 
   // Keep the loading screen visible until the stored session is restored.
   if (initializing) return <AppLoading />;

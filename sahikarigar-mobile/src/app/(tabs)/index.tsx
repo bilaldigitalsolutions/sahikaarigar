@@ -218,7 +218,9 @@ export default function HomeScreen() {
                   color={colors.primaryDark}
                 />
               </View>
-              <Text style={styles.serviceLabel}>{s.label}</Text>
+              <Text style={styles.serviceLabel} numberOfLines={1}>
+                {s.label}
+              </Text>
               {counts[s.id] != null ? (
                 <Text style={styles.serviceCount}>{counts[s.id]} workers</Text>
               ) : null}

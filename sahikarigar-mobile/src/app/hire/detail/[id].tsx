@@ -461,28 +461,33 @@ function BookingBody({
       ) : null}
 
       <View style={styles.bottomBar}>
-        <View style={styles.callWrap}>
-          <Pressable
-            style={[styles.callBtn, !accepted && styles.disabled]}
-            onPress={onCall}
-            disabled={!accepted}
-          >
-            <Ionicons name="call" size={17} color={colors.primaryDark} />
-            <Text style={styles.callText}>{isWorkerViewer ? 'Call Customer' : 'Call Worker'}</Text>
-          </Pressable>
-          {!accepted ? (
-            <Text style={styles.callHint}>
-              {isWorkerViewer
-                ? 'Number revealed once you accept the request'
-                : 'Number revealed once worker accepts'}
-            </Text>
-          ) : null}
-        </View>
-        {isWorkerViewer ? (
-          // Kaarigar's own actions — mirrors what the auth-server allows:
-          // accept / reject (pending) → on the way → arrived → start (OTP) →
-          // the CUSTOMER completes the job.
-          completed ? (
+        <View style={styles.bottomCol}>
+          {/* Call button spans its own line so long hints never squeeze the
+              action buttons — the old single row cramped them on small
+              screens and left uneven margins. */}
+          <View style={styles.callWrap}>
+            <Pressable
+              style={[styles.callBtn, !accepted && styles.disabled]}
+              onPress={onCall}
+              disabled={!accepted}
+            >
+              <Ionicons name="call" size={17} color={colors.primaryDark} />
+              <Text style={styles.callText}>{isWorkerViewer ? 'Call Customer' : 'Call Worker'}</Text>
+            </Pressable>
+            {!accepted ? (
+              <Text style={styles.callHint}>
+                {isWorkerViewer
+                  ? 'Number revealed once you accept the request'
+                  : 'Number revealed once worker accepts'}
+              </Text>
+            ) : null}
+          </View>
+          <View style={styles.actionsRow}>
+            {isWorkerViewer ? (
+              // Kaarigar's own actions — mirrors what the auth-server allows:
+              // accept / reject (pending) → on the way → arrived → start (OTP) →
+              // the CUSTOMER completes the job.
+              completed ? (
             <Pressable style={styles.primaryAction} onPress={onFeedback}>
               <Text style={styles.primaryActionText}>Give Feedback</Text>
             </Pressable>
@@ -554,13 +559,15 @@ function BookingBody({
             )}
           </>
         )}
-        <Pressable
-          style={styles.outlineAction}
-          onPress={() => Alert.alert('Madad chahiye?', `Support: ${SUPPORT_PHONE}`)}
-        >
-          <Ionicons name="help-circle-outline" size={16} color={colors.textPrimary} />
-          <Text style={styles.outlineActionText}>Help</Text>
-        </Pressable>
+          <Pressable
+            style={styles.outlineAction}
+            onPress={() => Alert.alert('Madad chahiye?', `Support: ${SUPPORT_PHONE}`)}
+          >
+            <Ionicons name="help-circle-outline" size={16} color={colors.textPrimary} />
+            <Text style={styles.outlineActionText}>Help</Text>
+          </Pressable>
+          </View>
+        </View>
       </View>
     </>
   );
@@ -619,7 +626,11 @@ const styles = StyleSheet.create({
   workerTag: { fontSize: fontSize.caption, fontWeight: fontWeight.semibold, color: colors.primaryDark },
   workerName: { fontSize: fontSize.title, fontWeight: fontWeight.bold, color: colors.textPrimary, marginTop: 1 },
   workerMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 5, flexWrap: 'wrap' },
-  workerMeta: { fontSize: fontSize.caption, color: colors.textSecondary },
+  workerMeta: {
+    fontSize: fontSize.caption,
+    color: colors.textSecondary,
+    flexShrink: 1,
+  },
   sectionTitle: {
     alignSelf: 'stretch',
     fontSize: fontSize.body,
@@ -720,14 +731,16 @@ const styles = StyleSheet.create({
   totalValue: { fontSize: fontSize.title, fontWeight: fontWeight.bold, color: colors.primaryDark },
   totalHint: { fontSize: fontSize.caption, color: colors.textSecondary, textAlign: 'right', marginTop: 2 },
   bottomBar: {
-    flexDirection: 'row',
-    gap: spacing.sm,
     padding: spacing.md,
     borderTopWidth: 1,
     borderTopColor: colors.border,
     backgroundColor: colors.card,
   },
-  callWrap: { flex: 1.2 },
+  bottomCol: { alignSelf: 'stretch' },
+  actionsRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
+  callWrap: {
+    alignItems: 'stretch',
+  },
   callBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -743,7 +756,6 @@ const styles = StyleSheet.create({
   callHint: {
     fontSize: fontSize.caption - 2,
     color: colors.textSecondary,
-    textAlign: 'center',
     marginTop: 4,
   },
   primaryAction: {

@@ -203,13 +203,28 @@ export default function ProfileScreen() {
       </Text>
       <Card style={styles.helpCard}>
         <Text style={styles.helpTitle}>Grievance Officer</Text>
-        <Text style={styles.helpBody}>
-          <Text style={styles.helpRow}><Text style={styles.helpKey}>Name:</Text> Mohammad Bilal</Text>
-          <Text style={styles.helpRow}><Text style={styles.helpKey}>Email:</Text> grievance@sahikaarigar.com</Text>
-          <Text style={styles.helpRow}><Text style={styles.helpKey}>Phone:</Text> +91 9949363310</Text>
-          <Text style={styles.helpRow}><Text style={styles.helpKey}>Address:</Text> Hyderabad, Telangana</Text>
-          <Text style={styles.helpRow}><Text style={styles.helpKey}>Response Time:</Text> 48 hours</Text>
-        </Text>
+        <View style={styles.helpBody}>
+          <View style={styles.helpRow}>
+            <Text style={styles.helpKey}>Name:</Text>
+            <Text style={styles.helpValue}>Mohammad Bilal</Text>
+          </View>
+          <View style={styles.helpRow}>
+            <Text style={styles.helpKey}>Email:</Text>
+            <Text style={styles.helpValue}>grievance@sahikaarigar.com</Text>
+          </View>
+          <View style={styles.helpRow}>
+            <Text style={styles.helpKey}>Phone:</Text>
+            <Text style={styles.helpValue}>+91 9949363310</Text>
+          </View>
+          <View style={styles.helpRow}>
+            <Text style={styles.helpKey}>Address:</Text>
+            <Text style={styles.helpValue}>Hyderabad, Telangana</Text>
+          </View>
+          <View style={styles.helpRow}>
+            <Text style={styles.helpKey}>Response Time:</Text>
+            <Text style={styles.helpValue}>48 hours</Text>
+          </View>
+        </View>
       </Card>
 
       <Card style={styles.helpCard}>
@@ -357,7 +372,13 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   infoLabel: { fontSize: fontSize.small, color: colors.textSecondary, flex: 1 },
-  infoValue: { fontSize: fontSize.small, color: colors.textPrimary, fontWeight: fontWeight.medium },
+  infoValue: {
+    flexShrink: 1,
+    fontSize: fontSize.small,
+    color: colors.textPrimary,
+    fontWeight: fontWeight.medium,
+    textAlign: 'right',
+  },
   ctaTitle: { fontSize: fontSize.body, fontWeight: fontWeight.semibold, color: colors.textPrimary },
   ctaText: { fontSize: fontSize.caption, color: colors.textSecondary, marginTop: spacing.xs },
   ctaBtn: { marginTop: spacing.md },
@@ -404,12 +425,11 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   helpBody: {
-    fontSize: fontSize.caption,
-    color: colors.textSecondary,
-    lineHeight: 18,
+    flexDirection: 'column',
   },
   helpRow: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
     gap: spacing.sm,
     paddingVertical: spacing.xs,
   },
@@ -417,7 +437,12 @@ const styles = StyleSheet.create({
     fontSize: fontSize.caption,
     fontWeight: fontWeight.medium,
     color: colors.textSecondary,
-    width: 72,
+    width: 110,
+  },
+  helpValue: {
+    flex: 1,
+    fontSize: fontSize.caption,
+    color: colors.textPrimary,
   },
   helpOption: {
     flexDirection: 'row',

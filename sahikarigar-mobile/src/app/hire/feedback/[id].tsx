@@ -128,7 +128,7 @@ export default function FeedbackScreen() {
     <Screen
       padded={false}
       edges={['bottom']}
-      header={<Header title="Feedback" />}
+      header={<Header title="Feedback" showBack={false} />}
     >
       {loading ? (
         <View style={styles.center}>

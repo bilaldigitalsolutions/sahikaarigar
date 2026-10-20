@@ -148,6 +148,7 @@ export default function HireDetailScreen() {
       header={
         <Header
           center={<BrandLogo size={28} />}
+          showBack={false}
           right={
             <Pressable onPress={onHelp} hitSlop={10}>
               <Ionicons name="help-circle-outline" size={24} color={colors.primaryDark} />

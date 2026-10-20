@@ -66,14 +66,12 @@ export default function LoadingScreen() {
 
   return (
     <View style={styles.container}>
+      <Image
+        source={require('../../assets/images/loading-banner.png')}
+        style={styles.banner}
+        resizeMode="cover"
+      />
       <View style={styles.content}>
-        {/* Loading banner — the new branded artwork. `contain` keeps the full
-            image visible on every screen size, no awkward cropping. */}
-        <Image
-          source={require('../../assets/images/loading-banner.png')}
-          style={styles.banner}
-          resizeMode="contain"
-        />
         <Text style={styles.tagline}>{TAGLINE}</Text>
         {/* Spinner block pinned towards the bottom, unchanged. */}
         <View style={styles.spinnerWrap}>
@@ -89,21 +87,22 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.primaryDark,
-    justifyContent: 'center',
-    alignItems: 'center',
+  },
+  // Banner fills the entire screen; "cover" crops to fill so there are no
+  // empty white spaces on any device.
+  banner: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   content: {
     flex: 1,
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
     padding: spacing.xl,
     width: '100%',
-  },
-  // Banner spans the width; "contain" derives height so it never crops.
-  banner: {
-    width: '100%',
-    height: 320,
-    marginBottom: spacing.lg,
   },
   tagline: {
     fontSize: fontSize.title,

@@ -101,18 +101,18 @@ function RootNavigator() {
         <Stack.Screen name="onboarding/role" />
         <Stack.Screen name="role-selection" />
         <Stack.Screen name="welcome" />
-        <Stack.Screen name="worker/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="worker/[id]" options={{ headerShown: true, title: 'Worker Profile', headerBackTitle: 'Back' }} />
         <Stack.Screen
           name="hire/[workerId]"
           options={{ headerShown: true, title: 'Book a Worker', headerBackTitle: 'Back' }}
         />
-        <Stack.Screen name="hire/detail/[id]" options={{ headerShown: false }} />
-        <Stack.Screen name="hire/feedback/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="hire/detail/[id]" options={{ headerShown: true, title: 'Booking Details', headerBackTitle: 'Back' }} />
+        <Stack.Screen name="hire/feedback/[id]" options={{ headerShown: true, title: 'Feedback', headerBackTitle: 'Back' }} />
         <Stack.Screen name="/help/faq" />
-        <Stack.Screen name="register-worker" options={{ headerShown: false }} />
-        <Stack.Screen name="edit-profile" options={{ headerShown: false }} />
-        <Stack.Screen name="search" options={{ headerShown: false }} />
-        <Stack.Screen name="map" options={{ headerShown: false }} />
+        <Stack.Screen name="register-worker" options={{ headerShown: true, title: 'Join as Kaarigar', headerBackTitle: 'Back' }} />
+        <Stack.Screen name="edit-profile" options={{ headerShown: true, title: 'Edit Profile', headerBackTitle: 'Back' }} />
+        <Stack.Screen name="search" options={{ headerShown: true, title: 'Search Workers', headerBackTitle: 'Back' }} />
+        <Stack.Screen name="map" options={{ headerShown: true, title: 'Map', headerBackTitle: 'Back' }} />
       </Stack>
       {/* Rapido/Porter-style in-app push banner — slides down under the status
           bar when a new job request notification arrives. */}

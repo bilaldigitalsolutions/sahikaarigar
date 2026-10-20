@@ -60,7 +60,7 @@ export default function MapScreen() {
   };
 
   return (
-    <Screen padded={false} edges={['bottom']} header={<Header title="Map" />}>
+    <Screen padded={false} edges={['bottom']} header={<Header title="Map" showBack={false} />}>
       {canRenderMap && MapView && Camera ? (
         <View style={styles.mapWrap}>
           <MapView

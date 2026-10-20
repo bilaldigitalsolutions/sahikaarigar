@@ -165,7 +165,7 @@ export default function RegisterWorkerScreen() {
     <Screen
       padded={false}
       edges={['bottom']}
-      header={<Header center={<BrandLogo size={28} />} />}
+      header={<Header center={<BrandLogo size={28} />} showBack={false} />}
     >
       <KeyboardAvoidingView
         style={styles.flex}

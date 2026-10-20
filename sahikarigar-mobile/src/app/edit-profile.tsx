@@ -255,7 +255,7 @@ export default function EditProfileScreen() {
       style={styles.flexRoot}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <Screen edges={['bottom']} header={<Header title="Edit Profile" />}>
+      <Screen edges={['bottom']} header={<Header title="Edit Profile" showBack={false} />}>
         <Text style={styles.heading}>Update your details</Text>
         <Text style={styles.sub}>
           Number ke saath yeh sab details badal sakte hain. Number khud nahi badalta.

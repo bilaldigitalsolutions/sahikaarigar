@@ -98,7 +98,7 @@ export default function WorkerDetailScreen() {
   };
 
   return (
-    <Screen padded={false} edges={['bottom']} header={<Header title="Worker Profile" />}>
+    <Screen padded={false} edges={['bottom']} header={<Header title="Worker Profile" showBack={false} />}>
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator color={colors.primaryDark} />

@@ -410,7 +410,14 @@ function WorkerHomeScreen({
             </View>
           ) : (
             newRequests.map((hire) => (
-              <HireCard key={hire.id} hire={hire} perspective="worker" onPress={() => {}} />
+              <HireCard
+                key={hire.id}
+                hire={hire}
+                perspective="worker"
+                onPress={() =>
+                  router.push({ pathname: '/hire/detail/[id]', params: { id: hire.id } })
+                }
+              />
             ))
           )}
 
@@ -424,7 +431,14 @@ function WorkerHomeScreen({
               </View>
             ) : (
               (dashboard.active ?? []).map((hire: any) => (
-                <HireCard key={hire.id} hire={hire} perspective="worker" onPress={() => {}} />
+                <HireCard
+                  key={hire.id}
+                  hire={hire}
+                  perspective="worker"
+                  onPress={() =>
+                    router.push({ pathname: '/hire/detail/[id]', params: { id: hire.id } })
+                  }
+                />
               ))
             )
           ) : null}

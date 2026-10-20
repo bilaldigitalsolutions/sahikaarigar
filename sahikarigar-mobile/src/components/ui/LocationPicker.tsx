@@ -211,7 +211,11 @@ export function LocationPicker({
     if (place.lat == null && place.lng == null) {
       if (mapplsEnabled) {
         // Mappls autosuggest doesn't return coordinates — resolve them (best effort).
-        place = { ...place, ...(await mapplsGeocode(item.description)) };
+        try {
+          place = { ...place, ...(await mapplsGeocode(item.description)) };
+        } catch {
+          // Geocode failed — keep the autocomplete description, lat/lng stay null.
+        }
       } else if (googleEnabled && item.placeId) {
         try {
           const url =

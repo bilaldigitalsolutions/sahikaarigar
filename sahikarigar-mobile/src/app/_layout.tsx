@@ -1,10 +1,12 @@
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { useFonts } from 'expo-font';
+import { Ionicons } from '@expo/vector-icons';
 
 import { BrandLogo, TopNotificationBanner } from '@/components';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
@@ -49,6 +51,10 @@ function AppLoading() {
 function RootNavigator() {
   const { initializing, user } = useAuth();
 
+  // Vector icons (Ionicons) need the font loaded before any screen renders,
+  // otherwise tab bar icons and header back chevrons show as 'X' boxes.
+  const [fontsLoaded] = useFonts(Ionicons.font);
+
   // Tag crash reports + PostHog with the signed-in account (id + role only, never PII).
   useEffect(() => {
     try {
@@ -80,8 +86,9 @@ function RootNavigator() {
   // the session is restored (route exists only for signed-in workers).
   useHireRequestNotificationRoute(!initializing && Boolean(user));
 
-  // Keep the loading screen visible until the stored session is restored.
-  if (initializing) return <AppLoading />;
+  // Keep the loading screen visible until the stored session is restored
+  // AND the icon font has loaded (prevents 'X' boxes on tabs/headers).
+  if (initializing || !fontsLoaded) return <AppLoading />;
 
   return (
     <>

@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -52,25 +52,44 @@ export default function HireDetailScreen() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
+  // Fetch the booking — runs on mount AND every time the screen comes back into
+  // focus. This is how the customer picks up status changes made by the worker
+  // on another device (e.g. "Arrived" → reveals the Start Work OTP).
+  const fetchHire = useCallback(async () => {
     let active = true;
-    getHire(id)
-      .then((result) => {
-        if (active) {
-          setHire(result.hire);
-          setError(null);
-        }
-      })
-      .catch((e) => {
-        if (active) setError(e instanceof Error ? e.message : 'Could not load the booking.');
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
+    setLoading(true);
+    try {
+      const result = await getHire(id);
+      if (active) {
+        setHire(result.hire);
+        setError(null);
+      }
+    } catch (e) {
+      if (active) setError(e instanceof Error ? e.message : 'Could not load the booking.');
+    } finally {
+      if (active) setLoading(false);
+    }
     return () => {
       active = false;
     };
   }, [id]);
+
+  useEffect(() => {
+    const activeRef = { current: true };
+    fetchHire().then(() => {
+      activeRef.current = false;
+    });
+    return () => {
+      activeRef.current = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchHire();
+    }, [fetchHire]),
+  );
 
   const onHelp = () => Alert.alert('Madad chahiye?', `Support: ${SUPPORT_PHONE}`);
 
@@ -227,8 +246,10 @@ function BookingBody({
   useEffect(() => {
     if (isWorkerViewer || hire.status !== 'arrived') return;
     let active = true;
+    console.log('[HireDetail] fetching start OTP for hire', hire.id, 'status:', hire.status);
     getHireStartOtp(hire.id)
       .then(({ otp }) => {
+        console.log('[HireDetail] start OTP received:', otp);
         if (active) {
           setStartOtp(otp);
           setOtpError(null);

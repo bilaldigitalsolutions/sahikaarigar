@@ -314,12 +314,15 @@ export async function createHire(payload: {
     return result;
   } catch (e) {
     if (!(e instanceof NetworkError)) throw e;
-    // ONLY an explicit demo build may fall back to a simulated local hire.
-    // A real build must NEVER: a Render cold-start / timeout would otherwise
-    // silently create a phantom booking that no worker sees and no admin can
-    // track. Surface a clear network error instead so the user can retry.
-    if (DEMO_MODE) return { hire: createLocalHire(payload) };
-    throw new Error('Network se connect nahi ho paaya. Internet check karo aur dobara try karo.');
+    // Phantom-booking guard: only an explicit demo build
+    // (EXPO_PUBLIC_DEMO_MODE=1) may fall back to a simulated local hire.
+    // Production builds must NEVER create a fake booking that no worker sees
+    // and no admin can track — surface a clear network error instead so the
+    // user can retry once the server is awake.
+    if (process.env.EXPO_PUBLIC_DEMO_MODE === '1') {
+      return { hire: createLocalHire(payload) };
+    }
+    throw new Error('Server is waking up. Please try again in 10 seconds.');
   }
 }
 

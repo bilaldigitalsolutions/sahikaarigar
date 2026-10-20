@@ -250,6 +250,11 @@ function BookingBody({
     getHireStartOtp(hire.id)
       .then(({ otp }) => {
         console.log('[HireDetail] start OTP received:', otp);
+        // DEBUG: visible alert so we can confirm on real device what the API returns
+        Alert.alert(
+          'Debug — Start OTP',
+          `Status: ${hire.status}\nOTP received: ${otp ?? '(empty)'}`,
+        );
         if (active) {
           setStartOtp(otp);
           setOtpError(null);

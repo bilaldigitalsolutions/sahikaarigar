@@ -236,6 +236,7 @@ export function LocationPicker({
     }
 
     onSelect(place);
+    console.log('[LocationPicker] selected place:', JSON.stringify(place));
     close();
   };
 

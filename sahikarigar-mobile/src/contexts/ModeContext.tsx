@@ -32,7 +32,7 @@ import { getRole, setRole as persistRole } from '@/lib/storage';
 /** The active UI role — drives tabs + home content. */
 export type AppRole = 'worker' | 'employer';
 
-/** Legacy names kept so older components (ModeSwitch, Profile) keep working. */
+/** Legacy names kept so older components (Profile) keep working. */
 export type AppMode = 'customer' | 'worker';
 
 /** AsyncStorage key for the chosen role (as agreed: `user_role`). */
@@ -52,7 +52,7 @@ interface ModeContextValue {
   /** Persist the active role (AsyncStorage `user_role`). */
   setRole: (role: AppMode | AppRole) => void;
 
-  // ---- Legacy aliases (ModeSwitch / Profile switch still use these) ----
+  // ---- Legacy aliases (Profile's account settings still use these) ----
   /** `'worker'` maps to role 'worker', `'customer'` maps to 'employer'. */
   mode: AppMode;
   /** True when the account has a worker profile (worker mode is possible). */

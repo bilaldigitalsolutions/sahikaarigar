@@ -79,12 +79,13 @@ export default function WorkerDetailScreen() {
       : null;
 
   const onCall = () => {
-    const phone = workerUser?.phone;
-    if (!phone) {
-      Alert.alert('Number hidden', 'The number is revealed once the booking is accepted.');
-      return;
-    }
-    Linking.openURL(`tel:${phone}`).catch(() => {});
+    // Public profile par number kabhi nahi aata (server strips it — phone sirf
+    // GET /hires/:id se milta hai, booking accept hone ke baad). Sirf yahi
+    // prompt dikhao: number chahiye toh login karke hire karo.
+    Alert.alert(
+      'Number hire ke baad milega',
+      'Login karo aur kaarigar ko hire karo — number sirf booking accept hone ke baad dikhta hai.',
+    );
   };
 
   const openGoogleReviews = () => {

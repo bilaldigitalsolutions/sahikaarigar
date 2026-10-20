@@ -63,6 +63,40 @@ if (OTP_SECRET.length < 16) {
  *  API, not just in a disabled button, otherwise the payload still leaks them. */
 const PHONE_REVEALED_STATUSES = ['accepted', 'en_route', 'arrived', 'in_progress', 'completed'];
 
+// ------------------------------ start-OTP rate limit -------------------------
+/** Guesses allowed per (user, hire) per window — a 4-digit code must never be
+ *  brute-forceable. In-memory sliding window: it resets on restart, which only
+ *  ever loosens things for an attacker after a redeploy — acceptable here. */
+const START_OTP_MAX_ATTEMPTS = 5;
+const START_OTP_WINDOW_MS = 60_000;
+const startOtpAttempts = new Map();
+
+/** Error that carries its own HTTP status — the fallback error handler turns
+ *  it into the real status code (429) instead of the generic 400. */
+class StatusError extends Error {
+  constructor(message, status, code) {
+    super(message);
+    this.status = status;
+    this.code = code;
+  }
+}
+
+function assertStartOtpAllowed(hireId, userId) {
+  const key = `${hireId}:${userId}`;
+  const now = Date.now();
+  const recent = (startOtpAttempts.get(key) ?? []).filter((t) => now - t < START_OTP_WINDOW_MS);
+  if (recent.length >= START_OTP_MAX_ATTEMPTS) {
+    startOtpAttempts.set(key, recent); // keep the (pruned) window, do not extend it
+    throw new StatusError(
+      'Bahut zyada galat OTP attempts. Kripya 1 minute baad try karein.',
+      429,
+      'RATE_LIMITED',
+    );
+  }
+  recent.push(now);
+  startOtpAttempts.set(key, recent);
+}
+
 /**
  * Deterministic 4-digit "start work" code derived from the hire id + a server
  * secret. Stable across restarts and instances, needs no DB write — this is
@@ -364,6 +398,9 @@ export async function hireAction({ hireId, userId, action, lat, lng, otp }) {
       if (raw.status !== 'arrived') {
         throw new Error('Kaarigar pehle customer ke paas pahunche bina kaam shuru nahi kar sakte');
       }
+      // Brute-force guard — every guess on this (user, hire) counts, malformed
+      // ones included; the 6th try within a minute locks with a 429.
+      assertStartOtpAllowed(hireId, userId);
       const code = String(otp ?? '').trim();
       if (!/^\d{4}$/.test(code)) throw new Error('4 digit ka OTP daalo');
       const expected = (await storedStartOtp(hireId)) || hireStartOtp(hireId);

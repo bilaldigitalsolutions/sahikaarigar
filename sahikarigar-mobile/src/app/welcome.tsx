@@ -92,12 +92,6 @@ export default function WelcomeScreen() {
           for your home. Safe, reliable, and sustainable.
         </Text>
 
-        <Button
-          label="Kaarigar Registration"
-          onPress={goRegister}
-          style={styles.regBtn}
-        />
-
         {/* Search card: 2 fields (services dropdown + area) */}
         <Card style={styles.searchCard}>
           <Select
@@ -211,7 +205,6 @@ const styles = StyleSheet.create({
   h1: { fontSize: 30, lineHeight: 36, fontWeight: fontWeight.bold, color: colors.textPrimary },
   heroSub: { fontSize: fontSize.small, color: colors.textSecondary, marginTop: spacing.sm, lineHeight: 22 },
   searchCard: { marginTop: spacing.lg, gap: spacing.md },
-  regBtn: { marginTop: spacing.lg },
   trustRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginTop: spacing.lg },
   trustItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   trustText: { fontSize: fontSize.caption - 1, color: colors.textSecondary },

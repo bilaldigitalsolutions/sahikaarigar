@@ -889,6 +889,16 @@ app.use((error, req, res, _next) => {
     res.status(200).json({ status: 'GENERAL_ERROR', message });
     return;
   }
+  // Errors that carry their own HTTP status (e.g. the start-OTP rate limiter
+  // answers 429) keep the { ok, code, message } shape with the real status.
+  if (error && typeof error.status === 'number' && error.status >= 400 && error.status < 600) {
+    res.status(error.status).json({
+      ok: false,
+      code: typeof error.code === 'string' ? error.code : 'ERROR',
+      message,
+    });
+    return;
+  }
   res.status(400).json({ ok: false, code: 'BAD_REQUEST', message });
 });
 

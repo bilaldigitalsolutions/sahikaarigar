@@ -30,7 +30,10 @@ export default function RoleStep() {
       <View style={styles.head}>
         <BrandLogo size={44} showWordmark={false} />
         <Text style={styles.title}>Aap Kaun Hain?</Text>
-        <Text style={styles.sub}>Choose karke app aapke liye set ho jayega. Profile se baad me switch kar sakte hain.</Text>
+        <Text style={styles.sub}>
+          Choose karke app aapke liye set ho jayega. Aap baad me apna account settings se manage
+          kar sakte hain.
+        </Text>
       </View>
       <RoleCard icon="construct-outline" title="Main Kaarigar Hoon" desc="Job requests receive karo, availability manage karo, kaam badhao." active={roleChosen && role === 'worker'} onPress={() => { void done('worker'); }} />
       <RoleCard icon="home-outline" title="Mujhe Kaarigar Hire Karna Hai" desc="Verified kaarigar dhundho, hire karo, kaam karwao." active={roleChosen && role === 'employer'} onPress={() => { void done('employer'); }} />

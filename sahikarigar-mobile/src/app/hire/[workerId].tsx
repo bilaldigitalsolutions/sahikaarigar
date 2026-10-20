@@ -1,11 +1,11 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Keyboard, KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
+import { Alert, Keyboard, KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
 
 import { Button, Input, LocationPicker, RateInput, Screen, type PlaceResult } from '@/components';
 import { VALIDATION } from '@/constants';
 import { useAuth } from '@/contexts/AuthContext';
-import { createHire } from '@/lib/api';
+import { createHire, getWorker } from '@/lib/api';
 import { colors, fontSize, fontWeight, spacing } from '@/theme';
 
 /** Phone numbers (India) are 10 digits; a rate field is max 5 digits. */
@@ -54,6 +54,25 @@ export default function CreateHireScreen() {
     setBusy(true);
     setError(null);
     try {
+      // Client-side pre-check: make sure the worker is still available before
+      // submitting the form. Catches the race condition where the worker
+      // became busy between search results and form submission.
+      try {
+        const { worker } = await getWorker(workerId);
+        if (worker.availability !== 'available') {
+          Alert.alert(
+            'Kaarigar available nahi hai',
+            'Ye kaarigar abhi available nahi hai. Kripya kisi aur kaarigar ko try karein.',
+            [{ text: 'OK', style: 'cancel' }],
+          );
+          setBusy(false);
+          return;
+        }
+      } catch {
+        // If we can't fetch the worker, still try submitting — the server
+        // will give the final answer.
+      }
+
       const { hire } = await createHire({
         workerId,
         description: description.trim(),
@@ -63,6 +82,8 @@ export default function CreateHireScreen() {
       });
       router.replace({ pathname: '/hire/detail/[id]', params: { id: hire.id } });
     } catch (e) {
+      // Form data (description, location, rate) is intentionally NOT cleared
+      // so the user can fix and resubmit, or tap "View similar workers".
       setError(e instanceof Error ? e.message : 'Could not send the request.');
     } finally {
       setBusy(false);

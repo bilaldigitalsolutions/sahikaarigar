@@ -12,6 +12,7 @@ export default function LoginScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ skill?: string; area?: string; next?: string }>();
   const { signIn, busy } = useAuth();
+  const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -36,7 +37,7 @@ export default function LoginScreen() {
     }
     setError(null);
     try {
-      await signIn(normalized);
+      await signIn(normalized, name.trim());
       router.push({ pathname: '/(auth)/verify', params: searchParams });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong. Please try again.');
@@ -71,6 +72,20 @@ export default function LoginScreen() {
 
         <View style={styles.form}>
           <Input
+            label="Your name"
+            placeholder="e.g. Bilal"
+            value={name}
+            onChangeText={(text) => {
+              setName(text);
+              if (error) setError(null);
+            }}
+            maxLength={50}
+            autoCapitalize="words"
+            autoComplete="name"
+            textContentType="name"
+            returnKeyType="next"
+          />
+          <Input
             label="Mobile Number"
             placeholder="9876543210"
             keyboardType="number-pad"
@@ -86,6 +101,7 @@ export default function LoginScreen() {
             spellCheck={false}
             textContentType="none"
             importantForAutofill="no"
+            containerStyle={styles.mt}
           />
           <Button
             label="Send OTP"
@@ -93,6 +109,7 @@ export default function LoginScreen() {
             loading={busy}
             size="lg"
             disabled={!phoneReady}
+            style={styles.mt}
           />
         </View>
 
@@ -116,6 +133,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   form: { marginTop: spacing.lg },
+  mt: { marginTop: spacing.md },
   terms: {
     marginTop: 'auto',
     textAlign: 'center',

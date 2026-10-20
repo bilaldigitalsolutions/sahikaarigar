@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 
-import { fetchMe } from '@/lib/api';
+import { fetchMe, updateProfile } from '@/lib/api';
 import {
   hasSession,
   initAuth,
@@ -36,7 +36,7 @@ interface AuthContextValue {
   pendingPhone: string | null;
   /** Dev-only: the OTP echoed by the server when SMS_PROVIDER=console. */
   devOtp: string | null;
-  signIn: (phone: string) => Promise<void>;
+  signIn: (phone: string, name?: string) => Promise<void>;
   /** Verifies the OTP and resolves the fresh backend user (for smart routing). */
   confirmOtp: (code: string) => Promise<User>;
   resend: () => Promise<void>;
@@ -55,6 +55,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [pendingPhone, setPendingPhone] = useState<string | null>(null);
   const [devOtp, setDevOtp] = useState<string | null>(null);
   const challengeRef = useRef<OtpChallenge | null>(null);
+  /** The name typed on the login screen — saved right after the OTP is
+   *  verified, because the backend creates a nameless ("User") row on the
+   *  first sign-in and the app never asked for a name before. */
+  const nameRef = useRef<string | null>(null);
 
   // Restore an existing session on launch.
   useEffect(() => {
@@ -93,11 +97,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void registerForPushNotifications();
   }, [user, isDemo]);
 
-  const signIn = useCallback(async (phone: string) => {
+  const signIn = useCallback(async (phone: string, name?: string) => {
     setBusy(true);
     try {
       const challenge = await requestOtp(phone);
       challengeRef.current = challenge;
+      // Remember the name so confirmOtp() can save it once the session exists.
+      nameRef.current = name?.trim() || null;
       setPendingPhone(phone);
       setDevOtp(challenge.userInputCode ?? null);
     } finally {
@@ -115,11 +121,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         deviceId: challenge.deviceId,
         code,
       });
-      const me = await fetchMe();
+      let me = await fetchMe();
+      // First-time users are created server-side with the placeholder name
+      // "User" — the app never asked for a name before, so the profile showed
+      // "User" everywhere. Save the name captured on the login screen (only
+      // when the account still has no real one).
+      const capturedName = nameRef.current;
+      if (capturedName && (!me.name || me.name === 'User')) {
+        try {
+          me = await updateProfile({ name: capturedName });
+        } catch {
+          // Non-fatal — the Profile screen prompts for the name as well.
+        }
+      }
       setUser(me);
       setPendingPhone(null);
       setDevOtp(null);
       challengeRef.current = null;
+      nameRef.current = null;
       // The caller (verify.tsx) routes on `me.role`: 'worker' means the
       // backend promoted the account — i.e. the worker_profiles row exists.
       return me;

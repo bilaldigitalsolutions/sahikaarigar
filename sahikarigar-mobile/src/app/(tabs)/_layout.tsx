@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Redirect, Tabs } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/contexts/AuthContext';
 import { useMode } from '@/contexts/ModeContext';
@@ -10,6 +11,10 @@ import { colors } from '@/theme';
 export default function TabsLayout() {
   const { user } = useAuth();
   const { role, ready } = useMode();
+  // Bottom safe-area inset (Android gesture bar / 3-button nav, iOS home
+  // indicator). Without it the tab bar sits UNDER the system bar and the
+  // icons + labels get clipped in half.
+  const insets = useSafeAreaInsets();
   // Badge count on the "My Hires" tab — how many bookings need the employer's
   // attention right now (the kaarigar has arrived and the OTP is waiting).
   const [actionCount, setActionCount] = useState(0);
@@ -65,9 +70,11 @@ export default function TabsLayout() {
         tabBarStyle: {
           backgroundColor: colors.card,
           borderTopColor: colors.border,
-          height: 62,
+          // The bar grows by the bottom inset so the labels sit ABOVE the
+          // system navigation bar instead of behind it.
+          height: 62 + insets.bottom,
           paddingTop: 6,
-          paddingBottom: 8,
+          paddingBottom: 8 + insets.bottom,
         },
         tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
       }}

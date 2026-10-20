@@ -64,6 +64,12 @@ export default function ProfileScreen() {
     router.replace('/(auth)/login');
   };
 
+  // The backend creates a nameless account with the placeholder "User" on the
+  // first sign-in (the app never asked for a name before). Detect that and
+  // prompt the user to complete the profile instead of showing "User".
+  const needsName = !user.name || user.name.trim().length < 2 || user.name === 'User';
+  const displayName = needsName ? '' : user.name;
+
   /** Two-step in-app delete (Play policy). Server wipes the rows; the local
    *  session is cleared no matter what the network said. */
   const onDeleteAccount = () => {
@@ -94,11 +100,36 @@ export default function ProfileScreen() {
     <Screen scroll>
       <Text style={styles.heading}>Profile</Text>
 
+      {needsName ? (
+        <Card style={styles.card}>
+          <Text style={styles.ctaTitle}>Profile complete karo</Text>
+          <Text style={styles.ctaText}>
+            Aapka naam missing hai — kaarigar aur employer dono ko aapka naam dikhna chahiye.
+          </Text>
+          <Button
+            label="Add your name"
+            onPress={() => router.push('/edit-profile')}
+            style={styles.ctaBtn}
+          />
+        </Card>
+      ) : null}
+
       <Card style={styles.card}>
         <View style={styles.row}>
-          <Avatar uri={user.avatar} name={user.name} size={64} />
+          <Avatar uri={user.avatar} name={displayName} size={64} />
           <View style={styles.info}>
-            <Text style={styles.name}>{user.name}</Text>
+            {needsName ? (
+              <Pressable
+                style={styles.namePrompt}
+                onPress={() => router.push('/edit-profile')}
+                accessibilityRole="button"
+              >
+                <Text style={styles.namePromptText}>Apna naam add karo</Text>
+                <Text style={styles.namePromptSub}>Tap to complete your profile ›</Text>
+              </Pressable>
+            ) : (
+              <Text style={styles.name}>{user.name}</Text>
+            )}
             <Text style={styles.phone}>{formatPhone(user.phone)}</Text>
             <Badge label={ROLE_LABEL[user.role] ?? user.role} tone="primary" style={styles.badge} />
           </View>
@@ -337,6 +368,18 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center' },
   info: { marginLeft: spacing.lg, flex: 1 },
   name: { fontSize: fontSize.title, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+  // "Apna naam add karo" — the tappable stand-in for a missing name.
+  namePrompt: { alignSelf: 'flex-start' },
+  namePromptText: {
+    fontSize: fontSize.title,
+    fontWeight: fontWeight.semibold,
+    color: colors.primaryDark,
+  },
+  namePromptSub: {
+    fontSize: fontSize.caption,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
   phone: { fontSize: fontSize.small, color: colors.textSecondary, marginTop: 2 },
   badge: { marginTop: spacing.sm },
   infoRow: {

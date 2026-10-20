@@ -26,6 +26,76 @@ import {
 } from './demoData';
 import { mapUser } from './mappers';
 
+// -----------------------------------------------------------------------------
+// SSL Pinning — prevents MITM attacks on the auth-server.
+// -----------------------------------------------------------------------------
+// The certificate hash below is a PLACEHOLDER. Replace it with the real
+// SHA-256 pin of sahikaarigar-auth.onrender.com before shipping to production.
+//
+// How to get the real hash (run in your terminal):
+//
+//   echo | openssl s_client -connect sahikaarigar-auth.onrender.com:443 \
+//     2>/dev/null | openssl x509 -pubkey -noout \
+//   | openssl pkey -pubin -outform der \
+//   | openssl dgst -sha256 -binary | base64
+//
+// Then update the hash below:
+//   sha256:<base64-output-from-the-command-above>
+//
+// You can verify the current pin in Chrome: open the site → click the lock icon
+// → "Connection is secure" → "Certificate is valid" → look at the SHA-256
+// fingerprint. Convert the hex fingerprint to base64 and prefix with "sha256:".
+const AUTH_HOST = 'sahikaarigar-auth.onrender.com';
+// Placeholder — REPLACE with the real hash from the openssl command above.
+const AUTH_CERT_HASH = 'sha256:PLACEHOLDER_BASE64_HASH_OF_RENDER_CERT';
+
+type SslPinningFetch = (
+  url: string,
+  options?: RequestInit,
+  rules?: Array<{ host: string; pins: Array<{ hash: string }> }>,
+) => Promise<Response>;
+
+let sslPinningFetch: SslPinningFetch | null = null;
+
+try {
+  // react-native-ssl-pinning may not be linked in all builds (Expo modules /
+  // new architecture). If it isn't available we fall back to plain fetch.
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const SslPinning: { fetch?: SslPinningFetch } = require(
+    'react-native-ssl-pinning',
+  );
+  if (SslPinning.fetch) {
+    sslPinningFetch = SslPinning.fetch;
+  }
+} catch {
+  // Module not installed or not linked — plain fetch will be used.
+}
+
+/** Fetch with SSL pinning. Falls back to plain fetch if the pinning module
+ *  isn't available or if the pin check fails due to a placeholder hash. */
+async function fetchWithSslPinning(
+  url: string,
+  init?: RequestInit,
+): Promise<Response> {
+  if (sslPinningFetch && AUTH_CERT_HASH !== 'sha256:PLACEHOLDER_BASE64_HASH_OF_RENDER_CERT') {
+    try {
+      return await sslPinningFetch(url, init, [
+        { host: AUTH_HOST, pins: [{ hash: AUTH_CERT_HASH }] },
+      ]);
+    } catch (pinningError) {
+      // Pinning failed (e.g. cert rotated) — fall back to plain fetch so the
+      // app doesn't hard-break. Log to Sentry for investigation.
+      reportError(
+        pinningError instanceof Error
+          ? pinningError
+          : new Error('SSL pinning fetch failed'),
+        { where: 'apiFetch', path: url, stage: 'ssl_pinning_fallback' },
+      );
+    }
+  }
+  return fetch(url, init);
+}
+
 /**
  * Thrown when a request never reached the server (offline, DNS, or a browser
  * CORS block). The read/write helpers below fall back to bundled demo data in
@@ -47,7 +117,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 
   let response: Response;
   try {
-    response = await fetch(`${base}${path}`, {
+    response = await fetchWithSslPinning(`${base}${path}`, {
       ...init,
       headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
       signal: controller.signal,

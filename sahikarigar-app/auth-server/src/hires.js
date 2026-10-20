@@ -65,11 +65,10 @@ const PHONE_REVEALED_STATUSES = ['accepted', 'en_route', 'arrived', 'in_progress
 
 // ------------------------------ start-OTP rate limit -------------------------
 /** Guesses allowed per (user, hire) per window — a 4-digit code must never be
- *  brute-forceable. In-memory sliding window: it resets on restart, which only
- *  ever loosens things for an attacker after a redeploy — acceptable here. */
+ *  brute-forceable. Persisted in Supabase `rate_limits` table so the limit
+ *  survives Render redeploys (unlike an in-memory Map). */
 const START_OTP_MAX_ATTEMPTS = 5;
 const START_OTP_WINDOW_MS = 60_000;
-const startOtpAttempts = new Map();
 
 /** Error that carries its own HTTP status — the fallback error handler turns
  *  it into the real status code (429) instead of the generic 400. */
@@ -81,20 +80,37 @@ class StatusError extends Error {
   }
 }
 
-function assertStartOtpAllowed(hireId, userId) {
-  const key = `${hireId}:${userId}`;
-  const now = Date.now();
-  const recent = (startOtpAttempts.get(key) ?? []).filter((t) => now - t < START_OTP_WINDOW_MS);
+/** Persist one failed attempt for the given (hireId, userId) key. */
+async function recordRateLimitAttempt(key) {
+  const { error } = await db.from('rate_limits').insert({ key });
+  if (error) throw new Error(error.message);
+}
+
+/** Count attempts for the given key within the sliding window. */
+async function getRecentRateLimitAttempts(key, windowMs) {
+  const cutoff = new Date(Date.now() - windowMs).toISOString();
+  const { data, error } = await db
+    .from('rate_limits')
+    .select('id')
+    .eq('key', key)
+    .gte('created_at', cutoff);
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+/** Throws StatusError(429) if the user has exceeded the start-OTP attempt
+ *  limit for this hire. Otherwise records the attempt and returns. */
+async function assertStartOtpAllowed(hireId, userId) {
+  const key = `start_otp:${hireId}:${userId}`;
+  const recent = await getRecentRateLimitAttempts(key, START_OTP_WINDOW_MS);
   if (recent.length >= START_OTP_MAX_ATTEMPTS) {
-    startOtpAttempts.set(key, recent); // keep the (pruned) window, do not extend it
     throw new StatusError(
       'Bahut zyada galat OTP attempts. Kripya 1 minute baad try karein.',
       429,
       'RATE_LIMITED',
     );
   }
-  recent.push(now);
-  startOtpAttempts.set(key, recent);
+  await recordRateLimitAttempt(key);
 }
 
 /**
@@ -405,7 +421,7 @@ export async function hireAction({ hireId, userId, action, lat, lng, otp }) {
       }
       // Brute-force guard — every guess on this (user, hire) counts, malformed
       // ones included; the 6th try within a minute locks with a 429.
-      assertStartOtpAllowed(hireId, userId);
+      await assertStartOtpAllowed(hireId, userId);
       const code = String(otp ?? '').trim();
       if (!/^\d{4}$/.test(code)) throw new Error('4 digit ka OTP daalo');
       const expected = (await storedStartOtp(hireId)) || hireStartOtp(hireId);

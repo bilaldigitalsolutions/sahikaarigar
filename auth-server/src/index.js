@@ -187,6 +187,47 @@ app.use(
     credentials: true,
   }),
 );
+
+// ---------------------------------------------------------------------------
+// Rate limiting for login OTP — prevents SMS bombing
+// Max 3 requests per minute per IP+phone combination.
+// In-memory map is fine here: SMS bombing is a real-time attack, and a
+// redeploy resetting the counter is acceptable. (Start-work OTP rate limiting
+// uses the persistent `rate_limits` table in hires.js.)
+// ---------------------------------------------------------------------------
+const LOGIN_OTP_MAX_ATTEMPTS = 3;
+const LOGIN_OTP_WINDOW_MS = 60_000;
+const loginOtpAttempts = new Map();
+
+app.use(
+  '/auth/signinup/code',
+  express.json({ limit: '15mb' }),
+  async (_req, res, next) => {
+    // Only POST requests create OTPs; GET/other methods pass through.
+    if (_req.method !== 'POST') return next();
+
+    const phone = _req.body?.phoneNumber || '';
+    const ip = _req.ip || _req.socket.remoteAddress || 'unknown';
+    const key = `login_otp:${ip}:${phone}`;
+    const now = Date.now();
+
+    let attempts = loginOtpAttempts.get(key) ?? [];
+    attempts = attempts.filter((t) => now - t < LOGIN_OTP_WINDOW_MS);
+
+    if (attempts.length >= LOGIN_OTP_MAX_ATTEMPTS) {
+      return res.status(429).json({
+        status: 'GENERAL_ERROR',
+        message:
+          'Bahut zyada OTP requests. Kripya 1 minute baad try karein.',
+      });
+    }
+
+    attempts.push(now);
+    loginOtpAttempts.set(key, attempts);
+    next();
+  },
+);
+
 app.use(middleware());
 app.use(express.json({ limit: '15mb' }));
 

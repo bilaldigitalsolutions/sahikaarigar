@@ -2,7 +2,7 @@ name: Android APK Build (Free)
 
 # =============================================================================
 # EAS free plan khatam hone ki wajah se CI par APK banate hain:
-#   checkout → node → npm ci → expo prebuild → signing inject → gradle → upload
+#   checkout → node → npm install → expo prebuild → signing inject → gradle → upload
 # Secrets (repo Settings → Secrets and variables → Actions):
 #   KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD
 # =============================================================================
@@ -70,7 +70,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: ${{ env.APP_DIR }}
-        run: npm ci
+        run: npm install
 
       # android/ folder gitignored hai — CI par yahin se generate hota hai.
       - name: Expo prebuild (generate android project)

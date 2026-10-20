@@ -44,16 +44,16 @@ function hireReadError(error) {
   return new Error(error.message);
 }
 
-// NO fallback secret: a default baked into source would let anyone with repo
-// access derive the start-OTP for ANY hire id (HMAC with a known key). The
-// server refuses to boot without a real secret — set it on Render
-// (Environment → OTP_SECRET) or in the local .env before starting.
+// OTP secret used to derive start-work codes. No hardcoded fallback: a default
+// baked into source would let anyone with repo access derive the start-OTP for
+// ANY hire id (HMAC with a known key). If missing or too short, the server
+// keeps booting (so other endpoints keep working) but the start-OTP endpoint
+// returns a 500 until OTP_SECRET is set properly on Render.
 const OTP_SECRET = process.env.OTP_SECRET || '';
 if (OTP_SECRET.length < 16) {
-  throw new Error(
-    'OTP_SECRET is missing (or shorter than 16 chars). ' +
-      'Generate a long random secret (32+ chars) and set it in the server environment ' +
-      '(Render → Environment → OTP_SECRET) before starting. Example: ' +
+  console.warn(
+    'OTP_SECRET is missing (or shorter than 16 chars). Start-work OTP endpoint ' +
+      'will return 500 until a valid secret is set. Generate one: ' +
       'node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"',
   );
 }
@@ -104,6 +104,11 @@ function assertStartOtpAllowed(hireId, userId) {
  * before the OTP migration ran, or by code paths that never stored one).
  */
 export function hireStartOtp(hireId) {
+  if (OTP_SECRET.length < 16) {
+    throw new Error(
+      'OTP_SECRET is not configured on the server. Start-work OTP cannot be generated.',
+    );
+  }
   const digest = crypto
     .createHmac('sha256', OTP_SECRET)
     .update(`start-otp:${hireId}`)

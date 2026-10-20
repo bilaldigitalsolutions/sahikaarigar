@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -241,32 +241,50 @@ function BookingBody({
   const [otpEntryVisible, setOtpEntryVisible] = useState(false);
   const [otpEntryError, setOtpEntryError] = useState<string | null>(null);
 
-  // The employer's tracking screen must clearly show the OTP once the
-  // worker is 'arrived' — fetch it from the employer-only endpoint.
-  useEffect(() => {
+  const otpPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Fetch the start-work OTP once. Used both on first render and by the poller.
+  const fetchStartOtp = useCallback(async () => {
     if (isWorkerViewer || hire.status !== 'arrived') return;
     let active = true;
     console.log('[HireDetail] fetching start OTP for hire', hire.id, 'status:', hire.status);
-    getHireStartOtp(hire.id)
-      .then(({ otp }) => {
-        console.log('[HireDetail] start OTP received:', otp);
-        // DEBUG: visible alert so we can confirm on real device what the API returns
-        Alert.alert(
-          'Debug — Start OTP',
-          `Status: ${hire.status}\nOTP received: ${otp ?? '(empty)'}`,
-        );
-        if (active) {
-          setStartOtp(otp);
-          setOtpError(null);
-        }
-      })
-      .catch((e) => {
-        if (active) setOtpError(e instanceof Error ? e.message : 'OTP load nahi hua');
-      });
+    try {
+      const { otp } = await getHireStartOtp(hire.id);
+      console.log('[HireDetail] start OTP received:', otp);
+      if (active) {
+        setStartOtp(otp);
+        setOtpError(null);
+      }
+    } catch (e) {
+      if (active) setOtpError(e instanceof Error ? e.message : 'OTP load nahi hua');
+    }
     return () => {
       active = false;
     };
   }, [hire.id, hire.status, isWorkerViewer]);
+
+  // Poll every 5 seconds while the worker is 'arrived' and we still don't
+  // have the OTP. This guarantees the employer's screen never stays stuck on
+  // `----` if the first fetch races with the worker's status update.
+  useEffect(() => {
+    fetchStartOtp();
+
+    if (hire.status === 'arrived' && !startOtp && !otpError) {
+      otpPollRef.current = setInterval(fetchStartOtp, 5000);
+    } else {
+      if (otpPollRef.current) {
+        clearInterval(otpPollRef.current);
+        otpPollRef.current = null;
+      }
+    }
+
+    return () => {
+      if (otpPollRef.current) {
+        clearInterval(otpPollRef.current);
+        otpPollRef.current = null;
+      }
+    };
+  }, [hire.status, startOtp, otpError, fetchStartOtp]);
 
   /** Worker: verify the OTP shared by the customer and start the job.
    *  Errors surface inline — `onAction` rethrows when an `otp` is passed. */

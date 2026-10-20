@@ -267,10 +267,16 @@ function BookingBody({
   // Poll every 5 seconds while the worker is 'arrived' and we still don't
   // have the OTP. This guarantees the employer's screen never stays stuck on
   // `----` if the first fetch races with the worker's status update.
+  //
+  // NOTE: the poll deliberately keeps running after a FAILED attempt. A
+  // transient error (Render cold start, dropped connection) used to set
+  // `otpError`, which stopped the interval permanently — the employer then
+  // never got the code until they left and re-entered the screen. The error
+  // text still shows meanwhile, and a successful retry clears it.
   useEffect(() => {
     fetchStartOtp();
 
-    if (hire.status === 'arrived' && !startOtp && !otpError) {
+    if (hire.status === 'arrived' && !startOtp) {
       otpPollRef.current = setInterval(fetchStartOtp, 5000);
     } else {
       if (otpPollRef.current) {
@@ -285,7 +291,7 @@ function BookingBody({
         otpPollRef.current = null;
       }
     };
-  }, [hire.status, startOtp, otpError, fetchStartOtp]);
+  }, [hire.status, startOtp, fetchStartOtp]);
 
   /** Worker: verify the OTP shared by the customer and start the job.
    *  Errors surface inline — `onAction` rethrows when an `otp` is passed. */

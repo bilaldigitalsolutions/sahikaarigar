@@ -27,6 +27,8 @@ export function mapReview(row) {
     workerId: row.worker_id,
     rating: row.rating,
     comment: row.comment ?? null,
+    tip: row.tip ?? 0,
+    likes: row.likes ?? [],
     createdAt: row.created_at,
     reviewer: mapUser(row.reviewer),
   };
@@ -40,10 +42,18 @@ function readRating(value) {
   return rating;
 }
 
-/** The user reviews the worker after the job is completed. */
-export async function createReview({ reviewerId, hireRequestId, rating, comment }) {
+/** The user reviews the worker after the job is completed.
+ *  `tip` (rupees, record-only — payment happens offline) and `likes`
+ *  (FEEDBACK_LIKES labels) are saved with the review — columns added by
+ *  0012_review_feedback_extras.sql. */
+export async function createReview({ reviewerId, hireRequestId, rating, comment, tip, likes }) {
   const value = readRating(rating);
   const text = typeof comment === 'string' ? comment.trim().slice(0, 500) : '';
+  const tipAmount = Math.max(0, Math.round(Number.isFinite(Number(tip)) ? Number(tip) : 0));
+  const likeList = (Array.isArray(likes) ? likes : [])
+    .filter((label) => typeof label === 'string' && label.trim().length > 0)
+    .map((label) => label.trim().slice(0, 120))
+    .slice(0, 12);
 
   const { data: hire, error: hireError } = await db
     .from('hire_requests')
@@ -81,11 +91,21 @@ export async function createReview({ reviewerId, hireRequestId, rating, comment 
       worker_id: hire.worker_id,
       rating: value,
       comment: text || null,
+      tip: tipAmount,
+      likes: likeList.length ? likeList : null,
     })
     .select('*, reviewer:users(id, name, avatar)')
     .single();
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    // The tip/likes columns are new — 0012_review_feedback_extras.sql not applied yet.
+    if (error.code === 'PGRST204' || /'(tip|likes)' column/i.test(error.message)) {
+      throw new Error(
+        'Tip/likes save nahi ho paaye — Supabase me 0012_review_feedback_extras.sql migration chalao',
+      );
+    }
+    throw new Error(error.message);
+  }
   return mapReview(data);
 }
 

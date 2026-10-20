@@ -33,7 +33,24 @@ const TRACKABLE = ['accepted', 'en_route', 'arrived', 'in_progress'];
  *  in the admin panel. Record-only: the admin decides any actual penalty. */
 const WORKER_CANCEL_FLAG_LIMIT = 3;
 
-const OTP_SECRET = process.env.OTP_SECRET || 'sahikaarigar-start-otp-secret';
+// NO fallback secret: a default baked into source would let anyone with repo
+// access derive the start-OTP for ANY hire id (HMAC with a known key). The
+// server refuses to boot without a real secret — set it on Render
+// (Environment → OTP_SECRET) or in the local .env before starting.
+const OTP_SECRET = process.env.OTP_SECRET || '';
+if (OTP_SECRET.length < 16) {
+  throw new Error(
+    'OTP_SECRET is missing (or shorter than 16 chars). ' +
+      'Generate a long random secret (32+ chars) and set it in the server environment ' +
+      '(Render → Environment → OTP_SECRET) before starting. Example: ' +
+      'node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"',
+  );
+}
+
+/** Statuses from which BOTH sides may see each other's phone number. Before
+ *  'accepted' the numbers are stripped server-side — masking must live in the
+ *  API, not just in a disabled button, otherwise the payload still leaks them. */
+const PHONE_REVEALED_STATUSES = ['accepted', 'en_route', 'arrived', 'in_progress', 'completed'];
 
 /**
  * Deterministic 4-digit "start work" code derived from the hire id + a server
@@ -78,8 +95,16 @@ function mapUser(row) {
   };
 }
 
+/** mapUser + phone stripping until the booking is accepted (see above). */
+function mapHireUser(row, revealPhone) {
+  const user = mapUser(row);
+  if (user && !revealPhone) user.phone = null;
+  return user;
+}
+
 export function mapHire(row) {
   if (!row) return null;
+  const revealPhone = PHONE_REVEALED_STATUSES.includes(row.status);
   const worker = row.worker
     ? {
         id: row.worker.id,
@@ -89,7 +114,7 @@ export function mapHire(row) {
         ratingAverage: Number(row.worker.rating_average ?? 0),
         ratingCount: row.worker.rating_count ?? 0,
         availability: row.worker.availability ?? 'available',
-        user: mapUser(row.worker.user),
+        user: mapHireUser(row.worker.user, revealPhone),
       }
     : null;
 
@@ -108,10 +133,10 @@ export function mapHire(row) {
     startedAt: row.started_at ?? null,
     workerLat: row.worker_lat ?? null,
     workerLng: row.worker_lng ?? null,
-    phoneRevealed: row.phone_revealed ?? false,
+    phoneRevealed: revealPhone,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-    employer: mapUser(row.employer),
+    employer: mapHireUser(row.employer, revealPhone),
     worker,
   };
 }

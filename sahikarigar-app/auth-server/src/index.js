@@ -30,7 +30,7 @@ import {
   normalizeIndianPhone,
   isValidIndianPhone,
 } from './users.js';
-import { searchWorkers, getWorkerById } from './workers.js';
+import { searchWorkers, getWorkerById, getWorkerProfileIdForUser } from './workers.js';
 import {
   getOwnWorkerProfile,
   getWorkerDashboard,
@@ -372,10 +372,22 @@ app.post('/hires', async (req, res, next) => {
 
 app.get('/hires/:id', async (req, res, next) => {
   try {
-    await Session.getSession(req, res, { sessionRequired: true });
+    const session = await Session.getSession(req, res, { sessionRequired: true });
+    const { authUserId, phone } = await resolveSession(session);
+    const user = await getOrCreateUserByAuthId(authUserId, phone);
     const hire = await getHireById(req.params.id);
     if (!hire) {
       res.status(404).json({ ok: false, code: 'NOT_FOUND', message: 'Hire request nahi mila' });
+      return;
+    }
+    // IDOR guard — a booking carries both parties' phone numbers and home
+    // location, so ONLY its two sides may read it. Any other signed-in user
+    // (or a leaked/guessed id) gets a 403 instead of the payload.
+    const workerProfileId = await getWorkerProfileIdForUser(user.id);
+    const isEmployer = hire.employerId === user.id;
+    const isWorker = Boolean(workerProfileId) && hire.workerId === workerProfileId;
+    if (!isEmployer && !isWorker) {
+      res.status(403).json({ ok: false, code: 'FORBIDDEN', message: 'Ye booking aapki nahi hai' });
       return;
     }
     const review = await getReviewByHireRequest(req.params.id);
@@ -527,6 +539,8 @@ app.post('/reviews', async (req, res, next) => {
       hireRequestId: req.body?.hireRequestId,
       rating: req.body?.rating,
       comment: req.body?.comment,
+      tip: req.body?.tip,
+      likes: req.body?.likes,
     });
     res.json({ ok: true, review });
   } catch (error) {

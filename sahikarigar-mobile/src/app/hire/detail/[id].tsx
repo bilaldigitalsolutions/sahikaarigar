@@ -486,12 +486,10 @@ function BookingBody({
             {isWorkerViewer ? (
               // Kaarigar's own actions — mirrors what the auth-server allows:
               // accept / reject (pending) → on the way → arrived → start (OTP) →
-              // the CUSTOMER completes the job.
-              completed ? (
-            <Pressable style={styles.primaryAction} onPress={onFeedback}>
-              <Text style={styles.primaryActionText}>Give Feedback</Text>
-            </Pressable>
-          ) : hire.status === 'pending' ? (
+              // the CUSTOMER completes the job. Sirf customer review deta hai
+              // (server rejects anyone else), so the kaarigar gets NO feedback
+              // button here — after completion only Help remains.
+              completed ? null : hire.status === 'pending' ? (
             <>
               <Pressable
                 style={[styles.outlineAction, busy && styles.disabled]}

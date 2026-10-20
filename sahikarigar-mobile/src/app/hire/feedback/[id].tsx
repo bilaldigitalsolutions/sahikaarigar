@@ -15,6 +15,7 @@ import {
 
 import { Avatar, Button, Checkbox, Header, Screen, StarInput } from '@/components';
 import { FEEDBACK_LIKES, skillLabel } from '@/constants';
+import { useAuth } from '@/contexts/AuthContext';
 import { createReview, getHire, sendPlatformFeedback, type ApiHire } from '@/lib/api';
 import { colors, fontSize, fontWeight, radius, spacing } from '@/theme';
 
@@ -28,6 +29,7 @@ function fmtCompleted(iso?: string | null): string {
 
 export default function FeedbackScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const params = useLocalSearchParams<{ id: string }>();
   const id = String(params.id);
 
@@ -109,6 +111,18 @@ export default function FeedbackScreen() {
   const workerUser = hire?.worker?.user ?? null;
   const workerName = workerUser?.name ?? 'Kaarigar';
   const primarySkill = hire?.worker?.skills?.[0];
+  // Sirf CUSTOMER ka review chalta hai (server bhi reject karta hai) — agar
+  // kaarigar yahan pahunch bhi gaya (purani notification deep-link), to submit
+  // disable rehna chahiye, warna hamesha error aayega.
+  const isWorkerViewer = hire?.worker?.userId != null && hire.worker.userId === user?.id;
+
+  // Live tip amount — the field takes a number (or a short note); show the
+  // rupees value as it is typed instead of a stale hardcoded ₹0.
+  const tipTrimmed = tip.trim();
+  const tipDisplay =
+    tipTrimmed && Number.isFinite(Number(tipTrimmed)) && Number(tipTrimmed) > 0
+      ? `₹${Number(tipTrimmed)}`
+      : '₹0';
 
   return (
     <Screen
@@ -172,7 +186,7 @@ export default function FeedbackScreen() {
                   onChangeText={setTip}
                   keyboardType="default"
                 />
-                <Text style={styles.tipCurrency}>₹0</Text>
+                <Text style={styles.tipCurrency}>{tipDisplay}</Text>
               </View>
             </View>
 
@@ -207,9 +221,16 @@ export default function FeedbackScreen() {
 
           <View style={styles.footer}>
             <Button
-              label={alreadyReviewed ? 'Update Feedback' : 'Submit Feedback'}
+              label={
+                isWorkerViewer
+                  ? 'Feedback sirf customer de sakta hai'
+                  : alreadyReviewed
+                    ? 'Feedback already submitted'
+                    : 'Submit Feedback'
+              }
               onPress={onSubmit}
               loading={submitting}
+              disabled={isWorkerViewer || alreadyReviewed}
               size="lg"
             />
           </View>

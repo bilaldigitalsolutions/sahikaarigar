@@ -33,22 +33,38 @@ import { mapUser } from './mappers';
  */
 export class NetworkError extends Error {}
 
+/** Hard cap per request. Render's free tier sleeps, so the first hit after
+ *  idle can stall for a minute+ — fail fast with a friendly retry message
+ *  instead of leaving the user on a spinner forever. */
+const REQUEST_TIMEOUT_MS = 15_000;
+
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   initAuth();
   const base = requireAuthApiUrl();
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   let response: Response;
   try {
     response = await fetch(`${base}${path}`, {
       ...init,
       headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
+      signal: controller.signal,
     });
   } catch {
-    const message = 'Could not reach the server. Check your connection and try again.';
+    // A cold Render instance can hold the connection past our 15s cap — that
+    // is a timeout (signal aborted), not an offline device. Say so clearly.
+    const timedOut = controller.signal.aborted;
+    const message = timedOut
+      ? 'Server is waking up. Please try again in 10 seconds.'
+      : 'Could not reach the server. Check your connection and try again.';
     // Only an explicit demo build (EXPO_PUBLIC_DEMO_MODE=1) may swallow an
     // unreachable server. In a normal build the plain Error propagates, so every
     // caller shows the real failure instead of silently using sample data.
     throw DEMO_MODE ? new NetworkError(message) : new Error(message);
+  } finally {
+    clearTimeout(timer);
   }
 
   const data = (await response.json().catch(() => null)) as

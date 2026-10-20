@@ -1,29 +1,39 @@
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { Alert, KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
 
-import { Button, Header, Input, LocationPicker, Screen, type PlaceResult } from '@/components';
-import { SKILLS, VALIDATION, skillLabel } from '@/constants';
+import {
+  Button,
+  Header,
+  Input,
+  LocationPicker,
+  Screen,
+  WorkerProfileForm,
+  type PlaceResult,
+  type WorkerProfileFormValues,
+} from '@/components';
+import { AVAILABILITY_OPTIONS, VALIDATION } from '@/constants';
 import { useAuth } from '@/contexts/AuthContext';
 import { getWorkerProfile, updateProfile, updateWorkerProfile } from '@/lib/api';
-import { colors, fontSize, fontWeight, radius, spacing } from '@/theme';
+import { colors, fontSize, fontWeight, spacing } from '@/theme';
+import { validateAadhaar } from '@/utils';
 
 /**
- * Edit the signed-in account — name, area (single LocationPicker), read-only
- * city, address/landmark. Phone number is identity and never editable here.
+ * Edit Profile.
  *
- * Workers additionally see + edit their registration details from the
- * `worker_profiles` table: Skills (multi-select chips), Experience, Expected
- * Rate and Service Area. "Save Changes" writes BOTH tables — `users` (name,
- * area, address) and `worker_profiles` (skills, experience, rate, service
- * areas) — without touching the admin approval flags.
+ * Workers get the EXACT SAME form as the registration screen (shared
+ * <WorkerProfileForm />) — pre-filled with everything they submitted, so any
+ * registration detail can be changed here too. The Aadhaar number is locked
+ * once it is on file (changing it would defeat the verification).
+ *
+ * Employers keep the simpler account form (name / phone / area / address).
  */
 export default function EditProfileScreen() {
   const router = useRouter();
   const { user, refreshUser } = useAuth();
   const isWorker = user?.role === 'worker';
 
-  // ---- Basic account details (`users` table) -------------------------------
+  // ---- Account details (`users` table) -------------------------------------
   const [name, setName] = useState(user?.name ?? '');
   const [address, setAddress] = useState(user?.address ?? '');
   const [area, setArea] = useState(user?.locationArea ?? '');
@@ -32,71 +42,99 @@ export default function EditProfileScreen() {
   const [areaError, setAreaError] = useState<string | null>(null);
   const [workerError, setWorkerError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
 
-  // ---- Worker registration details (`worker_profiles` table) ---------------
+  // ---- Worker registration details (`worker_profiles` table) ----------------
   const [loadingProfile, setLoadingProfile] = useState(false);
-  const [skills, setSkills] = useState<string[]>([]);
-  const /** Skills stored that are outside the known SKILLS list — kept intact. */
-    [extraSkills, setExtraSkills] = useState<string[]>([]);
-  const [experience, setExperience] = useState('');
-  const [rate, setRate] = useState('');
-  /** Only set when the worker picks a NEW service area in this session. */
-  const [pickedServiceArea, setPickedServiceArea] = useState<string | null>(null);
+  const [values, setValues] = useState<WorkerProfileFormValues>({
+    name: user?.name ?? '',
+    phone: user?.phone ?? '',
+    skills: [],
+    experience: '',
+    area: user?.locationArea ?? null,
+    areaLat: null,
+    areaLng: null,
+    aadhaar: '',
+    profilePhotoUri: null,
+    profilePhotoDataUrl: null,
+    profilePhotoUrl: null,
+    newWorkPhotoUris: [],
+    newWorkPhotoDataUrls: [],
+    workPhotoUrls: [],
+    availability: AVAILABILITY_OPTIONS[0].value,
+    rate: '',
+  });
+  /** Skills stored in the DB that are outside the known SKILLS list. */
+  const [extraSkills, setExtraSkills] = useState<string[]>([]);
+  /** True when the worker already submitted an Aadhaar → field is read-only. */
+  const [aadhaarLocked, setAadhaarLocked] = useState(false);
+  const [aadhaarMasked, setAadhaarMasked] = useState<string | null>(null);
+  /** The photo/area as they were loaded — lets us detect deletions & changes. */
+  const [originalPhotoUrl, setOriginalPhotoUrl] = useState<string | null>(null);
+  const [originalArea, setOriginalArea] = useState<string | null>(null);
 
-  // Load the worker's registration details once for the `worker_profiles` form.
+  const patch = (p: Partial<WorkerProfileFormValues>) =>
+    setValues((prev) => ({ ...prev, ...p }));
+
+  // Load the worker's registration details and pre-fill every field.
+  const loadProfile = useCallback(async () => {
+    setLoadingProfile(true);
+    try {
+      const worker = await getWorkerProfile();
+      if (!worker) return;
+      const workerArea = worker.serviceAreas?.[0] ?? null;
+      setValues((prev) => ({
+        ...prev,
+        name: worker.user?.name ?? prev.name,
+        phone: worker.user?.phone ?? prev.phone,
+        skills: worker.skills?.length ? worker.skills : [],
+        experience: String(worker.experience ?? 0),
+        area: workerArea ?? prev.area,
+        aadhaar: worker.aadhaarOnFile ? (worker.aadhaarMasked ?? '') : '',
+        profilePhotoUrl: worker.user?.avatar ?? null,
+        workPhotoUrls: worker.portfolio ?? [],
+        rate: worker.hourlyRate ? String(worker.hourlyRate) : '',
+      }));
+      setExtraSkills(worker.skills ?? []);
+      setAadhaarLocked(Boolean(worker.aadhaarOnFile));
+      setAadhaarMasked(worker.aadhaarMasked ?? null);
+      setOriginalPhotoUrl(worker.user?.avatar ?? null);
+      setOriginalArea(workerArea);
+      if (!user?.locationArea && workerArea) setArea(workerArea);
+    } catch {
+      Alert.alert(
+        'Worker profile details load nahi ho payi',
+        'Please refresh the screen to try again.',
+      );
+    } finally {
+      setLoadingProfile(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (!isWorker) return;
-    let active = true;
-    setLoadingProfile(true);
-    (async () => {
-      try {
-        const worker = await getWorkerProfile();
-        if (!active) return;
-        setSkills(worker && worker.skills.length ? worker.skills : []);
-        setExtraSkills(worker && worker.skills.length ? worker.skills : []);
-        setExperience(worker ? String(worker.experience ?? 0) : '');
-        setRate(worker && worker.hourlyRate ? String(worker.hourlyRate) : '');
-        // Prefill the area picker from the registered service area when the
-        // account-level area is empty.
-        if (worker && !user?.locationArea && worker.serviceAreas[0]) {
-          setArea(worker.serviceAreas[0]);
-        }
-      } catch {
-        Alert.alert(
-          'Worker profile details load nahi ho payi',
-          'Please refresh the screen to try again.',
-        );
-      } finally {
-        if (active) setLoadingProfile(false);
-      }
-    })();
-    return () => {
-      active = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isWorker]);
+    void loadProfile();
+  }, [isWorker, loadProfile]);
 
   const clearErrors = () => {
     if (nameError) setNameError(null);
     if (areaError) setAreaError(null);
     if (workerError) setWorkerError(null);
     if (error) setError(null);
-    if (saved) setSaved(false);
-  };
-
-  const toggleSkill = (id: string) => {
-    setSkills((prev) => (prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]));
-    clearErrors();
   };
 
   const onSave = async () => {
     let valid = true;
-    if (name.trim().length < VALIDATION.NAME_MIN_LENGTH) {
+    // Workers edit the shared form (values.*); employers edit the simple
+    // account fields (name / area state).
+    const finalName = (isWorker ? values.name : name).trim();
+    const finalArea = ((isWorker ? values.area : area) ?? '').trim();
+
+    if (finalName.length < VALIDATION.NAME_MIN_LENGTH) {
       setNameError('Enter your full name.');
       valid = false;
     }
-    if (area.trim().length < 3) {
+    if (finalArea.length < 3) {
       setAreaError('Select your area from the picker below.');
       valid = false;
     }
@@ -108,11 +146,11 @@ export default function EditProfileScreen() {
       if (loadingProfile) {
         setWorkerError('Aapke kaarigar details abhi load ho rahe hain — thodi der me phir save karo.');
         valid = false;
-      } else if (skills.length === 0) {
+      } else if (values.skills.length === 0) {
         setWorkerError('Select at least one skill.');
         valid = false;
       } else {
-        exp = Math.round(Number(experience));
+        exp = Math.round(Number(values.experience));
         if (
           !Number.isFinite(exp) ||
           exp < VALIDATION.MIN_EXPERIENCE ||
@@ -125,7 +163,7 @@ export default function EditProfileScreen() {
         }
       }
       if (valid) {
-        rateValue = Number(rate);
+        rateValue = Number(values.rate);
         if (
           !Number.isFinite(rateValue) ||
           rateValue < VALIDATION.MIN_RATE ||
@@ -137,33 +175,59 @@ export default function EditProfileScreen() {
           valid = false;
         }
       }
+      // Aadhaar — editable only while none is on file.
+      if (valid && !aadhaarLocked) {
+        const digits = values.aadhaar.replace(/\D/g, '');
+        if (digits) {
+          const check = validateAadhaar(digits);
+          if (!check.valid) {
+            setWorkerError(check.error ?? 'Kripya valid 12-digit Aadhaar number daalein.');
+            valid = false;
+          }
+        }
+      }
     }
 
     if (!valid) return;
 
     setBusy(true);
     setError(null);
-    setSaved(false);
     try {
       // 1) The base account (name + area + address — `users` table).
       await updateProfile({
-        name: name.trim(),
-        locationArea: area.trim(),
+        name: finalName,
+        locationArea: finalArea,
         ...(address.trim() ? { address: address.trim() } : {}),
       });
-      // 2) The worker registration details (`worker_profiles` table). The
-      // service area is only sent when the worker picked a NEW one in this
-      // session, so untouched edits never overwrite the stored lat/lng.
+      // 2) The worker registration details (`worker_profiles` table) — the same
+      // fields the registration form captured.
       if (isWorker) {
+        const digits = aadhaarLocked ? '' : values.aadhaar.replace(/\D/g, '');
+        const removedPhoto = Boolean(originalPhotoUrl) && !values.profilePhotoUrl;
         await updateWorkerProfile({
-          skills,
+          skills: values.skills,
           experience: exp,
           hourlyRate: rateValue,
-          ...(pickedServiceArea ? { serviceAreas: [pickedServiceArea] } : {}),
+          // The service area is only sent when the worker picked a NEW one in
+          // this session, so untouched edits never overwrite the stored lat/lng.
+          ...(finalArea && finalArea !== originalArea ? { serviceAreas: [finalArea] } : {}),
+          ...(digits ? { aadhaarNumber: digits } : {}),
+          ...(values.profilePhotoDataUrl
+            ? { profilePhotoDataUrl: values.profilePhotoDataUrl }
+            : {}),
+          ...(removedPhoto ? { removeProfilePhoto: true } : {}),
+          ...(values.newWorkPhotoDataUrls.length
+            ? { workPhotoDataUrls: values.newWorkPhotoDataUrls }
+            : {}),
+          // The work photos the worker kept (the deleted ones are simply gone).
+          portfolioToKeep: values.workPhotoUrls,
         });
       }
       await refreshUser();
-      setSaved(true);
+      await loadProfile();
+      Alert.alert('Profile updated!', 'Aapki details save ho gayi hain.', [
+        { text: 'OK', onPress: () => router.replace('/(tabs)') },
+      ]);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save your profile.');
     } finally {
@@ -173,85 +237,64 @@ export default function EditProfileScreen() {
 
   if (!user) return null;
 
-  const workerSection = isWorker ? (
-    <>
-      <Text style={[styles.heading, styles.workerHeading]}>Kaarigar details</Text>
-      <Text style={styles.sub}>Aapki registration details — jobs isi ke hisaab se match hoti hain.</Text>
+  // ---------------------------------------------------------------- worker --
+  if (isWorker) {
+    return (
+      <KeyboardAvoidingView
+        style={styles.flexRoot}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <Screen edges={['bottom']} header={<Header title="Edit Profile" showBack={false} />}>
+          <Text style={styles.heading}>Update your details</Text>
+          <Text style={styles.sub}>
+            Registration ki sabhi details yahan badal sakte ho. Number khud nahi badalta.
+          </Text>
 
-      {loadingProfile && !skills.length ? (
-        <Text style={styles.hint}>Aapke kaarigar details load ho rahe hain…</Text>
-      ) : (
-        <>
+          {loadingProfile && !values.skills.length ? (
+            <Text style={styles.hint}>Aapke kaarigar details load ho rahe hain…</Text>
+          ) : (
+            <WorkerProfileForm
+              values={values}
+              onChange={(p) => {
+                patch(p);
+                clearErrors();
+              }}
+              error={workerError ?? nameError ?? areaError ?? error}
+              aadhaarLocked={aadhaarLocked}
+              aadhaarMasked={aadhaarMasked}
+              extraSkills={extraSkills}
+            />
+          )}
+
           <View style={styles.mt}>
-            <Text style={styles.label}>Skills</Text>
-            <View style={styles.chipsRow}>
-              {[
-                ...SKILLS.map((s) => ({ id: s.id, label: s.label })),
-                ...extraSkills
-                  .filter((id) => !SKILLS.some((s) => s.id === id))
-                  .map((id) => ({ id, label: skillLabel(id) })),
-              ].map((chip) => {
-                const selected = skills.includes(chip.id);
-                return (
-                  <Pressable
-                    key={chip.id}
-                    style={[styles.chip, selected && styles.chipSelected]}
-                    onPress={() => toggleSkill(chip.id)}
-                    accessibilityState={{ selected }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: fontSize.caption,
-                        fontWeight: fontWeight.medium,
-                        color: selected ? colors.white : colors.textPrimary,
-                      }}
-                    >
-                      {chip.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            <Text style={styles.label}>Address / landmark</Text>
+            <Input
+              placeholder="House no., street, landmark"
+              value={address}
+              onChangeText={(text) => {
+                setAddress(text);
+                clearErrors();
+              }}
+              multiline
+              numberOfLines={3}
+              containerStyle={styles.mt}
+            />
           </View>
 
-          <Input
-            label="Experience (years)"
-            placeholder="e.g. 3 years"
-            keyboardType="number-pad"
-            maxLength={2}
-            autoComplete="off"
-            textContentType="none"
-            importantForAutofill="no"
-            value={experience}
-            onChangeText={(text) => {
-              setExperience(text);
-              clearErrors();
-            }}
-            containerStyle={styles.mt}
+          <Button
+            label="Update Profile"
+            onPress={onSave}
+            loading={busy}
+            size="lg"
+            style={styles.saveBtn}
           />
+          <Button label="Cancel" variant="ghost" onPress={() => router.back()} disabled={busy} />
+        </Screen>
+      </KeyboardAvoidingView>
+    );
+  }
 
-          <Input
-            label="Expected charge (₹ per hour)"
-            placeholder="300"
-            keyboardType="number-pad"
-            maxLength={5}
-            autoComplete="off"
-            textContentType="none"
-            importantForAutofill="no"
-            value={rate}
-            onChangeText={(text) => {
-              setRate(text);
-              clearErrors();
-            }}
-            hint={`₹${VALIDATION.MIN_RATE} se ₹${VALIDATION.MAX_RATE} tak — employers ko yahi rate dikhega.`}
-            containerStyle={styles.mt}
-          />
-        </>
-      )}
-      {workerError ? <Text style={styles.errorText}>{workerError}</Text> : null}
-    </>
-  ) : null;
-
+  // -------------------------------------------------------------- employer --
   return (
     <KeyboardAvoidingView
       style={styles.flexRoot}
@@ -283,23 +326,17 @@ export default function EditProfileScreen() {
           containerStyle={styles.mt}
         />
 
-        {workerSection}
-
         <View style={styles.mt}>
-          <Text style={styles.label}>{isWorker ? 'Service area' : 'Area'}</Text>
+          <Text style={styles.label}>Area</Text>
           <LocationPicker
             placeholder="Search area — Madhapur, Kukatpally…"
             value={area}
             onSelect={(place: PlaceResult) => {
               setArea(place.description);
-              if (isWorker) setPickedServiceArea(place.description);
               clearErrors();
             }}
             icon="location-outline"
           />
-          {isWorker ? (
-            <Text style={styles.hint}>Yahin se aapko jobs ki talash hogi (service area).</Text>
-          ) : null}
           {areaError ? <Text style={styles.errorText}>{areaError}</Text> : null}
         </View>
 
@@ -325,10 +362,9 @@ export default function EditProfileScreen() {
         />
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
-        {saved ? <Text style={styles.savedText}>Profile updated!</Text> : null}
 
         <Button
-          label="Save Changes"
+          label="Update Profile"
           onPress={onSave}
           loading={busy}
           size="lg"
@@ -343,7 +379,6 @@ export default function EditProfileScreen() {
 const styles = StyleSheet.create({
   flexRoot: { flex: 1 },
   heading: { fontSize: fontSize.h2, fontWeight: fontWeight.bold, color: colors.textPrimary },
-  workerHeading: { marginTop: spacing.xl, marginBottom: spacing.xs },
   sub: {
     fontSize: fontSize.small,
     color: colors.textSecondary,
@@ -359,23 +394,5 @@ const styles = StyleSheet.create({
   },
   hint: { fontSize: fontSize.caption, color: colors.textSecondary, marginTop: spacing.xs },
   errorText: { color: colors.danger, fontSize: fontSize.caption, marginTop: spacing.sm },
-  savedText: { color: colors.success, fontSize: fontSize.caption, marginTop: spacing.md },
   saveBtn: { marginTop: spacing.xl },
-  chipsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  chip: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.primaryBorder,
-    backgroundColor: colors.primaryBg,
-  },
-  chipSelected: {
-    backgroundColor: colors.primaryDark,
-    borderColor: colors.primaryDark,
-  },
 });

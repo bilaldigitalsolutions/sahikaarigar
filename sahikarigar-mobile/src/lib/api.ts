@@ -185,6 +185,13 @@ export interface ApiWorker {
   isApproved: boolean;
   /** When this worker registered — used for the "recently joined" list. */
   createdAt?: string | null;
+  /** ONLY on the worker's own profile — true when an Aadhaar is already on
+   *  file. The raw number is never sent to the client. */
+  aadhaarOnFile?: boolean;
+  /** Masked Aadhaar (last 4 digits only) — owner's own profile only. */
+  aadhaarMasked?: string | null;
+  /** Admin review state of the profile — owner's own profile only. */
+  verificationStatus?: string | null;
   user: ApiPublicUser | null;
 }
 
@@ -328,6 +335,10 @@ export async function registerWorker(payload: {
     lat?: number;
     lng?: number;
     aadhaarNumber?: string;
+    /** Data URLs (data:image/jpeg;base64,…) — uploaded to Supabase storage. */
+    aadhaarPhotoDataUrl?: string;
+    profilePhotoDataUrl?: string;
+    workPhotoDataUrls?: string[];
   };
 }): Promise<{ user: User; workerProfile: ApiWorker | null }> {
   try {
@@ -507,6 +518,17 @@ export async function updateWorkerProfile(payload: {
   experience: number;
   hourlyRate: number;
   serviceAreas?: string[];
+  description?: string;
+  /** Only accepted when no Aadhaar is on file yet (it is locked after that). */
+  aadhaarNumber?: string;
+  /** New profile photo as a data URL — replaces the current one. */
+  profilePhotoDataUrl?: string;
+  /** Remove the current profile photo. */
+  removeProfilePhoto?: boolean;
+  /** New work photos as data URLs — appended to the portfolio. */
+  workPhotoDataUrls?: string[];
+  /** The work-photo URLs the worker wants to KEEP (deleted ones are omitted). */
+  portfolioToKeep?: string[];
 }): Promise<ApiWorker | null> {
   try {
     const data = await apiFetch<{ worker: ApiWorker | null }>('/worker/profile', {

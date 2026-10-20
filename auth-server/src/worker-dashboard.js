@@ -11,7 +11,7 @@
 // without creating a cycle between them.
 // =============================================================================
 
-import { db } from './users.js';
+import { db, normalizeAadhaarNumber, uploadWorkerImages } from './users.js';
 import { mapWorker } from './workers.js';
 import { mapHire, HIRE_SELECT } from './hires.js';
 
@@ -30,6 +30,24 @@ const ACTIVE_STATUSES = ['accepted', 'en_route', 'arrived', 'in_progress'];
 const COMPLETED_LIMIT = 10;
 
 /**
+ * The worker's OWN profile — the public `mapWorker` plus the private bits only
+ * the owner may see: whether an Aadhaar is on file (masked — the raw number is
+ * NEVER sent to the client) and the verification state.
+ * @param {object} row  a `worker_profiles` row with the joined user
+ */
+export function mapOwnWorker(row) {
+  if (!row) return null;
+  const base = mapWorker(row);
+  const aadhaar = row.aadhaar_number ?? null;
+  return {
+    ...base,
+    aadhaarOnFile: Boolean(aadhaar),
+    aadhaarMasked: aadhaar ? `XXXX XXXX ${String(aadhaar).slice(-4)}` : null,
+    verificationStatus: row.verification_status ?? null,
+  };
+}
+
+/**
  * The signed-in user's own worker profile (or `null` when they have none).
  * Cheap `GET /worker/profile` for the Edit Profile screen — it avoids the
  * dashboard round-trip (hire history is not needed there).
@@ -43,7 +61,7 @@ export async function getOwnWorkerProfile(userId) {
     .maybeSingle();
 
   if (error) throw new Error(error.message);
-  return data ? mapWorker(data) : null;
+  return data ? mapOwnWorker(data) : null;
 }
 
 function asStringArray(value) {
@@ -69,6 +87,27 @@ function asNumber(value) {
  */
 export async function updateOwnWorkerProfile(userId, input = {}) {
   const row = {};
+
+  const wantsPhotos =
+    Boolean(input.profilePhotoDataUrl) ||
+    Boolean(input.removeProfilePhoto) ||
+    (Array.isArray(input.workPhotoDataUrls) && input.workPhotoDataUrls.length > 0);
+
+  // The Aadhaar number is LOCKED once submitted — changing it would defeat the
+  // whole point of the verification, so it can only be ADDED, never replaced.
+  if (input.aadhaarNumber !== undefined && String(input.aadhaarNumber || '').trim()) {
+    const { data: current, error: currentError } = await db
+      .from('worker_profiles')
+      .select('aadhaar_number')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (currentError) throw new Error(currentError.message);
+    if (current?.aadhaar_number) {
+      throw new Error('Aadhaar number pehle se submit ho chuka hai — use badla nahi ja sakta');
+    }
+    const aadhaarNumber = normalizeAadhaarNumber(input.aadhaarNumber);
+    if (aadhaarNumber) row.aadhaar_number = aadhaarNumber;
+  }
 
   if (input.skills !== undefined) {
     const skills = asStringArray(input.skills);
@@ -106,8 +145,35 @@ export async function updateOwnWorkerProfile(userId, input = {}) {
     row.description = description || null;
   }
 
+  // Photos — profile photo (users.avatar) + work photos (worker_profiles.portfolio).
+  if (wantsPhotos) {
+    const images = await uploadWorkerImages(userId, {
+      profilePhotoDataUrl: input.profilePhotoDataUrl,
+      removeProfilePhoto: input.removeProfilePhoto,
+      workPhotoDataUrls: input.workPhotoDataUrls,
+    });
+    if (images.workPhotoUrls) {
+      // The client sends the URLs it wants to KEEP; new uploads are appended.
+      const keep = Array.isArray(input.portfolioToKeep)
+        ? input.portfolioToKeep.map((url) => String(url)).filter(Boolean)
+        : [];
+      row.portfolio = [...keep, ...images.workPhotoUrls];
+    }
+  }
+
   if (Object.keys(row).length === 0) {
-    throw new Error('Kuch bhi badalnay ke liye nahi mila');
+    if (!wantsPhotos) {
+      throw new Error('Kuch bhi badalnay ke liye nahi mila');
+    }
+    // Photo-only update — nothing to write on the worker_profiles row.
+    const { data: existing, error: existingError } = await db
+      .from('worker_profiles')
+      .select(WORKER_WITH_USER)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (existingError) throw new Error(existingError.message);
+    if (!existing) throw new Error('Pehle kaarigar ke roop me register karo');
+    return mapOwnWorker(existing);
   }
 
   const { data, error } = await db
@@ -119,7 +185,7 @@ export async function updateOwnWorkerProfile(userId, input = {}) {
 
   if (error) throw new Error(error.message);
   if (!data) throw new Error('Pehle kaarigar ke roop me register karo');
-  return mapWorker(data);
+  return mapOwnWorker(data);
 }
 
 /**

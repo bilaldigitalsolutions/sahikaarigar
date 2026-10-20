@@ -95,7 +95,7 @@ export async function getOrCreateUserByAuthId(authUserId, phone, name) {
 }
 
 /** Keep only digits; require exactly 12 + a passing UIDAI Verhoeff checksum. */
-function normalizeAadhaarNumber(value) {
+export function normalizeAadhaarNumber(value) {
   const digits = String(value ?? '').replace(/\D/g, '');
   if (!digits) return null;
   if (digits.length !== 12) throw new Error('Aadhaar number must be exactly 12 digits');
@@ -120,7 +120,7 @@ function decodeImageDataUrl(value, label) {
 /** Store worker profile photos privately/publicly as appropriate. */
 export async function uploadWorkerImages(
   userId,
-  { aadhaarPhotoDataUrl, profilePhotoDataUrl } = {},
+  { aadhaarPhotoDataUrl, profilePhotoDataUrl, workPhotoDataUrls, removeProfilePhoto } = {},
 ) {
   const images = {};
   const aadhaar = decodeImageDataUrl(aadhaarPhotoDataUrl, 'Aadhaar photo');
@@ -132,6 +132,13 @@ export async function uploadWorkerImages(
     });
     if (error) throw new Error(`Aadhaar photo upload failed: ${error.message}`);
     images.aadhaarPhotoPath = path;
+  }
+
+  // The worker deleted their profile photo in Edit Profile.
+  if (removeProfilePhoto) {
+    const { error: userError } = await db.from('users').update({ avatar: null }).eq('id', userId);
+    if (userError) throw new Error(userError.message);
+    images.profilePhotoUrl = null;
   }
 
   const profilePhoto = decodeImageDataUrl(profilePhotoDataUrl, 'Profile photo');
@@ -149,6 +156,25 @@ export async function uploadWorkerImages(
       .eq('id', userId);
     if (userError) throw new Error(userError.message);
     images.profilePhotoUrl = data.publicUrl;
+  }
+
+  // Work photos (the "portfolio" strip on the worker profile) — up to 5, each
+  // stored in the PUBLIC avatars bucket so employers can actually see them.
+  const workPhotos = Array.isArray(workPhotoDataUrls) ? workPhotoDataUrls : [];
+  if (workPhotos.length > 0) {
+    images.workPhotoUrls = [];
+    for (let i = 0; i < workPhotos.length; i += 1) {
+      const decoded = decodeImageDataUrl(workPhotos[i], `Work photo ${i + 1}`);
+      if (!decoded) continue;
+      const path = `${userId}/work/${Date.now()}-${i}`;
+      const { error } = await db.storage.from('avatars').upload(path, decoded.buffer, {
+        contentType: decoded.contentType,
+        upsert: true,
+      });
+      if (error) throw new Error(`Work photo upload failed: ${error.message}`);
+      const { data } = db.storage.from('avatars').getPublicUrl(path);
+      images.workPhotoUrls.push(data.publicUrl);
+    }
   }
 
   return images;
@@ -199,6 +225,9 @@ export async function upsertWorkerProfile(userId, input = {}) {
         verification_status: 'pending',
         ...(input.aadhaarPhotoPath ? { aadhaar_photo_path: input.aadhaarPhotoPath } : {}),
         ...(aadhaarNumber ? { aadhaar_number: aadhaarNumber } : {}),
+        ...(Array.isArray(input.workPhotoUrls) && input.workPhotoUrls.length
+          ? { portfolio: input.workPhotoUrls }
+          : {}),
         availability: 'available',
       },
       { onConflict: 'user_id' },

@@ -294,10 +294,12 @@ app.post('/register-worker', async (req, res, next) => {
     const images = await uploadWorkerImages(user.id, {
       aadhaarPhotoDataUrl: profile.aadhaarPhotoDataUrl,
       profilePhotoDataUrl: profile.profilePhotoDataUrl,
+      workPhotoDataUrls: profile.workPhotoDataUrls,
     });
     const workerProfile = await upsertWorkerProfile(user.id, {
       ...profile,
       aadhaarPhotoPath: images.aadhaarPhotoPath,
+      workPhotoUrls: images.workPhotoUrls,
     });
     // upsertWorkerProfile promotes the row to role='worker' in the database;
     // reflect that in the response so the client can route on `user.role`

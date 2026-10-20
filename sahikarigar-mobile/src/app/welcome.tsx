@@ -156,7 +156,7 @@ export default function WelcomeScreen() {
 
       {/* Testimonials */}
       <View style={styles.section}>
-        <Text style={[styles.sectionTitle, styles.mt]}>What People Say</Text>
+        <Text style={[styles.sectionTitle, styles.mt]}>Sample Reviews</Text>
         {REVIEWS.map((r) => (
           <Card key={r.name} style={styles.reviewCard}>
             <Rating value={r.rating} size={14} />

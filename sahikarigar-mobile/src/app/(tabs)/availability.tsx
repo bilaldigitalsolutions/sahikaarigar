@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Switch, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
 
 import { Button, Card, Screen } from '@/components';
 import {
@@ -12,6 +13,7 @@ import {
 import { colors, fontSize, fontWeight, spacing } from '@/theme';
 
 export default function AvailabilityScreen() {
+  const router = useRouter();
   const [data, setData] = useState<ApiWorkerDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -70,7 +72,7 @@ export default function AvailabilityScreen() {
             Aap abhi kaarigar nahi ho. Pehle profile register karo, phir yahan availability toggle
             kar paoge.
           </Text>
-          <Button label="Register as Kaarigar" onPress={() => {}} style={styles.btn} />
+          <Button label="Register as Kaarigar" onPress={() => router.push('/register-worker')} style={styles.btn} />
         </Card>
       </Screen>
     );

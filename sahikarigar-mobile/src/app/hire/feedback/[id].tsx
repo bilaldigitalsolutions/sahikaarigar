@@ -78,9 +78,13 @@ export default function FeedbackScreen() {
       Alert.alert('Add a rating', 'Give the worker a rating from 1 to 5 stars.');
       return;
     }
+    const tipAmount = tip.trim() ? Number(tip.trim()) : 0;
+    if (tip.trim() && Number.isNaN(tipAmount)) {
+      Alert.alert('Invalid tip amount', 'Please enter a valid amount.');
+      return;
+    }
     setSubmitting(true);
     try {
-      const tipAmount = tip.trim() ? Number(tip.trim()) : 0;
       await createReview({
         hireRequestId: id,
         rating,

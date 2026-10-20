@@ -15,7 +15,6 @@ import {
 import { Avatar, Header, LocationPicker, Screen, Select, Slider } from '@/components';
 import {
   POPULAR_FILTERS,
-  RECENT_SEARCHES,
   SKILLS,
   areaLabel,
   skillIconName,
@@ -229,16 +228,6 @@ export function SearchScreen() {
         </View>
       }
     >
-      <Section title="Recent searches" />
-      <View style={styles.chipWrap}>
-        {RECENT_SEARCHES.map((term) => (
-          <Pressable key={term} style={styles.recentChip} onPress={() => setQuery(term)}>
-            <Ionicons name="time-outline" size={15} color={colors.textSecondary} />
-            <Text style={styles.recentText}>{term}</Text>
-          </Pressable>
-        ))}
-      </View>
-
       <Section title="Popular filters" />
       <View style={styles.chipWrap}>
         {POPULAR_FILTERS.map((f) => {
@@ -456,19 +445,6 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingHorizontal: spacing.lg,
   },
-  recentChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.button,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
-    maxWidth: '100%',
-  },
-  recentText: { fontSize: fontSize.caption, color: colors.textSecondary },
   filterChip: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -201,6 +201,10 @@ export default function RegisterWorkerScreen() {
               <TextInput
                 style={styles.phoneInput}
                 value={phone}
+                // Login OTP isi number par jaata hai, aur backend isko session
+                // se leta hai (form ka field waise bhi discard ho jaata) — isliye
+                // yahan read-only.
+                editable={false}
                 onChangeText={setPhone}
                 keyboardType="phone-pad"
                 maxLength={10}
@@ -256,7 +260,6 @@ export default function RegisterWorkerScreen() {
                 maxLength={14}
                 placeholder="XXXX XXXX XXXX"
                 placeholderTextColor={colors.muted}
-                secureTextEntry
               />
             </View>
             {aadhaarDigits && !aadhaarValid ? (

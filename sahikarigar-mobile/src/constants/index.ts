@@ -185,8 +185,9 @@ export const LEGAL_URLS = {
   privacy: 'https://sahi-kaarigar.web.app/privacy',
 } as const;
 
-/** Support number shown in the Join as Kaarigar footer. */
-export const SUPPORT_PHONE = '+91 1800 123 4567';
+/** SahiKaarigar support number (call / WhatsApp) — used on the Join as Kaarigar
+ *  footer, the hire help button and the profile screen. */
+export const SUPPORT_PHONE = '+91 9949363310';
 
 /**
  * Sample service catalogue per skill, used to render the "Services & Pricing"

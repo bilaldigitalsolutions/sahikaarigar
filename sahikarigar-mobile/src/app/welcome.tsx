@@ -42,8 +42,22 @@ export default function WelcomeScreen() {
   const [service, setService] = useState<string | null>(null);
   const [area, setArea] = useState<string | null>(null);
 
-  const goLogin = () => router.push('/(auth)/login');
   const goRegister = () => router.push('/register-worker');
+
+  // Guest browse — browsing is free, so the category cards and "Hire a
+  // Worker" open the search screen instead of a login wall. Same split as the
+  // Search card below: signed-in users stay inside the tabs, guests get the
+  // public results route (categories pass their skill as the filter).
+  const goBrowse = (skill?: string) => {
+    const params: { skill?: string } = {};
+    if (skill) params.skill = skill;
+
+    if (user) {
+      router.push({ pathname: '/(tabs)/search', params });
+    } else {
+      router.push({ pathname: '/search', params });
+    }
+  };
 
   const onSearch = () => {
     // Browsing is free — never ask for verification here. Signed-in users stay
@@ -119,7 +133,7 @@ export default function WelcomeScreen() {
         <Text style={styles.sectionSub}>Choose from our most popular service categories</Text>
         <View style={styles.categoryGrid}>
           {SKILLS.map((s) => (
-            <Pressable key={s.id} style={styles.categoryCard} onPress={goLogin}>
+            <Pressable key={s.id} style={styles.categoryCard} onPress={() => goBrowse(s.id)}>
               <Text style={styles.categoryIcon}>{s.icon}</Text>
               <View style={styles.categoryInfo}>
                 <Text style={styles.categoryLabel}>{s.label}</Text>
@@ -165,7 +179,7 @@ export default function WelcomeScreen() {
         <Text style={styles.ctaTitle}>Ready to get started?</Text>
         <Text style={styles.ctaSub}>Something for workers and employers alike</Text>
         <Button label="Kaarigar Registration" onPress={goRegister} style={styles.ctaBtn} />
-        <Button label="Hire a Worker" variant="secondary" onPress={goLogin} style={styles.ctaBtn} />
+        <Button label="Hire a Worker" variant="secondary" onPress={() => goBrowse()} style={styles.ctaBtn} />
       </View>
     </Screen>
   );

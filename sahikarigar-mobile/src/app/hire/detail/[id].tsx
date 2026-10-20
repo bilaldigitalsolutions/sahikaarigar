@@ -507,21 +507,41 @@ function BookingBody({
               </Pressable>
             </>
           ) : hire.status === 'accepted' ? (
-            <Pressable
-              style={[styles.primaryAction, busy && styles.disabled]}
-              onPress={() => onAction('en_route')}
-              disabled={busy}
-            >
-              <Text style={styles.primaryActionText}>On the way</Text>
-            </Pressable>
+            <>
+              {/* Kaarigar ka cancel — allowed only until the work has actually
+                  started (server rejects it after the OTP / start). */}
+              <Pressable
+                style={[styles.outlineAction, busy && styles.disabled]}
+                onPress={onCancel}
+                disabled={busy}
+              >
+                <Text style={styles.outlineActionText}>Cancel Job</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.primaryAction, busy && styles.disabled]}
+                onPress={() => onAction('en_route')}
+                disabled={busy}
+              >
+                <Text style={styles.primaryActionText}>On the way</Text>
+              </Pressable>
+            </>
           ) : hire.status === 'en_route' ? (
-            <Pressable
-              style={[styles.primaryAction, busy && styles.disabled]}
-              onPress={() => onAction('arrived')}
-              disabled={busy}
-            >
-              <Text style={styles.primaryActionText}>Arrived</Text>
-            </Pressable>
+            <>
+              <Pressable
+                style={[styles.outlineAction, busy && styles.disabled]}
+                onPress={onCancel}
+                disabled={busy}
+              >
+                <Text style={styles.outlineActionText}>Cancel Job</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.primaryAction, busy && styles.disabled]}
+                onPress={() => onAction('arrived')}
+                disabled={busy}
+              >
+                <Text style={styles.primaryActionText}>Arrived</Text>
+              </Pressable>
+            </>
           ) : hire.status === 'arrived' ? (
             <Pressable
               style={[styles.primaryAction, busy && styles.disabled]}
@@ -532,28 +552,32 @@ function BookingBody({
             </Pressable>
           ) : null
         ) : (
-          // Customer's actions — cancel while it is live, feedback once done.
+          // Customer's actions — cancel while the job is live (even mid-job,
+          // the kaarigar has already reached), feedback once done.
           <>
             {completed ? (
               <Pressable style={styles.primaryAction} onPress={onFeedback}>
                 <Text style={styles.primaryActionText}>Give Feedback</Text>
               </Pressable>
-            ) : arrived ? (
-              <Pressable
-                style={[styles.primaryAction, busy && styles.disabled]}
-                onPress={() => onAction('complete')}
-                disabled={busy}
-              >
-                <Text style={styles.primaryActionText}>Mark Complete</Text>
-              </Pressable>
             ) : (
-              <Pressable
-                style={[styles.outlineAction, busy && styles.disabled]}
-                onPress={onCancel}
-                disabled={busy}
-              >
-                <Text style={styles.outlineActionText}>Cancel</Text>
-              </Pressable>
+              <>
+                {arrived ? (
+                  <Pressable
+                    style={[styles.primaryAction, busy && styles.disabled]}
+                    onPress={() => onAction('complete')}
+                    disabled={busy}
+                  >
+                    <Text style={styles.primaryActionText}>Mark Complete</Text>
+                  </Pressable>
+                ) : null}
+                <Pressable
+                  style={[styles.outlineAction, busy && styles.disabled]}
+                  onPress={onCancel}
+                  disabled={busy}
+                >
+                  <Text style={styles.outlineActionText}>Cancel Job</Text>
+                </Pressable>
+              </>
             )}
           </>
         )}

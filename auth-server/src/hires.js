@@ -17,7 +17,7 @@ import { getWorkerProfileIdForUser } from './workers.js';
 export const HIRE_SELECT =
   'id, employer_id, worker_id, description, location, proposed_rate, status, ' +
   'scheduled_date, completed_at, phone_revealed, created_at, updated_at, ' +
-  'en_route_at, arrived_at, worker_lat, worker_lng, ' +
+  'en_route_at, arrived_at, started_at, worker_lat, worker_lng, ' +
   'employer:users(id, name, phone, avatar, location_area, location_city), ' +
   // `!user_id` pins the FK: worker_profiles also references users through
   // `reviewed_by`, and without the hint PostgREST fails with
@@ -32,6 +32,17 @@ const TRACKABLE = ['accepted', 'en_route', 'arrived', 'in_progress'];
 /** Worker cancels count AFTER accepting — at this many the profile is FLAGGED
  *  in the admin panel. Record-only: the admin decides any actual penalty. */
 const WORKER_CANCEL_FLAG_LIMIT = 3;
+
+/** Friendly hint when the 0010 migration columns (started_at …) are missing —
+ *  a raw PostgREST "column … not found" tells the developer nothing useful. */
+function hireReadError(error) {
+  if (/started_at/i.test(error.message)) {
+    return new Error(
+      'Booking ka timeline abhi database me nahi hai — Supabase me 0010_hire_start_flow.sql migration chalao',
+    );
+  }
+  return new Error(error.message);
+}
 
 // NO fallback secret: a default baked into source would let anyone with repo
 // access derive the start-OTP for ANY hire id (HMAC with a known key). The
@@ -205,7 +216,7 @@ export async function createHireRequest({
     .select(HIRE_SELECT)
     .single();
 
-  if (error) throw new Error(error.message);
+  if (error) throw hireReadError(error);
   return mapHire(data);
 }
 
@@ -230,8 +241,8 @@ export async function listHiresForUser(userId) {
       : Promise.resolve({ data: [], error: null }),
   ]);
 
-  if (asEmployerRes.error) throw new Error(asEmployerRes.error.message);
-  if (asWorkerRes.error) throw new Error(asWorkerRes.error.message);
+  if (asEmployerRes.error) throw hireReadError(asEmployerRes.error);
+  if (asWorkerRes.error) throw hireReadError(asWorkerRes.error);
 
   return {
     workerProfileId,
@@ -247,7 +258,7 @@ export async function getHireById(hireId) {
     .eq('id', hireId)
     .maybeSingle();
 
-  if (error) throw new Error(error.message);
+  if (error) throw hireReadError(error);
   return mapHire(data);
 }
 
@@ -410,6 +421,13 @@ export async function hireAction({ hireId, userId, action, lat, lng, otp }) {
     if (/hire_requests_status/i.test(error.message)) {
       throw new Error(
         'Kaam shuru ka status abhi database me support nahi hai — Supabase me 0010_hire_start_flow.sql migration chalao',
+      );
+    }
+    // Timeline column missing — 0010_hire_start_flow.sql not applied (the
+    // CHECK above catches constraint failures; this catches the select).
+    if (/started_at/i.test(error.message)) {
+      throw new Error(
+        'Booking ka timeline abhi database me nahi hai — Supabase me 0010_hire_start_flow.sql migration chalao',
       );
     }
     // Trust & Penalty columns are missing — 0011_trust_penalty.sql not applied.

@@ -406,8 +406,10 @@ app.get('/hires/:id/start-otp', async (req, res, next) => {
     const { authUserId, phone } = await resolveSession(session);
     const user = await getOrCreateUserByAuthId(authUserId, phone);
     const { otp } = await getHireStartOtp({ hireId: req.params.id, userId: user.id });
+    console.log('[OTP] hireId=%s employerId=%s otp=%s', req.params.id, user.id, otp);
     res.json({ ok: true, otp });
   } catch (error) {
+    console.log('[OTP] hireId=%s error=%s', req.params.id, error instanceof Error ? error.message : String(error));
     next(error);
   }
 });

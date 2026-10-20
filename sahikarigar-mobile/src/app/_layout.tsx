@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { useFonts } from 'expo-font';
+import * as Font from 'expo-font';
 import { Ionicons } from '@expo/vector-icons';
 
 import { BrandLogo, TopNotificationBanner } from '@/components';
@@ -51,9 +51,27 @@ function AppLoading() {
 function RootNavigator() {
   const { initializing, user } = useAuth();
 
-  // Vector icons (Ionicons) need the font loaded before any screen renders,
-  // otherwise tab bar icons and header back chevrons show as 'X' boxes.
-  const [fontsLoaded] = useFonts(Ionicons.font);
+  // Vector icons (Ionicons) must be loaded via Font.loadAsync BEFORE any screen
+  // renders, otherwise tab bar icons and header back chevrons show as 'X' boxes.
+  // useFonts hook can be unreliable in Expo Router root layout; manual loadAsync
+  // with SplashScreen gate is the proven pattern.
+  const [fontsLoaded, setFontsLoaded] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        await Font.loadAsync(Ionicons.font);
+        if (active) setFontsLoaded(true);
+      } catch (e) {
+        // Even if font load fails, unblock the UI so tabs show text labels
+        if (active) setFontsLoaded(true);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Tag crash reports + PostHog with the signed-in account (id + role only, never PII).
   useEffect(() => {

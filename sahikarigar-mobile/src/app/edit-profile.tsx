@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Button, Header, Input, LocationPicker, Screen, type PlaceResult } from '@/components';
 import { SKILLS, VALIDATION, skillLabel } from '@/constants';
@@ -63,8 +63,10 @@ export default function EditProfileScreen() {
           setArea(worker.serviceAreas[0]);
         }
       } catch {
-        // Basic details stay editable even when the worker profile fetch fails;
-        // Saving the worker part will surface the server error.
+        Alert.alert(
+          'Worker profile details load nahi ho payi',
+          'Please refresh the screen to try again.',
+        );
       } finally {
         if (active) setLoadingProfile(false);
       }

@@ -160,24 +160,25 @@ export function LocationPicker({
         }
       } catch {
         // Slow/failing provider is silent — local list already visible.
-      }
+      } finally {
+        setLoading(false);
+        clearTimeout(timeout);
 
-      clearTimeout(timeout);
+        if (queryRef.current !== q) return;
 
-      if (queryRef.current !== q) return;
+        if (remote.length === 0) {
+          setResults(localResults);
+          setError(null);
+          return;
+        }
 
-      if (remote.length === 0) {
-        setResults(localResults);
+        const merged: PickerItem[] = [...localResults];
+        for (const r of remote) {
+          if (!merged.some((m) => m.description === r.description)) merged.push(r);
+        }
+        setResults(merged);
         setError(null);
-        return;
       }
-
-      const merged: PickerItem[] = [...localResults];
-      for (const r of remote) {
-        if (!merged.some((m) => m.description === r.description)) merged.push(r);
-      }
-      setResults(merged);
-      setError(null);
     }, 300);
 
     return () => {

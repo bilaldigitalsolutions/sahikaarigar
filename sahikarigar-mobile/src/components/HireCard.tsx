@@ -1,9 +1,10 @@
+import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Badge, Card } from '@/components/ui';
 import { HIRE_STATUS_LABELS, skillLabel } from '@/constants';
 import type { ApiHire } from '@/lib/api';
-import { colors, fontSize, fontWeight, spacing } from '@/theme';
+import { colors, fontSize, fontWeight, radius, spacing } from '@/theme';
 import { formatCurrency, formatRelativeDate } from '@/utils';
 
 export interface HireCardProps {
@@ -11,6 +12,9 @@ export interface HireCardProps {
   /** Whose side of the hire to show (the other party is the headline). */
   perspective: 'employer' | 'worker';
   onPress?: () => void;
+  /** Optional callout — e.g. "OTP Ready" when the kaarigar has arrived and
+   *  the employer still has to share the start-work code. */
+  notice?: { label: string; tone?: 'primary' | 'warning' | 'success' | 'danger' };
 }
 
 const TONE: Record<string, 'neutral' | 'success' | 'warning' | 'danger' | 'primary'> = {
@@ -24,7 +28,7 @@ const TONE: Record<string, 'neutral' | 'success' | 'warning' | 'danger' | 'prima
   rejected: 'danger',
 };
 
-export function HireCard({ hire, perspective, onPress }: HireCardProps) {
+export function HireCard({ hire, perspective, onPress, notice }: HireCardProps) {
   const counterparty =
     perspective === 'employer' ? hire.worker?.user?.name : hire.employer?.name;
   const title = counterparty ?? 'Booking';
@@ -38,6 +42,13 @@ export function HireCard({ hire, perspective, onPress }: HireCardProps) {
         </Text>
         <Badge label={HIRE_STATUS_LABELS[hire.status]} tone={TONE[hire.status] ?? 'neutral'} />
       </View>
+
+      {notice ? (
+        <View style={styles.notice}>
+          <Ionicons name="key" size={13} color={colors.primaryDark} />
+          <Text style={styles.noticeText}>{notice.label}</Text>
+        </View>
+      ) : null}
 
       {skills ? <Text style={styles.skills}>{skills}</Text> : null}
       <Text style={styles.description} numberOfLines={2}>
@@ -57,6 +68,18 @@ const styles = StyleSheet.create({
   card: { marginBottom: spacing.md },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   title: { flex: 1, fontSize: fontSize.body, fontWeight: fontWeight.semibold, color: colors.textPrimary, marginRight: spacing.sm },
+  notice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    alignSelf: 'flex-start',
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 4,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primaryTint,
+  },
+  noticeText: { fontSize: fontSize.caption - 1, fontWeight: fontWeight.semibold, color: colors.primaryDark },
   skills: { fontSize: fontSize.caption, color: colors.primaryDark, marginTop: 2 },
   description: { fontSize: fontSize.small, color: colors.textSecondary, marginTop: spacing.sm },
   footer: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginTop: spacing.md },

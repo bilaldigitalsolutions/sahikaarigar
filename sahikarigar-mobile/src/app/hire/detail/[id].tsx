@@ -52,44 +52,39 @@ export default function HireDetailScreen() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // Fetch the booking — runs on mount AND every time the screen comes back into
-  // focus. This is how the customer picks up status changes made by the worker
-  // on another device (e.g. "Arrived" → reveals the Start Work OTP).
-  const fetchHire = useCallback(async () => {
-    let active = true;
-    setLoading(true);
-    try {
-      const result = await getHire(id);
-      if (active) {
+  // Fetch the booking — runs on mount, on every screen focus, AND every 10s
+  // while the screen stays open. The live poll is what lets the employer see
+  // the kaarigar's status change (accepted → on the way → arrived) without
+  // leaving the screen, so the Start Work OTP appears the moment the worker
+  // marks "Arrived". A silent refresh never flashes the loading spinner.
+  const fetchHire = useCallback(
+    async (silent = false) => {
+      if (!silent) setLoading(true);
+      try {
+        const result = await getHire(id);
         setHire(result.hire);
         setError(null);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Could not load the booking.');
+      } finally {
+        if (!silent) setLoading(false);
       }
-    } catch (e) {
-      if (active) setError(e instanceof Error ? e.message : 'Could not load the booking.');
-    } finally {
-      if (active) setLoading(false);
-    }
-    return () => {
-      active = false;
-    };
-  }, [id]);
-
-  useEffect(() => {
-    const activeRef = { current: true };
-    fetchHire().then(() => {
-      activeRef.current = false;
-    });
-    return () => {
-      activeRef.current = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    },
+    [id],
+  );
 
   useFocusEffect(
     useCallback(() => {
-      fetchHire();
+      void fetchHire();
     }, [fetchHire]),
   );
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      void fetchHire(true);
+    }, 10_000);
+    return () => clearInterval(timer);
+  }, [fetchHire]);
 
   const onHelp = () => Alert.alert('Madad chahiye?', `Support: ${SUPPORT_PHONE}`);
 
@@ -242,6 +237,9 @@ function BookingBody({
   const [otpEntryError, setOtpEntryError] = useState<string | null>(null);
 
   const otpPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  /** The employer taps "Show OTP to Worker" to reveal the code. Auto-revealed
+   *  the moment it arrives so the code is never missed. */
+  const [otpRevealed, setOtpRevealed] = useState(false);
 
   // Fetch the start-work OTP once. Used both on first render and by the poller.
   const fetchStartOtp = useCallback(async () => {
@@ -254,6 +252,9 @@ function BookingBody({
       if (active) {
         setStartOtp(otp);
         setOtpError(null);
+        // Reveal it right away — the employer's whole job here is to read it
+        // out to the worker.
+        setOtpRevealed(true);
       }
     } catch (e) {
       if (active) setOtpError(e instanceof Error ? e.message : 'OTP load nahi hua');
@@ -375,6 +376,21 @@ function BookingBody({
               : 'Your booking is confirmed. We’ll keep you updated.'}
         </Text>
 
+        {/* EMPLOYER ACTION BANNER — the kaarigar has arrived and the OTP is
+            waiting to be shared. This is the one moment that needs the
+            customer's attention, so it is impossible to miss. */}
+        {!isWorkerViewer && hire.status === 'arrived' ? (
+          <View style={styles.arrivedBanner}>
+            <Ionicons name="location" size={20} color={colors.white} />
+            <View style={styles.arrivedTextWrap}>
+              <Text style={styles.arrivedTitle}>Kaarigar pahunch gaya hai!</Text>
+              <Text style={styles.arrivedSub}>
+                Neeche OTP dekhein aur worker ko de dijiye — wahi kaam shuru kar sakega.
+              </Text>
+            </View>
+          </View>
+        ) : null}
+
         {accepted || cancelled ? (
           <View style={styles.workerCard}>
             <Avatar uri={workerAvatar} name={workerName} size={54} />
@@ -399,18 +415,42 @@ function BookingBody({
         <Timeline steps={steps} />
 
         {/* "Start work" OTP — shown to the EMPLOYER only, and only from the
-            moment the kaarigar has arrived. Formats as a huge, unmistakable
-            code they read out to the worker. */}
+            moment the kaarigar has arrived. The code is revealed with a
+            prominent button so the customer can read it out to the worker. */}
         {!isWorkerViewer && hire.status === 'arrived' ? (
           <View style={styles.otpCard}>
-            <Ionicons name="lock-closed" size={16} color={colors.primaryDark} />
-            <Text style={styles.otpLabel}>OTP for start work</Text>
-            <Text style={styles.otpValue}>{startOtp ?? '----'}</Text>
-            <Text style={styles.otpHint}>
-              {otpError
-                ? otpError
-                : 'Worker pe pahunch gaya hai! Ye OTP worker ko dijiye — wahi enter karke kaam shuru hogi.'}
-            </Text>
+            <Ionicons name="key" size={16} color={colors.primaryDark} />
+            <Text style={styles.otpLabel}>Start Work OTP</Text>
+
+            {otpError ? (
+              <Text style={styles.otpErrorText}>{otpError}</Text>
+            ) : startOtp && otpRevealed ? (
+              <>
+                <Text style={styles.otpValue}>{startOtp}</Text>
+                <Text style={styles.otpHint}>
+                  Ye 4-digit code worker ko dijiye — wahi enter karke kaam shuru hoga.
+                </Text>
+                <Pressable style={styles.otpHideBtn} onPress={() => setOtpRevealed(false)}>
+                  <Ionicons name="eye-off-outline" size={14} color={colors.primaryDark} />
+                  <Text style={styles.otpHideText}>Hide OTP</Text>
+                </Pressable>
+              </>
+            ) : startOtp ? (
+              <>
+                <Pressable style={styles.otpShowBtn} onPress={() => setOtpRevealed(true)}>
+                  <Ionicons name="key" size={18} color={colors.white} />
+                  <Text style={styles.otpShowText}>Show OTP to Worker</Text>
+                </Pressable>
+                <Text style={styles.otpHint}>
+                  OTP mil gaya hai — worker ko share karne ke liye upar wala button dabao.
+                </Text>
+              </>
+            ) : (
+              <View style={styles.otpLoadingRow}>
+                <ActivityIndicator size="small" color={colors.primaryDark} />
+                <Text style={styles.otpHint}>OTP load ho raha hai…</Text>
+              </View>
+            )}
           </View>
         ) : null}
         {workStarted ? (
@@ -723,6 +763,65 @@ const styles = StyleSheet.create({
   otpLabelDone: { color: '#16A34A' },
   otpValue: { fontSize: 40, fontWeight: fontWeight.bold, color: colors.primaryDark, letterSpacing: 6, marginVertical: spacing.xs },
   otpHint: { fontSize: fontSize.caption, color: colors.textSecondary, textAlign: 'center' },
+  otpErrorText: {
+    fontSize: fontSize.caption,
+    color: colors.danger,
+    textAlign: 'center',
+    marginTop: spacing.xs,
+  },
+  otpLoadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  otpShowBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    height: 48,
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.button,
+    backgroundColor: colors.primaryDark,
+  },
+  otpShowText: { fontSize: fontSize.body, fontWeight: fontWeight.semibold, color: colors.white },
+  otpHideBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: spacing.md,
+  },
+  otpHideText: {
+    fontSize: fontSize.caption,
+    fontWeight: fontWeight.medium,
+    color: colors.primaryDark,
+  },
+  // Employer action banner — the kaarigar has arrived.
+  arrivedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    alignSelf: 'stretch',
+    marginTop: spacing.md,
+    padding: spacing.md,
+    borderRadius: radius.card,
+    backgroundColor: colors.primaryDark,
+  },
+  arrivedTextWrap: { flex: 1 },
+  arrivedTitle: {
+    fontSize: fontSize.body,
+    fontWeight: fontWeight.bold,
+    color: colors.white,
+  },
+  arrivedSub: {
+    fontSize: fontSize.caption,
+    color: colors.white,
+    opacity: 0.9,
+    marginTop: 2,
+    lineHeight: 17,
+  },
   otpEntryCard: {
     padding: spacing.lg,
     borderTopWidth: 1,

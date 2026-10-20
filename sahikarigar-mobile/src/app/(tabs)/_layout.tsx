@@ -1,13 +1,43 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Redirect, Tabs } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 
 import { useAuth } from '@/contexts/AuthContext';
 import { useMode } from '@/contexts/ModeContext';
+import { listHires } from '@/lib/api';
 import { colors } from '@/theme';
 
 export default function TabsLayout() {
   const { user } = useAuth();
   const { role, ready } = useMode();
+  // Badge count on the "My Hires" tab — how many bookings need the employer's
+  // attention right now (the kaarigar has arrived and the OTP is waiting).
+  const [actionCount, setActionCount] = useState(0);
+
+  const loadActionCount = useCallback(async () => {
+    if (!user || role !== 'employer') {
+      setActionCount(0);
+      return;
+    }
+    try {
+      const data = await listHires();
+      const count = (data.asEmployer ?? []).filter((h) => h.status === 'arrived').length;
+      setActionCount(count);
+    } catch {
+      // Never break the tab bar over a failed count.
+    }
+  }, [user, role]);
+
+  // Poll while the tabs are mounted so the badge appears shortly after the
+  // worker marks "Arrived" (even if the employer never leaves this screen).
+  useEffect(() => {
+    if (!user || role !== 'employer') return undefined;
+    void loadActionCount();
+    const timer = setInterval(() => {
+      void loadActionCount();
+    }, 15000);
+    return () => clearInterval(timer);
+  }, [user, role, loadActionCount]);
 
   // Wait for the stored role before picking a tab set (avoids a flash).
   if (!ready) return null;
@@ -58,6 +88,9 @@ export default function TabsLayout() {
               tabBarIcon: ({ color, size }) => (
                 <Ionicons name="briefcase-outline" color={color} size={size} />
               ),
+              // Red badge when a kaarigar has arrived and the OTP is waiting.
+              tabBarBadge: actionCount > 0 ? actionCount : undefined,
+              tabBarBadgeStyle: { backgroundColor: colors.danger, fontSize: 10 },
             }}
           />
         </>

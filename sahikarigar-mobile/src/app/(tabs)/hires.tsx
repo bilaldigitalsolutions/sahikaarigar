@@ -1,16 +1,17 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  FlatList,
   Pressable,
   RefreshControl,
+  SectionList,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 
-import { EmptyState, HireCard, Screen, Button } from '@/components';
+import { Button, EmptyState, HireCard, Screen } from '@/components';
 import { useAuth } from '@/contexts/AuthContext';
 import { listHires, type ApiHire } from '@/lib/api';
 import { colors, fontSize, fontWeight, radius, spacing } from '@/theme';
@@ -24,19 +25,15 @@ interface HireData {
 /** Statuses where a booking is still live (everything else is history). */
 const OPEN_STATUSES = ['pending', 'accepted', 'en_route', 'arrived', 'in_progress'] as const;
 
-type StatusFilter = 'all' | 'active' | 'history';
+/** Statuses that need the employer to DO something right now. */
+const ACTION_STATUSES = ['arrived'] as const;
 
-const STATUS_FILTERS: { id: StatusFilter; label: string }[] = [
-  { id: 'all', label: 'All' },
-  { id: 'active', label: 'Active' },
-  { id: 'history', label: 'History' },
-];
+type Perspective = 'employer' | 'worker';
 
 export default function HiresScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const [tab, setTab] = useState<'employer' | 'worker'>('employer');
-  const [filter, setFilter] = useState<StatusFilter>('all');
+  const [tab, setTab] = useState<Perspective>('employer');
   const [data, setData] = useState<HireData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -60,21 +57,36 @@ export default function HiresScreen() {
     }, [load]),
   );
 
+  // Dual-role users (employer + kaarigar) can switch sides. Pure employers
+  // never see this switcher — their screen stays a clean "Active / History" list.
   const isWorker = Boolean(data?.workerProfileId);
-  const hires = tab === 'employer' ? (data?.asEmployer ?? []) : (data?.asWorker ?? []);
+  const perspective: Perspective = tab === 'employer' || !isWorker ? 'employer' : 'worker';
+  const hires = perspective === 'employer' ? (data?.asEmployer ?? []) : (data?.asWorker ?? []);
 
   const isOpen = (hire: ApiHire) => (OPEN_STATUSES as readonly string[]).includes(hire.status);
-  const visible =
-    filter === 'all'
-      ? hires
-      : filter === 'active'
-        ? hires.filter(isOpen)
-        : hires.filter((hire) => !isOpen(hire));
+  const needsAction = (hire: ApiHire) =>
+    (ACTION_STATUSES as readonly string[]).includes(hire.status);
+
+  const activeHires = hires.filter(isOpen);
+  const historyHires = hires.filter((hire) => !isOpen(hire));
+  /** Jobs where the employer still has to share the start-work OTP. */
+  const awaitingOtp = activeHires.filter(needsAction);
+
+  const sections = useMemo(
+    () => [
+      { key: 'active', title: 'Active Jobs', data: activeHires },
+      { key: 'history', title: 'Previous History', data: historyHires },
+    ],
+    [activeHires, historyHires],
+  );
 
   return (
     <Screen scroll={false} padded={false}>
       <View style={styles.header}>
         <Text style={styles.heading}>My Bookings</Text>
+        <Text style={styles.subheading}>
+          {activeHires.length} active • {historyHires.length} in history
+        </Text>
       </View>
 
       {!user ? (
@@ -87,42 +99,56 @@ export default function HiresScreen() {
         </View>
       ) : null}
 
-      <View style={styles.segment}>
-        <Segment label="As Employer" active={tab === 'employer'} onPress={() => setTab('employer')} />
-        <Segment
-          label="As Worker"
-          active={tab === 'worker'}
-          onPress={() => setTab('worker')}
-          disabled={!isWorker}
-        />
-      </View>
+      {isWorker ? (
+        <View style={styles.segment}>
+          <Segment
+            label="As Employer"
+            active={perspective === 'employer'}
+            onPress={() => setTab('employer')}
+          />
+          <Segment
+            label="As Kaarigar"
+            active={perspective === 'worker'}
+            onPress={() => setTab('worker')}
+          />
+        </View>
+      ) : null}
 
-      {/* Active bookings vs. the order history (completed / cancelled / rejected). */}
-      <View style={styles.filters}>
-        {STATUS_FILTERS.map((f) => (
-          <Pressable
-            key={f.id}
-            onPress={() => setFilter(f.id)}
-            style={[styles.filter, filter === f.id && styles.filterActive]}
-            accessibilityRole="button"
-            accessibilityState={{ selected: filter === f.id }}
-          >
-            <Text style={[styles.filterText, filter === f.id && styles.filterTextActive]}>
-              {f.label}
+      {/* Action banner — the kaarigar has arrived and the employer still has
+          to share the 4-digit start-work OTP. */}
+      {perspective === 'employer' && awaitingOtp.length > 0 ? (
+        <Pressable
+          style={styles.actionBanner}
+          onPress={() =>
+            router.push({
+              pathname: '/hire/detail/[id]',
+              params: { id: awaitingOtp[0].id },
+            })
+          }
+        >
+          <Ionicons name="key" size={18} color={colors.white} />
+          <View style={styles.actionTextWrap}>
+            <Text style={styles.actionTitle}>
+              {awaitingOtp.length === 1
+                ? 'Kaarigar pahunch gaya — OTP share karo'
+                : `${awaitingOtp.length} kaarigar pahunch gaye — OTP share karo`}
             </Text>
-          </Pressable>
-        ))}
-      </View>
+            <Text style={styles.actionSub}>Tap karke OTP dekhein aur worker ko dijiye</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.white} />
+        </Pressable>
+      ) : null}
 
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator color={colors.primaryDark} />
         </View>
       ) : (
-        <FlatList
-          data={visible}
+        <SectionList
+          sections={sections}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
+          stickySectionHeadersEnabled={false}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -132,36 +158,44 @@ export default function HiresScreen() {
               }}
             />
           }
+          renderSectionHeader={({ section }) => (
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>{section.title}</Text>
+              <Text style={styles.sectionCount}>{section.data.length}</Text>
+            </View>
+          )}
           renderItem={({ item }) => (
             <HireCard
               hire={item}
-              perspective={tab}
+              perspective={perspective}
+              notice={
+                perspective === 'employer' && needsAction(item)
+                  ? { label: 'OTP Ready — tap to show' }
+                  : undefined
+              }
               onPress={() =>
                 router.push({ pathname: '/hire/detail/[id]', params: { id: item.id } })
               }
             />
           )}
           ListEmptyComponent={
-            <EmptyState
-              icon={error ? 'cloud-offline-outline' : 'briefcase-outline'}
-              title={
-                error
-                  ? 'Something went wrong'
-                  : filter === 'history'
-                    ? 'No history yet'
-                    : 'No bookings yet'
-              }
-              subtitle={
-                error ??
-                (filter === 'history'
-                  ? 'Completed aur cancelled orders yahan aayenge.'
-                  : filter === 'active'
-                    ? 'Abhi koi active booking nahi hai.'
-                    : tab === 'employer'
-                      ? 'Hire a worker to get started.'
-                      : 'Bookings you receive will show up here.')
-              }
-            />
+            error ? (
+              <EmptyState
+                icon="cloud-offline-outline"
+                title="Something went wrong"
+                subtitle={error}
+              />
+            ) : (
+              <EmptyState
+                icon="briefcase-outline"
+                title="No bookings yet"
+                subtitle={
+                  perspective === 'employer'
+                    ? 'Hire a worker to get started.'
+                    : 'Bookings you receive will show up here.'
+                }
+              />
+            )
           }
         />
       )}
@@ -173,17 +207,17 @@ function Segment({
   label,
   active,
   onPress,
-  disabled,
 }: {
   label: string;
   active: boolean;
   onPress: () => void;
-  disabled?: boolean;
 }) {
   return (
     <Pressable
-      onPress={disabled ? undefined : onPress}
-      style={[styles.segmentItem, active && styles.segmentActive, disabled && styles.segmentDisabled]}
+      onPress={onPress}
+      style={[styles.segmentItem, active && styles.segmentActive]}
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
     >
       <Text style={[styles.segmentText, active && styles.segmentTextActive]}>{label}</Text>
     </Pressable>
@@ -193,9 +227,15 @@ function Segment({
 const styles = StyleSheet.create({
   header: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg },
   heading: { fontSize: fontSize.h2, fontWeight: fontWeight.bold, color: colors.textPrimary },
+  subheading: {
+    fontSize: fontSize.caption,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
   segment: {
     flexDirection: 'row',
-    margin: spacing.lg,
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.md,
     backgroundColor: colors.card,
     borderRadius: radius.button,
     borderWidth: 1,
@@ -203,37 +243,61 @@ const styles = StyleSheet.create({
     padding: 4,
     gap: 4,
   },
-  segmentItem: { flex: 1, paddingVertical: spacing.sm, borderRadius: radius.sm, alignItems: 'center' },
-  segmentActive: { backgroundColor: colors.primaryDark },
-  segmentDisabled: { opacity: 0.4 },
-  segmentText: { fontSize: fontSize.caption, color: colors.textSecondary, fontWeight: fontWeight.medium },
-  segmentTextActive: { color: colors.white },
-  filters: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.md,
-  },
-  filter: {
-    paddingHorizontal: spacing.md,
+  segmentItem: {
+    flex: 1,
     paddingVertical: spacing.sm,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
+    borderRadius: radius.sm,
+    alignItems: 'center',
   },
-  filterActive: { backgroundColor: colors.primaryTint, borderColor: colors.primaryBorder },
-  filterText: {
+  segmentActive: { backgroundColor: colors.primaryDark },
+  segmentText: {
     fontSize: fontSize.caption,
     color: colors.textSecondary,
     fontWeight: fontWeight.medium,
   },
-  filterTextActive: { color: colors.primaryDark, fontWeight: fontWeight.semibold },
+  segmentTextActive: { color: colors.white },
+  // Action banner — the employer must share the OTP once the worker arrives.
+  actionBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.md,
+    padding: spacing.md,
+    borderRadius: radius.card,
+    backgroundColor: colors.primaryDark,
+  },
+  actionTextWrap: { flex: 1 },
+  actionTitle: {
+    fontSize: fontSize.caption,
+    fontWeight: fontWeight.bold,
+    color: colors.white,
+  },
+  actionSub: { fontSize: fontSize.caption - 1, color: colors.white, opacity: 0.85, marginTop: 1 },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    marginTop: spacing.lg,
+    marginBottom: spacing.sm,
+  },
+  sectionTitle: { fontSize: fontSize.body, fontWeight: fontWeight.bold, color: colors.textPrimary },
+  sectionCount: {
+    fontSize: fontSize.caption,
+    fontWeight: fontWeight.semibold,
+    color: colors.primaryDark,
+    backgroundColor: colors.primaryTint,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 1,
+    borderRadius: radius.pill,
+    overflow: 'hidden',
+  },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   list: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg },
   guestBox: {
     marginHorizontal: spacing.lg,
-    marginBottom: spacing.md,
+    marginTop: spacing.md,
     padding: spacing.lg,
     borderRadius: radius.card,
     borderWidth: 1,
@@ -241,6 +305,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryTint,
     gap: spacing.sm,
   },
-  guestTitle: { fontSize: fontSize.body, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+  guestTitle: {
+    fontSize: fontSize.body,
+    fontWeight: fontWeight.semibold,
+    color: colors.textPrimary,
+  },
   guestText: { fontSize: fontSize.caption, color: colors.textSecondary, lineHeight: 18 },
 });

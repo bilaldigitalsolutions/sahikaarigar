@@ -57,15 +57,23 @@ interface SupertokensResponse {
 
 async function postAuth(path: string, body: Record<string, unknown>): Promise<SupertokensResponse> {
   const base = requireAuthApiUrl();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
   let response: Response;
   try {
     response = await fetch(`${base}${path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
+      signal: controller.signal,
     });
-  } catch {
+  } catch (e) {
+    if (e instanceof Error && e.name === 'AbortError') {
+      throw new Error('Auth server slow hai. Thodi der baad try karo.');
+    }
     throw new Error('Could not reach the auth server. Check your connection and try again.');
+  } finally {
+    clearTimeout(timer);
   }
   const data = (await response.json().catch(() => null)) as SupertokensResponse | null;
   if (!data) throw new Error('Unexpected response from the server. Please try again.');

@@ -83,7 +83,7 @@ export default function HiresScreen() {
   return (
     <Screen scroll={false} padded={false}>
       <View style={styles.header}>
-        <Text style={styles.heading}>My Bookings</Text>
+        <Text style={styles.heading}>My Hires</Text>
         <Text style={styles.subheading}>
           {activeHires.length} active • {historyHires.length} in history
         </Text>

@@ -109,33 +109,27 @@ export default function TabsLayout() {
             name="index"
             options={{
               title: 'Dashboard',
-              tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" color={color} size={size} />,
+              tabBarIcon: ({ color, size }) => (
+                <Ionicons name="home-outline" color={color} size={size ?? 24} />
+              ),
             }}
           />
           <Tabs.Screen
             name="jobs"
             options={{
-              title: 'Requests',
+              title: 'My Work',
               tabBarIcon: ({ color, size }) => (
-                <Ionicons name="briefcase-outline" color={color} size={size} />
+                <Ionicons name="briefcase-outline" color={color} size={size ?? 24} />
               ),
             }}
           />
-          <Tabs.Screen
-            name="my-jobs"
-            options={{
-              title: 'My Jobs',
-              tabBarIcon: ({ color, size }) => (
-                <Ionicons name="list-outline" color={color} size={size} />
-              ),
-            }}
-          />
+          {/* Merged "My Jobs" + "Availability" into a single tab. */}
           <Tabs.Screen
             name="availability"
             options={{
               title: 'Availability',
               tabBarIcon: ({ color, size }) => (
-                <Ionicons name="toggle-outline" color={color} size={size} />
+                <Ionicons name="calendar-outline" color={color} size={size ?? 24} />
               ),
             }}
           />
@@ -156,6 +150,7 @@ export default function TabsLayout() {
       {isEmployer ? <Tabs.Screen name="my-jobs" options={{ href: null }} /> : null}
       {isEmployer ? <Tabs.Screen name="availability" options={{ href: null }} /> : null}
       {isWorker ? <Tabs.Screen name="hires" options={{ href: null }} /> : null}
+      {isWorker ? <Tabs.Screen name="my-jobs" options={{ href: null }} /> : null}
     </Tabs>
   );
 }

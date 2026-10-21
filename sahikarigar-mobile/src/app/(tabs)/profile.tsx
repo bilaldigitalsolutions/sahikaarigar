@@ -61,6 +61,7 @@ export default function ProfileScreen() {
 
   const onSignOut = async () => {
     await signOut();
+    router.dismissAll();
     router.replace('/(auth)/login');
   };
 
@@ -143,11 +144,11 @@ export default function ProfileScreen() {
           value={user.locationArea ? areaLabel(user.locationArea) : 'Not set'}
         />
         <InfoRow
-          icon="shield-checkmark-outline"
+          icon="shield-checkmark"
           label="Verification"
           value={user.isVerified ? 'Verified' : 'Pending'}
         />
-        <InfoRow icon="star-outline" label="Trust Score" value={String(user.trustScore ?? 0)} />
+        <InfoRow icon="star" label="Trust Score" value={String(user.trustScore ?? 0)} />
       </Card>
 
       {user.role === 'employer' ? (
@@ -350,7 +351,9 @@ function InfoRow({
 }) {
   return (
     <View style={styles.infoRow}>
-      <Ionicons name={icon} size={20} color={colors.textSecondary} />
+      <View style={styles.infoIconWrap}>
+        <Ionicons name={icon} size={22} color={colors.primaryDark} />
+      </View>
       <Text style={styles.infoLabel}>{label}</Text>
       <Text style={styles.infoValue}>{value}</Text>
     </View>
@@ -387,6 +390,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: spacing.sm,
     gap: spacing.md,
+  },
+  infoIconWrap: {
+    width: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   infoLabel: { fontSize: fontSize.small, color: colors.textSecondary, flex: 1 },
   infoValue: {

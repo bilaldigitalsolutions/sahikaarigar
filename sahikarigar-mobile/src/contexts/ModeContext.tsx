@@ -78,6 +78,17 @@ export function ModeProvider({ children }: { children: ReactNode }) {
     let active = true;
     (async () => {
       try {
+        if (!user) {
+          setStoredRole(null);
+          try {
+            await AsyncStorage.removeItem(ROLE_KEY);
+            await AsyncStorage.removeItem(LEGACY_MODE_KEY);
+          } catch {
+            // ignore
+          }
+          if (active) setReady(true);
+          return;
+        }
         const role = await getRole();
         if (!active) return;
         if (role) setStoredRole(role);
@@ -90,7 +101,7 @@ export function ModeProvider({ children }: { children: ReactNode }) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [user]);
 
   // Persist synchronously into state AND AsyncStorage in one tick, so the tab
   // layout and onboarding resolve the fresh role on the very next render

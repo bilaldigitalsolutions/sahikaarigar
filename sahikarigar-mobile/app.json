@@ -31,6 +31,11 @@
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
+    "splash": {
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#16A34A"
+    },
     "plugins": [
       "expo-router",
       "./plugins/withMappls",
@@ -39,8 +44,9 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#16A34A",
-          "image": "./assets/images/loading-banner.png",
-          "imageWidth": 120
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain"
         }
       ],
       [

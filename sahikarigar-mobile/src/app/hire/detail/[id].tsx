@@ -82,7 +82,7 @@ export default function HireDetailScreen() {
   useEffect(() => {
     const timer = setInterval(() => {
       void fetchHire(true);
-    }, 10_000);
+    }, 5_000);
     return () => clearInterval(timer);
   }, [fetchHire]);
 
@@ -277,7 +277,7 @@ function BookingBody({
     fetchStartOtp();
 
     if (hire.status === 'arrived' && !startOtp) {
-      otpPollRef.current = setInterval(fetchStartOtp, 5000);
+      otpPollRef.current = setInterval(fetchStartOtp, 3000);
     } else {
       if (otpPollRef.current) {
         clearInterval(otpPollRef.current);

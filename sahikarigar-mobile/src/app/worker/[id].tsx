@@ -136,7 +136,7 @@ export default function WorkerDetailScreen() {
 
               <View style={styles.ratingRow}>
                 <Ionicons name="star" size={16} color={colors.star} />
-                <Text style={styles.ratingValue}>{worker.ratingAverage.toFixed(1)}</Text>
+                <Text style={styles.ratingValue}>{(worker.ratingAverage ?? 0).toFixed(1)}</Text>
                 <Text style={styles.ratingMeta}>
                   ({worker.ratingCount} {worker.ratingCount === 1 ? 'review' : 'reviews'})
                 </Text>
@@ -167,7 +167,7 @@ export default function WorkerDetailScreen() {
                 <Text style={styles.locationText}>
                   {workerUser?.locationArea
                     ? areaLabel(workerUser.locationArea)
-                    : worker.serviceAreas[0]
+                    : worker.serviceAreas?.[0]
                       ? areaLabel(worker.serviceAreas[0])
                       : 'Hyderabad'}
                   {workerUser?.locationCity ? `, ${workerUser.locationCity}` : ''}
@@ -205,7 +205,7 @@ export default function WorkerDetailScreen() {
 
                 <Text style={[styles.sectionTitle, styles.sectionGap]}>Skills</Text>
                 <View style={styles.skillWrap}>
-                  {worker.skills.length > 0 ? (
+                  {(worker.skills?.length ?? 0) > 0 ? (
                     worker.skills.map((s) => (
                       <View key={s} style={styles.skillChip}>
                         <Ionicons

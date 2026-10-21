@@ -54,7 +54,7 @@ export function HireCard({ hire, perspective, onPress, notice }: HireCardProps) 
       </Text>
 
       <View style={styles.footer}>
-        <Text style={styles.meta}>{formatCurrency(hire.rate)}</Text>
+        <Text style={styles.meta}>{formatCurrency(hire.proposedRate)}</Text>
         <Text style={styles.meta}>{hire.locationArea}</Text>
         <Text style={styles.meta}>{formatRelativeDate(hire.createdAt)}</Text>
       </View>

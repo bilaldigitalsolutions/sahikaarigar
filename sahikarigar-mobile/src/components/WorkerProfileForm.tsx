@@ -12,7 +12,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Input, LocationPicker, Select, type PlaceResult } from '@/components/ui';
 import { AVAILABILITY_OPTIONS, SKILLS, VALIDATION, skillLabel } from '@/constants';
@@ -70,7 +70,7 @@ export function WorkerProfileForm({
   aadhaarMasked = null,
   extraSkills = [],
 }: WorkerProfileFormProps) {
-  const aadhaarDigits = values.aadhaar.replace(/\D/g, '');
+  const aadhaarDigits = (values.aadhaar ?? '').replace(/\D/g, '');
   const aadhaarCheck = aadhaarDigits ? validateAadhaar(aadhaarDigits) : null;
   const aadhaarValid = !aadhaarCheck || aadhaarCheck.valid;
 
@@ -91,6 +91,11 @@ export function WorkerProfileForm({
     });
     if (res.canceled || !res.assets?.[0]) return;
     const asset = res.assets[0];
+    // Reject photos larger than 5MB to avoid OOM from base64 encoding in state.
+    if (asset.fileSize && asset.fileSize > 5 * 1024 * 1024) {
+      Alert.alert('Photo 5MB se badi hai', 'Kripya 5MB tak ki chhoti photo chunein.');
+      return;
+    }
     onChange({
       profilePhotoUri: asset.uri,
       profilePhotoDataUrl: asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : null,
@@ -112,6 +117,13 @@ export function WorkerProfileForm({
       base64: true,
     });
     if (res.canceled || !res.assets?.length) return;
+
+    const oversized = res.assets.filter((a) => a.fileSize && a.fileSize > 5 * 1024 * 1024);
+    if (oversized.length > 0) {
+      Alert.alert('Photo 5MB se badi hai', 'Kripya 5MB tak ki chhoti photos chunein.');
+      return;
+    }
+
     const uris = res.assets.map((a) => a.uri);
     const dataUrls = res.assets
       .map((a) => (a.base64 ? `data:image/jpeg;base64,${a.base64}` : null))
@@ -313,7 +325,7 @@ export function WorkerProfileForm({
       {/* Work-photo thumbnails with delete buttons */}
       {totalWorkPhotos > 0 ? (
         <View style={[styles.mt, styles.thumbRow]}>
-          {values.workPhotoUrls.map((url, index) => (
+          {(values.workPhotoUrls ?? []).map((url, index) => (
             <View key={url} style={styles.thumbWrap}>
               <Image source={{ uri: url }} style={styles.thumb} contentFit="cover" />
               <Pressable
@@ -325,7 +337,7 @@ export function WorkerProfileForm({
               </Pressable>
             </View>
           ))}
-          {values.newWorkPhotoUris.map((uri, index) => (
+          {(values.newWorkPhotoUris ?? []).map((uri, index) => (
             <View key={uri} style={styles.thumbWrap}>
               <Image source={{ uri }} style={styles.thumb} contentFit="cover" />
               <Pressable

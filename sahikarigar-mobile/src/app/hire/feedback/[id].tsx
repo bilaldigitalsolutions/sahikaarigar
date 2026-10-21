@@ -83,6 +83,10 @@ export default function FeedbackScreen() {
       Alert.alert('Invalid tip amount', 'Please enter a valid amount.');
       return;
     }
+    if (tipAmount < 0) {
+      Alert.alert('Invalid tip amount', 'Tip cannot be negative.');
+      return;
+    }
     setSubmitting(true);
     try {
       await createReview({

@@ -170,6 +170,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null);
       setPendingPhone(null);
       setDevOtp(null);
+      nameRef.current = null;
       challengeRef.current = null;
     }
   }, []);

@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -67,6 +68,7 @@ export function SearchScreen() {
   const [maxPrice, setMaxPrice] = useState(PRICE_MAX);
   const [workers, setWorkers] = useState<ApiWorker[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Device GPS — fallback for "near me" sorting when the profile has no
   // saved coordinates (permission is requested lazily, best-effort).
@@ -89,29 +91,25 @@ export function SearchScreen() {
     if (params.area) setAreaFilter(String(params.area));
   }
 
-  useEffect(() => {
-    let cancelled = false;
-    searchWorkers({ skill: skill ?? undefined, limit: 50 })
-      .then((result) => {
-        if (!cancelled) {
-          setWorkers(result.workers);
-          setError(null);
-          trackEvent('search_performed', { skill: skill ?? undefined, resultCount: result.workers.length });
-        }
-      })
-      .catch((e) => {
-        if (!cancelled) {
-          setError(e instanceof Error ? e.message : 'Could not load workers.');
-          setWorkers([]);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+  const load = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const result = await searchWorkers({ skill: skill ?? undefined, limit: 50 });
+      setWorkers(result.workers);
+      setError(null);
+      trackEvent('search_performed', { skill: skill ?? undefined, resultCount: result.workers.length });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not load workers.');
+      setWorkers([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, [skill]);
+
+  useEffect(() => {
+    load();
+  }, [skill, load]);
 
   const toggleFilter = (id: PopularFilterId) =>
     setFilters((prev) => (prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]));
@@ -177,7 +175,7 @@ export function SearchScreen() {
 
   return (
     <Screen
-      scroll
+      scroll={false}
       padded={false}
       edges={[]}
       contentStyle={styles.content}
@@ -228,7 +226,20 @@ export function SearchScreen() {
         </View>
       }
     >
-      <Section title="Popular filters" />
+      <ScrollView
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              setRefreshing(true);
+              load();
+            }}
+          />
+        }
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        <Section title="Popular filters" />
       <View style={styles.chipWrap}>
         {POPULAR_FILTERS.map((f) => {
           const active = filters.includes(f.id);
@@ -355,6 +366,7 @@ export function SearchScreen() {
         </>
       )}
 
+      </ScrollView>
     </Screen>
   );
 }

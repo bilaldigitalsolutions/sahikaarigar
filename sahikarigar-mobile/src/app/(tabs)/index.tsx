@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, BackHandler, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import {
   Avatar,
@@ -31,6 +31,7 @@ export default function HomeScreen() {
   const { role } = useMode();
   const [workers, setWorkers] = useState<ApiWorker[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [hires, setHires] = useState<any[]>([]);
   const [dashboard, setDashboard] = useState<any | null>(null);
   const [loadingExtra, setLoadingExtra] = useState(false);
@@ -71,6 +72,15 @@ export default function HomeScreen() {
       setLoadingExtra(false);
     }
   }, [user]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([load(), loadDashboard()]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [load, loadDashboard]);
 
   // Refetch on every tab focus AND whenever the session user arrives/changes,
   // so an admin approval (is_approved flips server-side) shows the Active
@@ -152,6 +162,7 @@ export default function HomeScreen() {
         hires={hires}
         dashboard={dashboard}
         loadingExtra={loadingExtra}
+        onRefresh={onRefresh}
       />
     );
   }
@@ -322,13 +333,16 @@ function WorkerHomeScreen({
   hires,
   dashboard,
   loadingExtra,
+  onRefresh,
 }: {
   user: any;
   hires: any[];
   dashboard: any | null;
   loadingExtra: boolean;
+  onRefresh: () => void;
 }) {
   const router = useRouter();
+  const [refreshing, setRefreshing] = useState(false);
   const isApproved = dashboard?.worker?.isApproved ?? false;
   const stats = dashboard?.stats;
   // "New Job Requests" = sirf pending. listHires() sab statuses laata hai —
@@ -365,72 +379,64 @@ function WorkerHomeScreen({
 
   // Approved — show the full dashboard.
   return (
-    <Screen scroll>
-      <Text style={styles.heading}>Kaarigar Dashboard</Text>
+    <Screen scroll={false} padded={false}>
+      <ScrollView
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              setRefreshing(true);
+              onRefresh();
+            }}
+          />
+        }
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        <Text style={styles.heading}>Kaarigar Dashboard</Text>
 
-      {loadingExtra && !dashboard ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={colors.primaryDark} />
-        </View>
-      ) : (
-        <>
-          {/* Dashboard Cards */}
-          <View style={styles.cardsRow}>
-            <DashboardCard
-              icon="paper-plane"
-              label="New Requests"
-              count={stats?.pending ?? 0}
-              color={colors.primary}
-              onPress={() => router.push('/(tabs)/jobs')}
-            />
-            <DashboardCard
-              icon="briefcase"
-              label="Active Jobs"
-              count={stats?.active ?? 0}
-              color={colors.warning}
-              onPress={() => router.push('/(tabs)/my-jobs' as any)}
-            />
-            <DashboardCard
-              icon="checkmark-circle"
-              label="Completed"
-              count={stats?.completed ?? 0}
-              color={colors.success}
-              onPress={() => router.push('/(tabs)/my-jobs' as any)}
-            />
+        {loadingExtra && !dashboard ? (
+          <View style={styles.center}>
+            <ActivityIndicator color={colors.primaryDark} />
           </View>
-
-          {/* New Job Requests */}
-          <Text style={styles.sectionTitle}>New Job Requests</Text>
-          {loadingExtra ? (
-            <ActivityIndicator color={colors.primaryDark} style={styles.loader} />
-          ) : newRequests.length === 0 ? (
-            <View style={styles.emptyBox}>
-              <Ionicons name="briefcase-outline" size={36} color={colors.muted} />
-              <Text style={styles.emptyText}>No new job requests right now.</Text>
-            </View>
-          ) : (
-            newRequests.map((hire) => (
-              <HireCard
-                key={hire.id}
-                hire={hire}
-                perspective="worker"
-                onPress={() =>
-                  router.push({ pathname: '/hire/detail/[id]', params: { id: hire.id } })
-                }
+        ) : (
+          <>
+            {/* Dashboard Cards */}
+            <View style={styles.cardsRow}>
+              <DashboardCard
+                icon="paper-plane"
+                label="New Requests"
+                count={stats?.pending ?? 0}
+                color={colors.primary}
+                onPress={() => router.push('/(tabs)/jobs')}
               />
-            ))
-          )}
+              <DashboardCard
+                icon="briefcase"
+                label="Active Jobs"
+                count={stats?.active ?? 0}
+                color={colors.warning}
+                onPress={() => router.push('/(tabs)/my-jobs' as any)}
+              />
+              <DashboardCard
+                icon="checkmark-circle"
+                label="Completed"
+                count={stats?.completed ?? 0}
+                color={colors.success}
+                onPress={() => router.push('/(tabs)/my-jobs' as any)}
+              />
+            </View>
 
-          {/* My Active Jobs */}
-          <Text style={[styles.sectionTitle, { marginTop: spacing.lg }]}>My Active Jobs</Text>
-          {dashboard ? (
-            (dashboard.active ?? []).length === 0 ? (
+            {/* New Job Requests */}
+            <Text style={styles.sectionTitle}>New Job Requests</Text>
+            {loadingExtra ? (
+              <ActivityIndicator color={colors.primaryDark} style={styles.loader} />
+            ) : newRequests.length === 0 ? (
               <View style={styles.emptyBox}>
-                <Ionicons name="checkmark-circle-outline" size={36} color={colors.muted} />
-                <Text style={styles.emptyText}>No active jobs right now.</Text>
+                <Ionicons name="briefcase-outline" size={36} color={colors.muted} />
+                <Text style={styles.emptyText}>No new job requests right now.</Text>
               </View>
             ) : (
-              (dashboard.active ?? []).map((hire: any) => (
+              newRequests.map((hire) => (
                 <HireCard
                   key={hire.id}
                   hire={hire}
@@ -440,10 +446,32 @@ function WorkerHomeScreen({
                   }
                 />
               ))
-            )
-          ) : null}
-        </>
-      )}
+            )}
+
+            {/* My Active Jobs */}
+            <Text style={[styles.sectionTitle, { marginTop: spacing.lg }]}>My Active Jobs</Text>
+            {dashboard ? (
+              (dashboard.active ?? []).length === 0 ? (
+                <View style={styles.emptyBox}>
+                  <Ionicons name="checkmark-circle-outline" size={36} color={colors.muted} />
+                  <Text style={styles.emptyText}>No active jobs right now.</Text>
+                </View>
+              ) : (
+                (dashboard.active ?? []).map((hire: any) => (
+                  <HireCard
+                    key={hire.id}
+                    hire={hire}
+                    perspective="worker"
+                    onPress={() =>
+                      router.push({ pathname: '/hire/detail/[id]', params: { id: hire.id } })
+                    }
+                  />
+                ))
+              )
+            ) : null}
+          </>
+        )}
+      </ScrollView>
     </Screen>
   );
 }
@@ -526,6 +554,7 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     marginBottom: spacing.lg,
   },
+  content: { padding: spacing.lg, paddingBottom: spacing.xxl },
   dashCard: {
     flex: 1,
     alignItems: 'center',

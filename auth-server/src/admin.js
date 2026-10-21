@@ -262,7 +262,15 @@ export async function listAdminUsers(role, search = '', page = 1, limit = 50) {
   const term = String(search).trim().slice(0, 100).replace(/[%_,()."\\]/g, '');
   if (term) query = query.or(`name.ilike.%${term}%,phone.ilike.%${term}%`);
   const { data, error, count } = await query;
-  if (error) throw new Error(error.message);
+  if (error) {
+    // A missing trust column is a migration problem, not a user-facing one —
+    // say exactly which migration to run instead of leaking the raw PostgREST
+    // "column ... does not exist" text to the admin panel.
+    if (/is_flagged/i.test(error.message)) {
+      throw new Error('Flag column abhi database me nahi hai — 0011_trust_penalty.sql migration chalao');
+    }
+    throw new Error(error.message);
+  }
   return {
     users: (data ?? []).map((row) => ({
       id: row.id,

@@ -202,6 +202,8 @@ export default function HireDetailScreen() {
             onFeedback={() =>
               router.push({ pathname: '/hire/feedback/[id]', params: { id: hire.id } })
             }
+            router={router}
+            onHelp={onHelp}
           />
         </>
       )}
@@ -221,6 +223,8 @@ function BookingBody({
   onCancel,
   onAction,
   onFeedback,
+  router,
+  onHelp,
 }: {
   hire: ApiHire;
   workerName: string;
@@ -236,6 +240,8 @@ function BookingBody({
    *  given, so the inline OTP entry can show the error next to the field. */
   onAction: (action: HireAction, otp?: string) => Promise<void>;
   onFeedback: () => void;
+  router: ReturnType<typeof useRouter>;
+  onHelp: () => void;
 }) {
   const completed = hire.status === 'completed';
   const [startOtp, setStartOtp] = useState<string | null>(null);
@@ -392,7 +398,9 @@ function BookingBody({
             ? 'Ye booking cancel ho gayi hai.'
             : hire.status === 'pending'
               ? 'Request kaarigar ko bhej di gayi hai — accept karte hi aapko notification milega.'
-              : 'Your booking is confirmed. We’ll keep you updated.'}
+              : completed
+                ? 'Work completed successfully. Please leave a review.'
+                : 'Your booking is confirmed. We’ll keep you updated.'}
         </Text>
 
         {/* EMPLOYER ACTION BANNER — the kaarigar has arrived and the OTP is
@@ -660,9 +668,20 @@ function BookingBody({
           // the kaarigar has already reached), feedback once done.
           <>
             {completed ? (
-              <Pressable style={styles.primaryAction} onPress={onFeedback}>
-                <Text style={styles.primaryActionText}>Give Feedback</Text>
-              </Pressable>
+              <>
+                <Pressable style={styles.primaryAction} onPress={onFeedback}>
+                  <Text style={styles.primaryActionText}>Give Feedback</Text>
+                </Pressable>
+                <Pressable
+                  style={styles.outlineAction}
+                  onPress={() => router.replace('/(tabs)')}
+                >
+                  <Text style={styles.outlineActionText}>Home</Text>
+                </Pressable>
+                <Pressable style={styles.outlineAction} onPress={onHelp}>
+                  <Text style={styles.outlineActionText}>Help</Text>
+                </Pressable>
+              </>
             ) : (
               <>
                 {arrived ? (
@@ -681,17 +700,14 @@ function BookingBody({
                 >
                   <Text style={styles.outlineActionText}>Cancel Job</Text>
                 </Pressable>
+                <Pressable style={styles.outlineAction} onPress={onHelp}>
+                  <Ionicons name="help-circle-outline" size={16} color={colors.textPrimary} />
+                  <Text style={styles.outlineActionText}>Help</Text>
+                </Pressable>
               </>
             )}
           </>
         )}
-          <Pressable
-            style={styles.outlineAction}
-            onPress={() => Alert.alert('Madad chahiye?', `Support: ${SUPPORT_PHONE}`)}
-          >
-            <Ionicons name="help-circle-outline" size={16} color={colors.textPrimary} />
-            <Text style={styles.outlineActionText}>Help</Text>
-          </Pressable>
           </View>
         </View>
       </View>

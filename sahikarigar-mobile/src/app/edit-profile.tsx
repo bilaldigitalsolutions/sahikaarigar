@@ -7,8 +7,11 @@ import {
   BrandLogo,
   Button,
   Header,
+  Input,
+  LocationPicker,
   Screen,
   WorkerProfileForm,
+  type PlaceResult,
   type WorkerProfileFormValues,
 } from '@/components';
 import { AVAILABILITY_OPTIONS, LEGAL_URLS, SUPPORT_PHONE, VALIDATION } from '@/constants';
@@ -66,6 +69,17 @@ export default function EditProfileScreen() {
   /** The photo/area as they were loaded — lets us detect deletions & changes. */
   const [originalPhotoUrl, setOriginalPhotoUrl] = useState<string | null>(null);
   const [originalArea, setOriginalArea] = useState<string | null>(null);
+  // Employer-only account fields (not part of WorkerProfileFormValues).
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [areaError, setAreaError] = useState<string | null>(null);
+  const [name, setName] = useState(user?.name ?? '');
+  const [address, setAddress] = useState(user?.address ?? '');
+  const [area, setArea] = useState(user?.locationArea ?? '');
+  const clearErrors = () => {
+    if (nameError) setNameError(null);
+    if (areaError) setAreaError(null);
+    if (error) setError(null);
+  };
 
   const patch = (p: Partial<WorkerProfileFormValues>) =>
     setValues((prev) => ({ ...prev, ...p }));
@@ -163,10 +177,11 @@ export default function EditProfileScreen() {
     setBusy(true);
     setError(null);
     try {
-      // 1) The base account (name + area — `users` table).
+      // 1) The base account (name + area + address — `users` table).
       await updateProfile({
         name: finalName,
         locationArea: finalArea,
+        ...(address.trim() ? { address: address.trim() } : {}),
       });
       // 2) The worker registration details (`worker_profiles` table) — the same
       // fields the registration form captured.
@@ -292,17 +307,61 @@ export default function EditProfileScreen() {
             Number ke saath yeh sab details badal sakte hain. Number khud nahi badalta.
           </Text>
 
-          <View style={styles.noticeBox}>
-            <Ionicons name="information-circle" size={18} color={colors.primaryDark} />
-            <Text style={styles.noticeText}>Employer account — name and area can be updated here.</Text>
+          <Input
+            label="Full name"
+            placeholder="Enter your full name"
+            value={name}
+            onChangeText={(text) => {
+              setName(text);
+              clearErrors();
+            }}
+            error={nameError ?? undefined}
+            containerStyle={styles.mt}
+          />
+
+          <Input
+            label="Phone number"
+            value={user?.phone}
+            editable={false}
+            hint="Verified number — yahan nahi badal sakte"
+            containerStyle={styles.mt}
+          />
+
+          <View style={styles.mt}>
+            <Text style={styles.label}>Area</Text>
+            <LocationPicker
+              placeholder="Search area — Madhapur, Kukatpally…"
+              value={area}
+              onSelect={(place: PlaceResult) => {
+                setArea(place.description);
+                clearErrors();
+              }}
+              icon="location-outline"
+            />
+            {areaError ? <Text style={styles.errorText}>{areaError}</Text> : null}
           </View>
+
+          <Input
+            label="Address / landmark"
+            placeholder="House no., street, landmark"
+            value={address}
+            onChangeText={(text) => {
+              setAddress(text);
+              clearErrors();
+            }}
+            multiline
+            numberOfLines={3}
+            containerStyle={styles.mt}
+          />
+
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
           <Button
             label="Update Profile"
             onPress={onSave}
             loading={busy}
             size="lg"
-            style={styles.mt}
+            style={styles.saveBtn}
           />
           <Text style={styles.support}>Need help? Contact support • {SUPPORT_PHONE}</Text>
         </ScrollView>
@@ -326,6 +385,14 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     marginTop: spacing.lg,
   },
+  label: {
+    fontSize: fontSize.caption,
+    fontWeight: fontWeight.medium,
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
+  },
+  errorText: { color: colors.danger, fontSize: fontSize.caption, marginTop: spacing.sm },
+  saveBtn: { marginTop: spacing.xl },
   noticeBox: {
     flexDirection: 'row',
     alignItems: 'center',

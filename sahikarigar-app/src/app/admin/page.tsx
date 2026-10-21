@@ -7,11 +7,8 @@ import {
   AlertTriangle,
   ArrowUpRight,
   Briefcase,
-  Check,
   ChevronRight,
   ClipboardList,
-  MoreHorizontal,
-  TrendingUp,
   UserCheck,
   Users,
   X,
@@ -19,6 +16,7 @@ import {
 import {
   getAdminStats,
   listAdminWorkers,
+  displayName,
   type ApiAdminStats,
   type ApiAdminWorker,
 } from '@/lib/api';
@@ -65,7 +63,7 @@ function timeAgo(iso: string): string {
 }
 
 function workerToActivityRow(worker: ApiAdminWorker, index: number): ActivityRow {
-  const name = worker.user?.name?.trim() || 'Worker';
+  const name = displayName(worker.user?.name);
   const skills = worker.skills ?? [];
   const category =
     skills.length > 0
@@ -87,20 +85,6 @@ function workerToActivityRow(worker: ApiAdminWorker, index: number): ActivityRow
     status,
     time: worker.createdAt ? timeAgo(worker.createdAt) : 'recently',
   };
-}
-
-function Sparkline({ bars, tone = 'bg-gray-200' }: { bars: number[]; tone?: string }) {
-  return (
-    <div className="flex h-7 items-end gap-1.5" aria-hidden="true">
-      {bars.map((height, i) => (
-        <span
-          key={i}
-          style={{ height: `${height}px` }}
-          className={`w-7 rounded-full ${tone}`}
-        />
-      ))}
-    </div>
-  );
 }
 
 function StatusPill({ status }: { status: ActivityStatus }) {
@@ -130,13 +114,14 @@ export default function AdminDashboardPage() {
   const [pendingTotal, setPendingTotal] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      // Real data only — no hardcoded fallbacks. Both calls send
-      // Authorization: Bearer <admin_token> via adminApiFetch.
+      // Real data only — no hardcoded fallbacks. The admin session cookie is
+      // attached automatically by adminApiFetch (`credentials: 'include'`).
       const [statsRes, workersRes] = await Promise.all([
         getAdminStats(),
         listAdminWorkers('pending', 1),
@@ -144,6 +129,7 @@ export default function AdminDashboardPage() {
       setStats(statsRes.stats);
       setPendingTotal(workersRes.pagination.total);
       setActivity((workersRes.workers ?? []).slice(0, 5).map(workerToActivityRow));
+      setLastUpdated(new Date());
       setLoading(false);
     } catch (loadError) {
       setStats(null);
@@ -175,30 +161,29 @@ export default function AdminDashboardPage() {
         value: stats ? formatNumber(stats.totalUsers) : loading ? '…' : '--',
         icon: Users,
         iconBox: 'bg-blue-50 text-blue-600 ring-blue-100',
-        bars: [10, 14, 12, 18, 16, 22, 26, 24],
       },
       {
         label: 'Total Hires',
         value: stats ? formatNumber(stats.totalHires) : loading ? '…' : '--',
         icon: Briefcase,
         iconBox: 'bg-violet-50 text-violet-600 ring-violet-100',
-        bars: [12, 10, 16, 14, 20, 18, 22, 26],
       },
       {
         label: 'Pending Verifications',
         value: stats ? formatNumber(stats.pendingVerifications) : loading ? '…' : '--',
         icon: UserCheck,
         iconBox: 'bg-amber-50 text-amber-600 ring-amber-100',
-        bars: [8, 12, 10, 16, 12, 14, 16, 12],
       },
       {
         label: 'Active Workers',
-        value: stats?.activeWorkers !== undefined && stats?.activeWorkers !== null
-          ? formatNumber(stats.activeWorkers)
-          : stats ? formatNumber(stats.totalUsers) : loading ? '…' : '--',
+        value:
+          stats && stats.activeWorkers !== undefined && stats.activeWorkers !== null
+            ? formatNumber(stats.activeWorkers)
+            : loading
+              ? '…'
+              : '--',
         icon: Activity,
         iconBox: 'bg-emerald-50 text-emerald-600 ring-emerald-100',
-        bars: [14, 18, 16, 22, 20, 26, 28, 24],
       },
     ],
     [stats, loading],
@@ -229,7 +214,7 @@ export default function AdminDashboardPage() {
       href: '/admin/hires',
       icon: ClipboardList,
       iconBox: 'bg-orange-50 text-orange-500 ring-orange-100',
-      pill: stats ? `${formatNumber(stats.totalHires)} total` : '8 new',
+      pill: stats ? `${formatNumber(stats.totalHires)} total` : 'total',
       cta: 'View requests',
     },
   ];
@@ -240,19 +225,23 @@ export default function AdminDashboardPage() {
         <div>
           <h1 className="text-[32px] font-extrabold leading-tight tracking-tight">Dashboard</h1>
           <p className="mt-1 text-[14px] text-gray-500">
-            Platform overview and worker management • Last updated 2 mins ago
+            Platform overview and worker management
+            {lastUpdated
+              ? ` • Last updated ${lastUpdated.toLocaleTimeString('en-IN', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}`
+              : ''}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-[13px] font-semibold text-emerald-700">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" />
-            All systems operational
-          </span>
           <button
             type="button"
-            className="inline-flex items-center gap-2 rounded-full bg-[#111827] px-5 py-2.5 text-[14px] font-semibold text-white hover:bg-black"
+            onClick={() => void loadAll()}
+            disabled={loading}
+            className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-5 py-2.5 text-[14px] font-semibold text-[#111827] hover:bg-gray-50 disabled:opacity-60"
           >
-            Export report <ArrowUpRight size={16} />
+            {loading ? 'Refreshing…' : 'Refresh'} <ArrowUpRight size={16} />
           </button>
         </div>
       </div>
@@ -282,13 +271,6 @@ export default function AdminDashboardPage() {
                   </span>
                   Dobara try karo
                 </button>
-                <button
-                  type="button"
-                  className="rounded-full border border-amber-200 bg-white px-4 py-2 text-[13px] font-medium text-amber-900 hover:bg-amber-50"
-                >
-                  View logs
-                </button>
-                <span className="text-[12px] text-amber-700/70">Auto-retry in 00:42s</span>
               </div>
               <p className="mt-2 font-mono text-[11px] text-amber-700/70">{error}</p>
             </div>
@@ -305,7 +287,7 @@ export default function AdminDashboardPage() {
       )}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {cards.map((card, index) => (
+        {cards.map((card) => (
           <div
             key={card.label}
             className="rounded-3xl border border-gray-100 bg-white p-5"
@@ -316,43 +298,7 @@ export default function AdminDashboardPage() {
             <p className="mt-4 text-[14px] font-medium text-gray-500">{card.label}</p>
             <p className="mt-1 flex items-center gap-2 text-[30px] font-extrabold leading-none tracking-tight">
               {card.value}
-              {index === 3 && stats && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Live
-                </span>
-              )}
             </p>
-            <div className="mt-3">
-              <Sparkline bars={card.bars} />
-            </div>
-            <div className="mt-2 text-[12px]">
-              {index === 0 && (
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-50 px-2 py-0.5 font-bold text-emerald-700">
-                    <TrendingUp size={12} /> +12%
-                  </span>
-                  <span className="text-gray-400">this week</span>
-                </span>
-              )}
-              {index === 1 && (
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-50 px-2 py-0.5 font-bold text-emerald-700">
-                    <TrendingUp size={12} /> +8%
-                  </span>
-                  <span className="text-gray-400">vs last week</span>
-                </span>
-              )}
-              {index === 2 && (
-                <span className="inline-flex items-center gap-1.5 font-semibold text-amber-700">
-                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500" /> Needs attention
-                </span>
-              )}
-              {index === 3 && (
-                <span className="inline-flex items-center gap-1.5 text-gray-400">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> All systems operational
-                </span>
-              )}
-            </div>
           </div>
         ))}
       </div>
@@ -384,21 +330,11 @@ export default function AdminDashboardPage() {
       </div>
       <section className="overflow-hidden rounded-3xl border border-gray-100 bg-white">
         <div className="flex flex-wrap items-center gap-3 px-5 py-4">
-          <h2 className="text-[17px] font-extrabold tracking-tight">Recent activity</h2>
+          <h2 className="text-[17px] font-extrabold tracking-tight">Pending verifications</h2>
           <span className="rounded-full bg-gray-50 px-3 py-1 text-[12px] font-medium text-gray-600 ring-1 ring-inset ring-gray-100">
-            Last 24 hours
+            Newest first
           </span>
           <div className="flex-1" />
-          <span className="inline-flex items-center gap-2 rounded-full border border-gray-100 px-3.5 py-1.5 text-[13px] font-medium">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" /> Live updates
-          </span>
-          <button
-            type="button"
-            aria-label="More options"
-            className="rounded-full border border-gray-100 p-2 text-gray-500 hover:bg-gray-50"
-          >
-            <MoreHorizontal size={16} />
-          </button>
         </div>
 
         <div className="overflow-x-auto border-t border-gray-100">
@@ -448,21 +384,14 @@ export default function AdminDashboardPage() {
                   </td>
                   <td className="whitespace-nowrap px-5 py-3.5 text-gray-400">{row.time}</td>
                   <td className="px-5 py-3.5">
-                    <span className="flex items-center justify-end gap-1.5">
-                      <button
-                        type="button"
-                        aria-label={`Approve ${row.name}`}
-                        className="rounded-full border border-gray-100 p-2 text-[#111827] hover:bg-emerald-50 hover:text-emerald-700"
+                    <span className="flex items-center justify-end">
+                      <Link
+                        href="/admin/workers"
+                        aria-label={`Review ${row.name} in Worker Verification`}
+                        className="inline-flex items-center gap-1 rounded-full border border-gray-200 px-3 py-1.5 text-[12px] font-semibold text-gray-700 hover:bg-gray-50"
                       >
-                        <Check size={15} />
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={`More actions for ${row.name}`}
-                        className="rounded-full border border-gray-100 p-2 text-[#111827] hover:bg-gray-100"
-                      >
-                        <MoreHorizontal size={15} />
-                      </button>
+                        Review <ChevronRight size={13} />
+                      </Link>
                     </span>
                   </td>
                 </tr>

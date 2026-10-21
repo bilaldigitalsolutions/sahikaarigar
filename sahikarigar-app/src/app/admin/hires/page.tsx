@@ -5,9 +5,10 @@ import { ClipboardList, Lock } from 'lucide-react';
 import { AdminPagination } from '@/components/admin/AdminPagination';
 import {
   listAdminHires,
+  displayName,
   type AdminHireStatus,
   type ApiAdminHire,
-  type ApiWorkerPerformance,
+  type ApiWorkerLifetimeStats,
 } from '@/lib/api';
 
 const STATUS_OPTIONS: AdminHireStatus[] = [
@@ -55,15 +56,20 @@ function PerfPill({
   );
 }
 
-function WorkerPerformance({ performance }: { performance?: ApiWorkerPerformance }) {
-  if (!performance) return null;
+function WorkerPerformance({ stats }: { stats?: ApiWorkerLifetimeStats }) {
+  if (!stats) return null;
   return (
-    <span className="mt-1.5 flex flex-wrap items-center gap-1">
-      <PerfPill label="Accepted" value={performance.accepted} tone="emerald" />
-      <PerfPill label="Rejected" value={performance.rejected} tone="red" />
-      <PerfPill label="Completed" value={performance.completed} tone="blue" />
-      <span className="text-[11px] font-medium text-gray-400">
-        {performance.total} total
+    <span className="mt-2 block">
+      <span className="block text-[10px] font-semibold uppercase tracking-[0.08em] text-gray-400">
+        Worker lifetime stats
+      </span>
+      <span className="mt-1 flex flex-wrap items-center gap-1">
+        <PerfPill label="Accepted" value={stats.accepted} tone="emerald" />
+        <PerfPill label="Rejected" value={stats.rejected} tone="red" />
+        <PerfPill label="Completed" value={stats.completed} tone="blue" />
+        <span className="text-[11px] font-medium text-gray-400">
+          {stats.total} total (all requests)
+        </span>
       </span>
     </span>
   );
@@ -155,7 +161,7 @@ export default function AdminHiresPage() {
                 <th className="px-5 py-3.5">Request</th>
                 <th className="px-5 py-3.5">Employer</th>
                 <th className="px-5 py-3.5">Worker</th>
-                <th className="px-5 py-3.5">Status</th>
+                <th className="px-5 py-3.5">Request status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -173,7 +179,8 @@ export default function AdminHiresPage() {
                 </tr>
               ) : (
                 hires.map((hire) => {
-                  const performance = hire.worker?.performance ?? hire.workerPerformance;
+                  const lifetimeStats =
+                    hire.worker?.lifetimeStats ?? hire.workerLifetimeStats;
                   return (
                     <tr key={hire.id} className="align-top hover:bg-gray-50/60">
                       <td className="px-5 py-4">
@@ -204,7 +211,7 @@ export default function AdminHiresPage() {
                       </td>
                       <td className="px-5 py-4">
                         <span className="block font-medium text-[#111827]">
-                          {hire.employer?.name ?? '—'}
+                          {hire.employer ? displayName(hire.employer.name) : '—'}
                         </span>
                         <span className="block text-[12px] text-gray-500">
                           {hire.employer?.phone ? (
@@ -218,7 +225,7 @@ export default function AdminHiresPage() {
                       </td>
                       <td className="px-5 py-4">
                         <span className="block font-medium text-[#111827]">
-                          {hire.worker?.name ?? '—'}
+                          {hire.worker ? displayName(hire.worker.name) : '—'}
                         </span>
                         <span className="block text-[12px] text-gray-500">
                           {hire.worker?.phone ? (
@@ -229,7 +236,7 @@ export default function AdminHiresPage() {
                             'Phone not available'
                           )}
                         </span>
-                        <WorkerPerformance performance={performance} />
+                        <WorkerPerformance stats={lifetimeStats} />
                       </td>
                       <td className="px-5 py-4">
                         <span

@@ -3,7 +3,7 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { ShieldCheck } from 'lucide-react';
 import { Button, Card } from '@/components/ui';
-import { adminLogin, getAdminToken } from '@/lib/api';
+import { adminLogin, getAdminSession } from '@/lib/api';
 
 function AdminLogin({ onLogin }: { onLogin: () => void }) {
   const [email, setEmail] = useState('');
@@ -21,12 +21,7 @@ function AdminLogin({ onLogin }: { onLogin: () => void }) {
         throw new Error('Auth server configure nahi hai (NEXT_PUBLIC_AUTH_API_URL).');
       }
 
-      const data = await adminLogin({ email, password });
-
-      if (data.admin?.email) {
-        localStorage.setItem('admin_email', data.admin.email);
-      }
-
+      await adminLogin({ email, password });
       onLogin();
       window.location.href = '/admin';
     } catch (err) {
@@ -82,34 +77,44 @@ export function AdminGuard({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Client-side only: localStorage does not exist during SSR. The guard is
-    // deliberately "token presence" based — it never pings the API on mount,
-    // so a cold Render start, a temporary network error or a 5xx can never log
-    // the admin out. Only a real 401 (dispatched by adminApiFetch) clears the
-    // token and brings the login form back.
-    const syncFromStorage = () => {
-      setIsAuthenticated(Boolean(getAdminToken()));
-      setLoading(false);
+    // The session is an HttpOnly cookie the client cannot inspect, so the only
+    // way to know whether we are logged in is to ask the server. Crucially:
+    //   - 401        -> real expiry/invalid session: show the login form.
+    //   - 5xx/network -> a cold Render start or a hiccup: DO NOT log the admin
+    //                    out; keep the shell and let individual calls retry.
+    let cancelled = false;
+
+    const verify = async () => {
+      try {
+        await getAdminSession();
+        if (!cancelled) setIsAuthenticated(true);
+      } catch (error) {
+        if (cancelled) return;
+        const status = (error as Error & { status?: number }).status;
+        // Only a definitive 401 means "not logged in". Anything else (503,
+        // 500, network failure) is treated as "cannot verify right now" — we
+        // optimistically keep the admin in so the UI doesn't bounce to login.
+        if (status === 401) setIsAuthenticated(false);
+        else setIsAuthenticated(true);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     };
 
-    syncFromStorage();
+    void verify();
 
     const handleUnauthorized = () => {
       setIsAuthenticated(false);
       setLoading(false);
     };
 
-    // Keep multiple admin tabs in sync when one of them logs out / expires.
-    const handleStorage = (event: StorageEvent) => {
-      if (event.key === null || event.key === 'admin_token') syncFromStorage();
-    };
-
+    // A logout in another tab clears the (non-secret) admin email and fires
+    // our unauthorized event via adminApiFetch; keep tabs in sync.
     window.addEventListener('sahikarigar-admin-unauthorized', handleUnauthorized);
-    window.addEventListener('storage', handleStorage);
 
     return () => {
+      cancelled = true;
       window.removeEventListener('sahikarigar-admin-unauthorized', handleUnauthorized);
-      window.removeEventListener('storage', handleStorage);
     };
   }, []);
 

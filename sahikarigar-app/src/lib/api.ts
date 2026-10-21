@@ -31,28 +31,26 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return data as T;
 }
 
-const ADMIN_SESSION_KEY = 'admin_token';
-
 export interface AdminSession {
   email: string;
   role: 'admin';
 }
 
 /**
- * Normalise a token read from localStorage. Guards against the literal strings
- * `undefined` / `null` ever being written and against accidental whitespace —
- * either would make the server reject the `Authorization` header with a 401.
+ * The admin session lives in an HttpOnly cookie set by the auth server, so it
+ * is never exposed to JavaScript — an XSS can no longer steal a full admin
+ * session. `adminApiFetch` therefore sends no `Authorization` header; the
+ * browser attaches the cookie automatically via `credentials: 'include'`.
+ *
+ * Only the (non-secret) admin email is kept in localStorage, purely so the
+ * shell can show the logged-in admin's name without an extra round-trip.
  */
-function normalizeAdminToken(value: string | null): string | null {
-  const token = value?.trim();
-  if (!token || token === 'undefined' || token === 'null') return null;
-  return token;
-}
+const ADMIN_EMAIL_KEY = 'admin_email';
 
-function getStoredAdminToken(): string | null {
+export function getAdminEmail(): string | null {
   if (typeof window === 'undefined') return null;
   try {
-    return normalizeAdminToken(window.localStorage.getItem(ADMIN_SESSION_KEY));
+    return window.localStorage.getItem(ADMIN_EMAIL_KEY);
   } catch {
     return null;
   }
@@ -61,50 +59,46 @@ function getStoredAdminToken(): string | null {
 export function clearAdminSession(): void {
   if (typeof window === 'undefined') return;
   try {
-    window.localStorage.removeItem(ADMIN_SESSION_KEY);
+    window.localStorage.removeItem(ADMIN_EMAIL_KEY);
   } catch {
     /* storage unavailable (private mode) — nothing to clear */
   }
 }
 
-export function getAdminToken(): string | null {
-  return getStoredAdminToken();
+function notifyUnauthorized(): void {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('sahikarigar-admin-unauthorized'));
+  }
 }
 
-async function adminApiFetch<T>(
-  path: string,
-  init?: RequestInit,
-  token = getStoredAdminToken(),
-): Promise<T> {
+async function adminApiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   if (!AUTH_API_URL) {
     throw new Error('Auth server configure nahi hai (NEXT_PUBLIC_AUTH_API_URL).');
   }
-  // Only send the header when we actually have a token — never
-  // `Authorization: Bearer undefined`.
   const headers = new Headers(init?.headers);
   if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
-  if (token) headers.set('Authorization', `Bearer ${token}`);
   const response = await fetch(`${AUTH_API_URL}${path}`, {
     ...init,
+    // Required so the browser sends/receives the HttpOnly admin cookie.
     credentials: 'include',
     headers,
   });
   const data = (await response.json().catch(() => null)) as
-    | { ok?: boolean; message?: string; token?: string; admin?: AdminSession }
+    | { ok?: boolean; message?: string; admin?: AdminSession }
     | null;
 
   // Network failures never reach this point (fetch rejects) and a 5xx is a
-  // server problem — in both cases the stored token is kept. Only a genuine
-  // 401 means the session is invalid/expired, so only then do we log out.
-  if (response.status === 401 && token) {
+  // server problem — in both cases the cookie is kept and the admin stays
+  // logged in. Only a genuine 401 means the session is invalid/expired.
+  if (response.status === 401) {
     clearAdminSession();
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new Event('sahikarigar-admin-unauthorized'));
-    }
+    notifyUnauthorized();
   }
 
   if (!response.ok || !data?.ok) {
-    throw new Error(data?.message || 'Admin request fail ho gayi. Dobara try karo.');
+    const error = new Error(data?.message || 'Admin request fail ho gayi. Dobara try karo.');
+    (error as Error & { status?: number }).status = response.status;
+    throw error;
   }
   return data as T;
 }
@@ -113,21 +107,38 @@ export async function adminLogin(payload: {
   email: string;
   password: string;
 }): Promise<{ admin: AdminSession }> {
-  const data = await adminApiFetch<{ token: string; admin: AdminSession }>(
-    '/admin/login',
-    { method: 'POST', body: JSON.stringify(payload) },
-    null,
-  );
-  window.localStorage.setItem(ADMIN_SESSION_KEY, data.token);
+  const data = await adminApiFetch<{ admin: AdminSession }>('/admin/login', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  if (data.admin?.email && typeof window !== 'undefined') {
+    try {
+      window.localStorage.setItem(ADMIN_EMAIL_KEY, data.admin.email);
+    } catch {
+      /* storage unavailable — the shell just falls back to a default name */
+    }
+  }
   return { admin: data.admin };
 }
 
+/**
+ * Validates the current cookie session against the server. Returns the admin
+ * on success, throws on 401. Callers must treat a 5xx/network error separately
+ * (see AdminGuard) so a cold backend start never logs the admin out.
+ */
 export function getAdminSession(): Promise<{ admin: AdminSession }> {
   return adminApiFetch('/admin/session');
 }
 
-export function adminLogout(): void {
+/** Clears the HttpOnly cookie server-side, then drops the local email. */
+export async function adminLogout(): Promise<void> {
+  try {
+    await adminApiFetch('/admin/logout', { method: 'POST' });
+  } catch {
+    /* even if the call fails, the client-side session is cleared below */
+  }
   clearAdminSession();
+  notifyUnauthorized();
 }
 
 // -----------------------------------------------------------------------------
@@ -319,6 +330,19 @@ export function getBrowserLocation(): Promise<{ lat?: number; lng?: number }> {
 
 export type VerificationStatus = 'pending' | 'approved' | 'rejected';
 
+/**
+ * Users created without a real name are stored with the literal placeholder
+ * `'User'` (see auth-server/src/users.js). Rendering that verbatim looks like
+ * garbage data in the admin panel, so map placeholder/empty names to a neutral
+ * label everywhere names are shown.
+ */
+export function displayName(name: string | null | undefined): string {
+  const value = typeof name === 'string' ? name.trim() : '';
+  if (!value) return 'Name Not Set';
+  if (value.toLowerCase() === 'user') return 'Name Not Set';
+  return value;
+}
+
 export interface ApiAdminWorker {
   id: string;
   userId: string;
@@ -501,7 +525,7 @@ export function setAdminReportStatus(
 
 export type AdminHireStatus = HireStatus;
 
-export interface ApiWorkerPerformance {
+export interface ApiWorkerLifetimeStats {
   accepted: number;
   rejected: number;
   completed: number;
@@ -524,9 +548,11 @@ export interface ApiAdminHire {
   updatedAt: string;
   employer: { id: string; name: string; phone: string | null } | null;
   worker:
-    | { id: string; name: string; phone: string | null; performance?: ApiWorkerPerformance }
+    | { id: string; name: string; phone: string | null; lifetimeStats?: ApiWorkerLifetimeStats }
     | null;
-  workerPerformance?: ApiWorkerPerformance;
+  /** Lifetime aggregate across ALL of this worker's hire requests — not the
+   *  status of this row. The UI labels it "Worker lifetime stats". */
+  workerLifetimeStats?: ApiWorkerLifetimeStats;
 }
 
 export function listAdminHires(status = 'all', page = 1): Promise<{

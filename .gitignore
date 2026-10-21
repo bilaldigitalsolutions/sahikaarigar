@@ -18,3 +18,10 @@ keystores/
 .env.local
 .env.*.local
 .env.sahi-kaarigar
+# Build artifacts & dependencies (root-level). Pehle se tracked purane
+# auth-server/node_modules ko git rm --cached karne ki zaroorat hai - alag task.
+node_modules/
+*.tsbuildinfo
+.next/
+out/
+

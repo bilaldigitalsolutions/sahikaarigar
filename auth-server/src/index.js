@@ -52,6 +52,8 @@ import {
 } from './reviews.js';
 import { createReport } from './reports.js';
 import {
+  ADMIN_SESSION_COOKIE,
+  ADMIN_SESSION_TTL_MS,
   getAdminStats,
   getAdminSession,
   getAdminWorker,
@@ -640,9 +642,45 @@ function isAdminAuthConfigured() {
   return Buffer.byteLength(process.env.ADMIN_SESSION_SECRET || '', 'utf8') >= 32;
 }
 
+/**
+ * Minimal `Cookie` header parser — avoids pulling in a dependency. Returns the
+ * value for `name` or undefined. Values are URL-decoded; malformed pairs are
+ * ignored rather than throwing.
+ */
+function readCookie(req, name) {
+  const header = req.get('Cookie') || req.get('cookie') || '';
+  if (!header) return undefined;
+  for (const part of header.split(';')) {
+    const index = part.indexOf('=');
+    if (index === -1) continue;
+    const key = part.slice(0, index).trim();
+    if (key !== name) continue;
+    const raw = part.slice(index + 1).trim();
+    try {
+      return decodeURIComponent(raw);
+    } catch {
+      return raw;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * The admin session token is read from the HttpOnly cookie first (the secure
+ * path used by the browser panel) and falls back to `Authorization: Bearer`
+ * for non-browser clients and for a graceful migration window.
+ */
+function readAdminToken(req) {
+  const cookieToken = readCookie(req, ADMIN_SESSION_COOKIE);
+  if (cookieToken) return cookieToken.trim();
+  const authorization = req.get('Authorization') || req.get('authorization') || '';
+  const tokenMatch = authorization.match(/^Bearer\s+(.+)$/i);
+  return tokenMatch ? tokenMatch[1].trim() : '';
+}
+
 async function requireAdmin(req, res) {
   // A missing/short secret is a server misconfiguration, not an expired
-  // session. Return 503 so the frontend keeps the token instead of logging
+  // session. Return 503 so the frontend keeps the session instead of logging
   // the admin out on every request.
   if (!isAdminAuthConfigured()) {
     res.status(503).json({
@@ -653,11 +691,11 @@ async function requireAdmin(req, res) {
     return null;
   }
 
-  const authorization = req.get('Authorization') || req.get('authorization') || '';
-  const tokenMatch = authorization.match(/^Bearer\s+(.+)$/i);
-  const token = tokenMatch ? tokenMatch[1].trim() : '';
+  const token = readAdminToken(req);
   const admin = token ? getAdminSession(token) : null;
   if (!admin) {
+    // Clear a stale cookie so the browser stops resending a dead token.
+    res.clearCookie(ADMIN_SESSION_COOKIE, adminCookieOptions());
     res.status(401).json({
       ok: false,
       code: 'UNAUTHORIZED',
@@ -666,6 +704,21 @@ async function requireAdmin(req, res) {
     return null;
   }
   return admin;
+}
+
+/**
+ * Cookie options shared by set/clear. `sameSite: 'strict'` blocks CSRF from
+ * cross-site pages; `secure` is on in production (Render/Firebase are HTTPS)
+ * and relaxed on localhost so `npm run dev` works over http.
+ */
+function adminCookieOptions() {
+  const isProduction = (process.env.NODE_ENV || 'production') === 'production';
+  return {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: 'strict',
+    path: '/',
+  };
 }
 
 const failedAdminLogins = new Map();
@@ -729,10 +782,22 @@ app.post('/admin/login', (req, res, next) => {
       return;
     }
     failedAdminLogins.delete(clientKey);
+    // Set the session as an HttpOnly cookie. The token is still returned in the
+    // body for non-browser/legacy clients, but the browser panel ignores it and
+    // relies solely on the cookie so JavaScript can never read the session.
+    res.cookie(ADMIN_SESSION_COOKIE, session.token, {
+      ...adminCookieOptions(),
+      maxAge: ADMIN_SESSION_TTL_MS,
+    });
     res.json({ ok: true, ...session });
   } catch (error) {
     next(error);
   }
+});
+
+app.post('/admin/logout', (req, res) => {
+  res.clearCookie(ADMIN_SESSION_COOKIE, adminCookieOptions());
+  res.json({ ok: true });
 });
 
 app.get('/admin/session', async (req, res, next) => {

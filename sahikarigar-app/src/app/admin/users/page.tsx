@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Search, UserRound, Users } from 'lucide-react';
 import { AdminPagination } from '@/components/admin/AdminPagination';
-import { listAdminUsers, setAdminUserActive, setAdminUserFlagged, type ApiAdminUser } from '@/lib/api';
+import { listAdminUsers, setAdminUserActive, setAdminUserFlagged, displayName, type ApiAdminUser } from '@/lib/api';
 
 type ManagedRole = 'employer' | 'worker';
 
@@ -166,7 +166,7 @@ export default function AdminUsersPage() {
                           </span>
                         )}
                         <span>
-                          <span className="block font-semibold">{managedUser.name}</span>
+                          <span className="block font-semibold">{displayName(managedUser.name)}</span>
                           <span className="block text-[12px] text-gray-400">+91 {managedUser.phone}</span>
                         </span>
                       </span>

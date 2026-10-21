@@ -7,6 +7,18 @@ import { db } from './users.js';
 
 const ADMIN_SESSION_TTL_SECONDS = 4 * 60 * 60;
 
+/**
+ * Name of the HttpOnly cookie that carries the admin session.
+ *
+ * The token must NOT be readable from JavaScript: an XSS on the admin origin
+ * would otherwise hand over a full admin session (localStorage is readable by
+ * any script). The cookie is set HttpOnly + Secure + SameSite=Strict by the
+ * server and is sent automatically by the browser on every /admin/* fetch
+ * (`credentials: 'include'`).
+ */
+export const ADMIN_SESSION_COOKIE = 'sk_admin_session';
+export const ADMIN_SESSION_TTL_MS = ADMIN_SESSION_TTL_SECONDS * 1000;
+
 function safeEqual(left, right) {
   const leftBuffer = Buffer.from(String(left));
   const rightBuffer = Buffer.from(String(right));
@@ -397,11 +409,17 @@ function emptyPerformance() {
 }
 
 /**
- * Aggregate each worker's hire history for the admin monitoring view.
- * "Accepted" includes jobs that are currently en_route/arrived, so it reflects
- * every request the worker said yes to.
+ * Aggregate each worker's LIFETIME hire history for the admin monitoring view.
+ *
+ * IMPORTANT: these numbers span every hire request the worker has ever had and
+ * are therefore NOT the status of any single row in the hires table. They are
+ * attached as `worker.lifetimeStats` and the UI labels them "Worker lifetime
+ * stats" so an admin can never confuse them with the row's own `status`.
+ *
+ * "Accepted" includes jobs that are currently en_route/arrived/in_progress, so
+ * it reflects every request the worker said yes to.
  */
-async function workerPerformanceMap(workerIds) {
+async function workerLifetimeStatsMap(workerIds) {
   const unique = [...new Set((workerIds ?? []).filter(Boolean))];
   const performance = new Map();
   for (const id of unique) performance.set(id, emptyPerformance());
@@ -447,13 +465,13 @@ export async function listAdminHires(status, page = 1, limit = 50) {
   if (error) throw new Error(error.message);
 
   const rows = data ?? [];
-  const performance = await workerPerformanceMap(rows.map((row) => row.worker_id));
+  const lifetimeStats = await workerLifetimeStatsMap(rows.map((row) => row.worker_id));
 
   return {
     hires: rows.map((row) => {
-      const stats = performance.get(row.worker_id) ?? emptyPerformance();
+      const stats = lifetimeStats.get(row.worker_id) ?? emptyPerformance();
       const worker = row.worker?.user
-        ? { ...row.worker.user, performance: stats }
+        ? { ...row.worker.user, lifetimeStats: stats }
         : null;
       return {
         id: row.id,
@@ -469,8 +487,9 @@ export async function listAdminHires(status, page = 1, limit = 50) {
         updatedAt: row.updated_at,
         employer: row.employer,
         worker,
-        // Also exposed at the top level so older clients can show the stats.
-        workerPerformance: stats,
+        // Lifetime aggregate for the worker (spans all of their hire requests),
+        // NOT the status of this row — see workerLifetimeStatsMap().
+        workerLifetimeStats: stats,
       };
     }),
     pagination: {

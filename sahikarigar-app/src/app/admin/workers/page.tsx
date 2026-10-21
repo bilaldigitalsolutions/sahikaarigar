@@ -6,6 +6,7 @@ import { AdminPagination } from '@/components/admin/AdminPagination';
 import { WorkerDetailModal } from '@/components/admin/WorkerDetailModal';
 import {
   listAdminWorkers,
+  displayName,
   type ApiAdminWorker,
   type VerificationStatus,
 } from '@/lib/api';
@@ -155,7 +156,7 @@ export default function WorkerApprovalsPage() {
                 </tr>
               ) : (
                 filtered.map((worker, index) => {
-                  const name = worker.user?.name?.trim() || 'Kaarigar';
+                  const name = displayName(worker.user?.name);
                   const profile = initialsFor(name, index);
                   const category =
                     worker.skills.length > 0

@@ -21,6 +21,7 @@ import {
 import {
   getAdminWorker,
   setWorkerApproval,
+  displayName,
   type ApiAdminWorker,
   type VerificationStatus,
 } from '@/lib/api';
@@ -91,6 +92,9 @@ export function WorkerDetailModal({ workerId, onClose, onUpdated }: WorkerDetail
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  // Which destructive action is awaiting confirmation — Approve/Reject must
+  // never fire on a single accidental click. `null` = no dialog open.
+  const [confirming, setConfirming] = useState<null | 'approve' | 'reject'>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -134,6 +138,7 @@ export function WorkerDetailModal({ workerId, onClose, onUpdated }: WorkerDetail
     setBusy(true);
     try {
       await setWorkerApproval(workerId, approved, approved ? undefined : reason.trim());
+      setConfirming(null);
       onUpdated();
       onClose();
     } catch (failure) {
@@ -145,7 +150,14 @@ export function WorkerDetailModal({ workerId, onClose, onUpdated }: WorkerDetail
     }
   };
 
-  const name = worker?.user?.name?.trim() || 'Kaarigar';
+  // Called by the Confirm button inside the dialog. Runs the real mutation
+  // only after the admin has explicitly confirmed the destructive action.
+  const confirmDecision = () => {
+    if (confirming === 'approve') void decide(true);
+    else if (confirming === 'reject') void decide(false);
+  };
+
+  const name = displayName(worker?.user?.name);
   const aadhaarFull = formatAadhaar(worker?.aadhaarNumber);
   const aadhaarMasked = maskAadhaar(worker?.aadhaarNumber);
   const category =
@@ -408,11 +420,14 @@ export function WorkerDetailModal({ workerId, onClose, onUpdated }: WorkerDetail
                     </button>
                     <button
                       type="button"
-                      onClick={() => void decide(false)}
+                      onClick={() => {
+                        setActionError(null);
+                        setConfirming('reject');
+                      }}
                       disabled={busy || reason.trim().length < 3}
                       className="inline-flex items-center gap-1.5 rounded-full bg-red-600 px-4 py-2 text-[13px] font-semibold text-white hover:bg-red-700 disabled:opacity-60"
                     >
-                      <XCircle size={14} /> {busy ? 'Rejecting…' : 'Confirm rejection'}
+                      <XCircle size={14} /> Review rejection
                     </button>
                   </div>
                 </div>
@@ -431,11 +446,14 @@ export function WorkerDetailModal({ workerId, onClose, onUpdated }: WorkerDetail
                   </button>
                   <button
                     type="button"
-                    onClick={() => void decide(true)}
+                    onClick={() => {
+                      setActionError(null);
+                      setConfirming('approve');
+                    }}
                     disabled={busy || worker.verificationStatus === 'approved'}
                     className="inline-flex items-center gap-1.5 rounded-full bg-[#111827] px-5 py-2 text-[13px] font-semibold text-white hover:bg-black disabled:opacity-50"
                   >
-                    <CheckCircle2 size={14} /> {busy ? 'Saving…' : 'Approve worker'}
+                    <CheckCircle2 size={14} /> Approve worker
                   </button>
                 </div>
               )}
@@ -443,6 +461,74 @@ export function WorkerDetailModal({ workerId, onClose, onUpdated }: WorkerDetail
           ) : null}
         </div>
       </div>
+
+      {confirming && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
+          role="alertdialog"
+          aria-modal="true"
+          aria-label={
+            confirming === 'approve' ? 'Confirm worker approval' : 'Confirm worker rejection'
+          }
+          onClick={(event) => {
+            if (event.target === event.currentTarget && !busy) setConfirming(null);
+          }}
+        >
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
+            <div className="flex items-start gap-3">
+              <span
+                className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${
+                  confirming === 'approve'
+                    ? 'bg-emerald-50 text-emerald-600'
+                    : 'bg-red-50 text-red-600'
+                }`}
+              >
+                {confirming === 'approve' ? <CheckCircle2 size={22} /> : <XCircle size={22} />}
+              </span>
+              <div className="min-w-0">
+                <h3 className="text-[18px] font-extrabold tracking-tight text-[#111827]">
+                  {confirming === 'approve' ? 'Approve this worker?' : 'Reject this worker?'}
+                </h3>
+                <p className="mt-1 text-[14px] leading-relaxed text-gray-500">
+                  {confirming === 'approve'
+                    ? `${name} will become publicly visible in search as an approved worker.`
+                    : `${name} will be marked rejected and will not be visible in search.`}
+                </p>
+              </div>
+            </div>
+            <div className="mt-5 flex flex-wrap items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirming(null)}
+                disabled={busy}
+                className="rounded-full border border-gray-200 bg-white px-4 py-2 text-[13px] font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDecision}
+                disabled={busy}
+                className={`inline-flex items-center gap-1.5 rounded-full px-5 py-2 text-[13px] font-semibold text-white disabled:opacity-60 ${
+                  confirming === 'approve'
+                    ? 'bg-[#111827] hover:bg-black'
+                    : 'bg-red-600 hover:bg-red-700'
+                }`}
+              >
+                {confirming === 'approve' ? (
+                  <>
+                    <CheckCircle2 size={14} /> {busy ? 'Saving…' : 'Yes, approve'}
+                  </>
+                ) : (
+                  <>
+                    <XCircle size={14} /> {busy ? 'Saving…' : 'Yes, reject'}
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -18,7 +18,7 @@ import {
   X,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { adminLogout, getAdminStats } from '@/lib/api';
+import { adminLogout, getAdminEmail, getAdminStats } from '@/lib/api';
 
 const NAV_LINKS = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, badgeKey: null as null },
@@ -45,11 +45,9 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     setSidebarOpen(typeof window !== 'undefined' ? window.innerWidth >= 1024 : false);
-    try {
-      setEmail(typeof window !== 'undefined' ? localStorage.getItem('admin_email') : null);
-    } catch {
-      setEmail(null);
-    }
+    // Only the non-secret admin email is stored locally; the session itself is
+    // an HttpOnly cookie the client cannot read.
+    setEmail(getAdminEmail());
   }, []);
 
   useEffect(() => {
@@ -87,14 +85,9 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const displayName = email ? email.split('@')[0].replace(/[._-]+/g, ' ') : 'Aarav Mehta';
   const initials = email ? getInitials(email) : 'AM';
 
-  const handleLogout = () => {
-    adminLogout();
-    try {
-      localStorage.removeItem('admin_token');
-      localStorage.removeItem('admin_email');
-    } catch {
-      /* noop */
-    }
+  const handleLogout = async () => {
+    // Clears the HttpOnly cookie server-side and drops the local email.
+    await adminLogout();
     window.location.href = '/admin';
   };
   return (
@@ -184,7 +177,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         <div className="border-t border-gray-100 px-4 pb-5 pt-3">
           <button
             type="button"
-            onClick={handleLogout}
+            onClick={() => void handleLogout()}
             className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] font-medium text-gray-500 hover:bg-gray-100 hover:text-[#111827]"
           >
             <LogOut size={19} />

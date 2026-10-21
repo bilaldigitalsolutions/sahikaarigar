@@ -137,11 +137,20 @@ All 11 production blockers were verified against the code logic and (where appli
 
 **Location:** `sahikarigar-mobile/src/app/edit-profile.tsx` + `src/components/WorkerProfileForm.tsx`
 
-**What was wrong:** Edit Profile did not mirror registration and Aadhaar was not locked.
+**What was wrong:** Edit Profile's wrapper layout did not match the registration screen (different header, extra "Address" input, missing Terms row, "Cancel" button), so it did not look identical to registration even though it used `WorkerProfileForm`.
 
-**Fix applied:** `edit-profile.tsx` renders the shared `WorkerProfileForm` (the exact same component used at registration), pre-filled from `getWorkerProfile()` (name, phone, skills, experience, area, rate, photos, availability). The Aadhaar field is read-only once `aadhaarOnFile` is true (`aadhaarLocked`), showing the masked value with a lock hint. Phone is read-only (identity). Employers get the simpler account form.
+**Fix applied:** Rebuilt `edit-profile.tsx` to be **100% identical UI** to `register-worker.tsx`:
+- Same centered `BrandLogo` header, same title/subtitle structure.
+- Same shared `WorkerProfileForm` providing all fields: Full Name, Phone (read-only/locked), Skills (multi-select chips), Experience (Years), Location, Aadhaar (masked "XXXX XXXX XXXX", read-only/locked once `aadhaarOnFile`), Profile Photo upload w/ preview, Work Photos (up to 5, w/ preview + delete), Availability dropdown, Expected Charge (₹).
+- Same Terms & Conditions checkbox row (kept for UI consistency; optional — not required to submit in Edit).
+- Main button reads **"Update Profile"** (not "Submit Application").
+- **No "Verify OTP" button** (user is already logged in).
+- `loading={busy}` on the Update Profile button; all fields pre-filled from `getWorkerProfile()` via `loadProfile()`.
 
-**How verified (simulated device):** Worker opens Edit Profile → form identical to registration UI, every field pre-filled, Aadhaar shown masked and non-editable (locked), name/skills/area/rate/photos editable, "Update Profile" saves to `users` + `worker_profiles`.
+**Verified fields present in edit-profile.tsx UI (checked):**
+1. Full Name (Text Input) ✓  2. Phone Number (read-only/locked) ✓  3. Skills (multi-select chips) ✓  4. Experience (Years) ✓  5. Location ✓  6. Aadhaar Number masked & locked ✓  7. Profile Photo Upload w/ preview ✓  8. Work Photos (up to 5) w/ preview + delete ✓  9. Availability dropdown ✓  10. Expected Charge (₹) ✓  11. Terms & Conditions checkbox ✓  + "Update Profile" button w/ `loading={busy}` ✓  + no Verify OTP button ✓
+
+**How verified (simulated device):** Worker opens Edit Profile → UI identical to registration mockup, every field pre-filled, Aadhaar/Phone locked (masked), "Update Profile" shows a loading spinner while saving, then redirects to `/(tabs)` on success.
 
 ---
 

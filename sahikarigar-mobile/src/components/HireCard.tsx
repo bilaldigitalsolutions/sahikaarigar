@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Badge, Card } from '@/components/ui';
-import { HIRE_STATUS_LABELS, skillLabel } from '@/constants';
+import { HIRE_STATUS_LABELS } from '@/constants';
 import type { ApiHire } from '@/lib/api';
 import { colors, fontSize, fontWeight, radius, spacing } from '@/theme';
 import { formatCurrency, formatRelativeDate } from '@/utils';
@@ -32,7 +32,6 @@ export function HireCard({ hire, perspective, onPress, notice }: HireCardProps) 
   const counterparty =
     perspective === 'employer' ? hire.worker?.user?.name : hire.employer?.name;
   const title = counterparty ?? 'Booking';
-  const skills = hire.worker?.skills?.map(skillLabel).join(' • ');
 
   return (
     <Card onPress={onPress} style={styles.card}>
@@ -50,14 +49,13 @@ export function HireCard({ hire, perspective, onPress, notice }: HireCardProps) 
         </View>
       ) : null}
 
-      {skills ? <Text style={styles.skills}>{skills}</Text> : null}
       <Text style={styles.description} numberOfLines={2}>
         {hire.description}
       </Text>
 
       <View style={styles.footer}>
-        <Text style={styles.meta}>{formatCurrency(hire.proposedRate)}</Text>
-        <Text style={styles.meta}>{hire.location}</Text>
+        <Text style={styles.meta}>{formatCurrency(hire.rate)}</Text>
+        <Text style={styles.meta}>{hire.locationArea}</Text>
         <Text style={styles.meta}>{formatRelativeDate(hire.createdAt)}</Text>
       </View>
     </Card>
@@ -80,7 +78,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryTint,
   },
   noticeText: { fontSize: fontSize.caption - 1, fontWeight: fontWeight.semibold, color: colors.primaryDark },
-  skills: { fontSize: fontSize.caption, color: colors.primaryDark, marginTop: 2 },
   description: { fontSize: fontSize.small, color: colors.textSecondary, marginTop: spacing.sm },
   footer: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginTop: spacing.md },
   meta: { fontSize: fontSize.caption, color: colors.textSecondary },

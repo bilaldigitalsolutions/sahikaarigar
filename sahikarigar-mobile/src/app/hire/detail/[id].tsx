@@ -51,6 +51,8 @@ export default function HireDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /** Ref to call fetchStartOtp from fetchHire (defined later in the component). */
+  const fetchStartOtpRef = useRef<(() => void) | null>(null);
 
   // Fetch the booking — runs on mount, on every screen focus, AND every 10s
   // while the screen stays open. The live poll is what lets the employer see
@@ -64,6 +66,14 @@ export default function HireDetailScreen() {
         const result = await getHire(id);
         setHire(result.hire);
         setError(null);
+        // Bridge: if the worker has arrived and we still don't have the OTP,
+        // kick off the OTP fetch immediately instead of waiting for the next
+        // effect cycle. This guarantees the employer's screen starts polling
+        // for the OTP the moment fetchHire observes status === 'arrived',
+        // even after a Render cold start delayed the first successful fetch.
+        if (result.hire?.status === 'arrived') {
+          void fetchStartOtpRef.current?.();
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Could not load the booking.');
       } finally {
@@ -175,27 +185,35 @@ export default function HireDetailScreen() {
         <View style={styles.center}>
           <ActivityIndicator color={colors.primaryDark} />
         </View>
-      ) : error || !hire ? (
+      ) : !hire ? (
         <View style={styles.center}>
           <Ionicons name="alert-circle-outline" size={48} color={colors.muted} />
-          <Text style={styles.errorText}>{error ?? 'Booking not found.'}</Text>
+          <Text style={styles.errorText}>Booking not found.</Text>
         </View>
       ) : (
-        <BookingBody
-          hire={hire}
-          workerName={workerName}
-          workerAvatar={workerUser?.avatar}
-          distance={distance}
-          busy={busy}
-          isDemo={isDemo}
-          isWorkerViewer={hire?.worker?.userId != null && hire.worker.userId === user?.id}
-          onCall={onCall}
-          onCancel={onCancel}
-          onAction={runAction}
-          onFeedback={() =>
-            router.push({ pathname: '/hire/feedback/[id]', params: { id: hire.id } })
-          }
-        />
+        <>
+          {error ? (
+            <View style={styles.errorBanner}>
+              <Ionicons name="alert-circle-outline" size={18} color={colors.danger} />
+              <Text style={styles.errorBannerText}>{error}</Text>
+            </View>
+          ) : null}
+          <BookingBody
+            hire={hire}
+            workerName={workerName}
+            workerAvatar={workerUser?.avatar}
+            distance={distance}
+            busy={busy}
+            isDemo={isDemo}
+            isWorkerViewer={hire?.worker?.userId != null && hire.worker.userId === user?.id}
+            onCall={onCall}
+            onCancel={onCancel}
+            onAction={runAction}
+            onFeedback={() =>
+              router.push({ pathname: '/hire/feedback/[id]', params: { id: hire.id } })
+            }
+          />
+        </>
       )}
     </Screen>
   );
@@ -243,7 +261,7 @@ function BookingBody({
 
   // Fetch the start-work OTP once. Used both on first render and by the poller.
   const fetchStartOtp = useCallback(async () => {
-    if (isWorkerViewer || hire.status !== 'arrived') return;
+    if (isWorkerViewer) return;
     let active = true;
     console.log('[HireDetail] fetching start OTP for hire', hire.id, 'status:', hire.status);
     try {
@@ -263,6 +281,8 @@ function BookingBody({
       active = false;
     };
   }, [hire.id, hire.status, isWorkerViewer]);
+  // Expose fetchStartOtp to fetchHire via ref so the bridge call above works.
+  fetchStartOtpRef.current = fetchStartOtp;
 
   // Poll every 5 seconds while the worker is 'arrived' and we still don't
   // have the OTP. This guarantees the employer's screen never stays stuck on
@@ -699,6 +719,20 @@ const styles = StyleSheet.create({
   brandName: { fontSize: fontSize.title, fontWeight: fontWeight.bold, color: colors.primaryDark },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.xxl },
   errorText: { marginTop: spacing.md, fontSize: fontSize.small, color: colors.textSecondary },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: radius.button,
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: colors.danger,
+    alignSelf: 'stretch',
+  },
+  errorBannerText: { fontSize: fontSize.caption, color: colors.danger, flex: 1 },
   content: { padding: spacing.lg, paddingBottom: spacing.xxl, alignItems: 'center' },
   statusIcon: {
     width: 64,

@@ -42,9 +42,9 @@ export default function LoadingScreen() {
   return (
     <View style={styles.container}>
       <Image
-        source={require('../../assets/images/loading-banner.png')}
+        source={require('../../assets/images/splash-icon.png')}
         style={styles.banner}
-        resizeMode="cover"
+        resizeMode="contain"
       />
       <View style={styles.content}>
         <Text style={styles.tagline}>{TAGLINE}</Text>

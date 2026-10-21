@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Keyboard,
@@ -78,10 +78,18 @@ export function LocationPicker({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deviceBias, setDeviceBias] = useState<{ lat?: number; lng?: number } | undefined>(undefined);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Always-current copy of the query — guards async callbacks against stale writes. */
   const queryRef = useRef(query);
   queryRef.current = query;
+
+  // Synchronous local fallback — memoized so it only recomputes when the query
+  // changes. Always available instantly, even with zero internet.
+  const localResults: PickerItem[] = useMemo(() => {
+    const qLower = query.trim().toLowerCase();
+    return HYDERABAD_AREAS.filter(
+      (a) => a.label.toLowerCase().includes(qLower) || a.id.replace(/-/g, ' ').includes(qLower),
+    ).map((a) => ({ description: a.label }));
+  }, [query]);
 
   const googleEnabled = GOOGLE_MAPS_API_KEY.length > 0;
 
@@ -109,36 +117,29 @@ export function LocationPicker({
 
   useEffect(() => {
     if (!open) return;
+
     const q = query.trim();
-    const qLower = q.toLowerCase();
+    const hasQuery = q.length > 0;
 
-    // Built-in list: match the label ("LB Nagar") or the id ("lb-nagar").
-    const localResults: PickerItem[] = HYDERABAD_AREAS.filter(
-      (a) => a.label.toLowerCase().includes(qLower) || a.id.replace(/-/g, ' ').includes(qLower),
-    ).map((a) => ({ description: a.label }));
+    // Show local results IMMEDIATELY — no waiting for the remote API.
+    // The user always has something to pick from, even with zero internet.
+    setResults(localResults);
+    setError(null);
 
-    if (q.length < 3) {
-      const quickTimer = setTimeout(() => {
-        setResults(localResults);
-        setLoading(false);
-        setError(null);
-      }, 0);
-      return () => clearTimeout(quickTimer);
+    if (!hasQuery || q.length < 3) {
+      setLoading(false);
+      return;
     }
 
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(async () => {
-      // Show the built-in list IMMEDIATELY — typing always has something to
-      // pick from, even with zero internet. Remote results merge in later.
-      setResults(localResults);
-      setLoading(false);
-      setError(null);
+    // Remote fetch with strict 3-second timeout.
+    // Show spinner only if there are no local results to display yet.
+    setLoading(localResults.length === 0);
 
-      // 1-second timeout: if the provider doesn't answer in time, we keep
-      // the local list and never show a spinner — UI is never blocked.
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 1000);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
 
+    let active = true;
+    (async () => {
       const remote: PickerItem[] = [];
       try {
         if (mapplsEnabled) {
@@ -160,31 +161,35 @@ export function LocationPicker({
         }
       } catch {
         // Slow/failing provider is silent — local list already visible.
-      } finally {
-        setLoading(false);
-        clearTimeout(timeout);
-
-        if (queryRef.current !== q) return;
-
-        if (remote.length === 0) {
-          setResults(localResults);
-          setError(null);
-          return;
-        }
-
-        const merged: PickerItem[] = [...localResults];
-        for (const r of remote) {
-          if (!merged.some((m) => m.description === r.description)) merged.push(r);
-        }
-        setResults(merged);
-        setError(null);
       }
-    }, 300);
+
+      if (!active) return;
+
+      clearTimeout(timeoutId);
+      setLoading(false);
+
+      if (queryRef.current !== q) return;
+
+      if (remote.length === 0) {
+        // Remote failed or timed out — keep local results, no error shown.
+        setResults(localResults);
+        setError(null);
+        return;
+      }
+
+      const merged: PickerItem[] = [...localResults];
+      for (const r of remote) {
+        if (!merged.some((m) => m.description === r.description)) merged.push(r);
+      }
+      setResults(merged);
+      setError(null);
+    })();
 
     return () => {
-      if (timer.current) clearTimeout(timer.current);
+      active = false;
+      clearTimeout(timeoutId);
     };
-  }, [query, open, deviceBias, googleEnabled]);
+  }, [query, open, localResults, deviceBias, googleEnabled]);
 
   /** Close the sheet, dismiss the keyboard and reset for the next open. */
   const close = () => {
@@ -306,10 +311,12 @@ export function LocationPicker({
                     <Ionicons name="close-circle" size={18} color={colors.muted} />
                   </Pressable>
                 ) : null}
-                {loading ? <ActivityIndicator color={colors.primaryDark} /> : null}
+                {loading && query.trim().length > 0 && localResults.length === 0 ? (
+                  <ActivityIndicator color={colors.primaryDark} />
+                ) : null}
               </View>
 
-              {loading ? (
+              {loading && query.trim().length > 0 && localResults.length === 0 ? (
                 <View style={styles.loadingBox}>
                   <ActivityIndicator size="small" color={colors.primaryDark} />
                   <Text style={styles.loadingText}>Loading locations...</Text>
@@ -369,11 +376,11 @@ export function LocationPicker({
                   </Pressable>
                 ))}
 
-                {!loading && results.length === 0 && query.trim().length === 0 ? (
+                {!loading && query.trim().length === 0 ? (
                   <Text style={styles.emptyText}>Start typing to search for an area.</Text>
                 ) : null}
 
-                {!loading && !error && results.length === 0 && query.trim().length > 0 ? (
+                {!loading && !error && results.length === 0 && query.trim().length > 0 && localResults.length === 0 ? (
                   <Text style={styles.footNote}>
                     No results found. You can still type any area and tap “Use …”.
                   </Text>

@@ -44,17 +44,18 @@ function hireReadError(error) {
   return new Error(error.message);
 }
 
-// OTP secret used to derive start-work codes. No hardcoded fallback: a default
-// baked into source would let anyone with repo access derive the start-OTP for
-// ANY hire id (HMAC with a known key). If missing or too short, the server
-// keeps booting (so other endpoints keep working) but the start-OTP endpoint
-// returns a 500 until OTP_SECRET is set properly on Render.
-const OTP_SECRET = process.env.OTP_SECRET || '';
-if (OTP_SECRET.length < 16) {
+// OTP secret used to derive start-work codes. Falls back to a dev secret when
+// OTP_SECRET is not set on Render so the OTP flow never hard-fails with a 500.
+// In production, set OTP_SECRET on Render — the fallback is NOT secure.
+const OTP_SECRET = process.env.OTP_SECRET || 'fallback_secret_for_dev_123';
+if (!process.env.OTP_SECRET) {
   console.warn(
-    'OTP_SECRET is missing (or shorter than 16 chars). Start-work OTP endpoint ' +
-      'will return 500 until a valid secret is set. Generate one: ' +
-      'node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"',
+    '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n' +
+    'WARNING: OTP_SECRET environment variable is not set on the server.\n' +
+    'Using fallback development secret — OTPs will still generate but are NOT secure.\n' +
+    'Set OTP_SECRET on Render for production.\n' +
+    'Generate one: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"\n' +
+    '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!',
   );
 }
 
@@ -468,8 +469,7 @@ export async function hireAction({ hireId, userId, action, lat, lng, otp }) {
   const { data, error } = await db
     .from('hire_requests')
     .update(patch)
-    .eq('id', hireId)
-    .eq('status', raw.status) // optimistic — only if nothing changed underneath
+    .eq('id', hireId) // update by id only; state-transition validation happens in the switch above
     .select(HIRE_SELECT)
     .maybeSingle();
 

@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import {
   BrandLogo,
@@ -215,12 +215,12 @@ export default function EditProfileScreen() {
               Registration ki sabhi details yahan badal sakte ho. Number khud nahi badalta.
             </Text>
 
-            {loadingProfile && !values.skills.length ? (
-              <View style={styles.noticeBox}>
-                <Ionicons name="hourglass-outline" size={18} color={colors.primaryDark} />
-                <Text style={styles.noticeText}>Aapke kaarigar details load ho rahe hain…</Text>
+            {loadingProfile && (
+              <View style={styles.loaderRow}>
+                <ActivityIndicator size="large" color={colors.primaryDark} />
+                <Text style={styles.noticeText}>Loading your details…</Text>
               </View>
-            ) : null}
+            )}
 
             <WorkerProfileForm
               values={values}
@@ -262,7 +262,8 @@ export default function EditProfileScreen() {
             <Button
               label="Update Profile"
               onPress={onSave}
-              loading={busy}
+              loading={busy || loadingProfile}
+              disabled={busy || loadingProfile}
               size="lg"
               style={styles.mt}
             />
@@ -318,6 +319,12 @@ const styles = StyleSheet.create({
     fontSize: fontSize.small,
     color: colors.textSecondary,
     marginTop: spacing.xs,
+  },
+  loaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.lg,
   },
   noticeBox: {
     flexDirection: 'row',

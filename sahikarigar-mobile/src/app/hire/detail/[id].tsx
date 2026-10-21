@@ -51,8 +51,6 @@ export default function HireDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  /** Ref to call fetchStartOtp from fetchHire (defined later in the component). */
-  const fetchStartOtpRef = useRef<(() => void) | null>(null);
 
   // Fetch the booking — runs on mount, on every screen focus, AND every 10s
   // while the screen stays open. The live poll is what lets the employer see
@@ -66,14 +64,6 @@ export default function HireDetailScreen() {
         const result = await getHire(id);
         setHire(result.hire);
         setError(null);
-        // Bridge: if the worker has arrived and we still don't have the OTP,
-        // kick off the OTP fetch immediately instead of waiting for the next
-        // effect cycle. This guarantees the employer's screen starts polling
-        // for the OTP the moment fetchHire observes status === 'arrived',
-        // even after a Render cold start delayed the first successful fetch.
-        if (result.hire?.status === 'arrived') {
-          void fetchStartOtpRef.current?.();
-        }
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Could not load the booking.');
       } finally {
@@ -255,6 +245,8 @@ function BookingBody({
   const [otpEntryError, setOtpEntryError] = useState<string | null>(null);
 
   const otpPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  /** Ref to call fetchStartOtp from fetchHire (defined in the parent component). */
+  const fetchStartOtpRef = useRef<(() => void) | null>(null);
   /** The employer taps "Show OTP to Worker" to reveal the code. Auto-revealed
    *  the moment it arrives so the code is never missed. */
   const [otpRevealed, setOtpRevealed] = useState(false);
@@ -281,7 +273,8 @@ function BookingBody({
       active = false;
     };
   }, [hire.id, hire.status, isWorkerViewer]);
-  // Expose fetchStartOtp to fetchHire via ref so the bridge call above works.
+  // Expose fetchStartOtp via ref so the parent component can trigger it
+  // immediately when it observes status === 'arrived'.
   fetchStartOtpRef.current = fetchStartOtp;
 
   // Poll every 5 seconds while the worker is 'arrived' and we still don't

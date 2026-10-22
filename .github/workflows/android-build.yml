@@ -1,7 +1,7 @@
-name: Android APK Build (Free)
+name: Android AAB Build (Free)
 
 # =============================================================================
-# EAS free plan khatam hone ki wajah se CI par APK banate hain:
+# EAS free plan khatam hone ki wajah se CI par AAB banate hain:
 #   checkout → node → npm install → expo prebuild → signing inject → gradle → upload
 # Secrets (repo Settings → Secrets and variables → Actions):
 #   KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD
@@ -21,7 +21,7 @@ permissions:
 
 jobs:
   build:
-    name: Build release APK
+    name: Build release AAB
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -48,7 +48,7 @@ jobs:
           cache: npm
           cache-dependency-path: ${{ env.APP_DIR }}/package-lock.json
 
-      # Release APK sirf arm64-v8a (see plugins/WithAndroidArchitectures), isliye
+      # Release AAB sirf arm64-v8a (see plugins/WithAndroidArchitectures), isliye
       # itna disk space kaafi hai — phir bhi safety ke liye extra tools hata dete hain.
       - name: Free up disk space
         uses: jlumbroso/free-disk-space@main
@@ -91,7 +91,7 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: 'platforms;android-34 build-tools;34.0.0'
+          packages: 'platforms;android-35 build-tools;35.0.0'
           cmdline-tools-version: latest
           accept-android-sdk-licenses: true
 
@@ -132,7 +132,7 @@ jobs:
         working-directory: ${{ env.APP_DIR }}
         run: node scripts/inject-signing.js
 
-      - name: Build release APK (gradle)
+      - name: Build release AAB (gradle)
         working-directory: ${{ env.APP_DIR }}/android
         env:
           ANDROID_HOME: ${{ env.ANDROID_HOME }}
@@ -142,18 +142,22 @@ jobs:
           MYAPP_UPLOAD_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx1536m -Dorg.gradle.daemon=false"
           # EXPO_PUBLIC_* vars Metro bundle time par inline hote hain —
-          # eas.json ke barabar values yahan set karo.
+          # eas.json ke barabar values yahan set karo (GitHub builds eas.json
+          # ka env block use nahi karte).
           EXPO_PUBLIC_AUTH_API_URL: https://sahikaarigar-auth.onrender.com
           EXPO_PUBLIC_APP_NAME: Sahi Kaarigar
           EXPO_PUBLIC_DEMO_MODE: "0"
+          EXPO_PUBLIC_POSTHOG_KEY: phc_sv8Dzcdm29moWxn96AC9gys7MeTA2FyHyygAyXMjGh2F
+          EXPO_PUBLIC_POSTHOG_HOST: https://eu.i.posthog.com
+          EXPO_PUBLIC_SENTRY_DSN: https://7157c8fedfbd0b5e2729aab0424e81f0@o4512298339270656.ingest.de.sentry.io/4512298371514448
         run: |
           chmod +x ./gradlew
-          ./gradlew assembleRelease --no-daemon
+          ./gradlew bundleRelease --no-daemon
 
-      - name: Upload APK artifact
+      - name: Upload AAB artifact
         uses: actions/upload-artifact@v4
         with:
-          name: SahiKaarigar-APK
-          path: ${{ env.APP_DIR }}/android/app/build/outputs/apk/release/app-release.apk
+          name: SahiKaarigar-AAB
+          path: ${{ env.APP_DIR }}/android/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
           retention-days: 7

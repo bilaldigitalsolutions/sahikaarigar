@@ -47,12 +47,64 @@ export interface AdminSession {
  */
 const ADMIN_EMAIL_KEY = 'admin_email';
 
+/**
+ * Marker set when the admin explicitly logs out.
+ *
+ * The session cookie is HttpOnly, so JavaScript cannot delete it. If the
+ * logout request to the backend fails (Render asleep / cold start), the
+ * cookie is still valid server-side and the next page load would happily
+ * restore the session — making Logout look like it "did nothing".
+ *
+ * This flag makes the explicit logout authoritative on the client: the guard
+ * refuses to auto-restore a session while it is set. It is cleared again by a
+ * successful `adminLogin()`.
+ */
+const ADMIN_SIGNED_OUT_KEY = 'admin_signed_out';
+
+/** Default timeout for admin API calls (ms). */
+const ADMIN_REQUEST_TIMEOUT_MS = 20_000;
+
+/**
+ * Timeout for the logout call (ms). Deliberately short: logging out must feel
+ * instant even when the backend is cold. Server-side cookie clearing is
+ * best-effort — the client-side session is torn down regardless.
+ */
+const ADMIN_LOGOUT_TIMEOUT_MS = 5_000;
+
 export function getAdminEmail(): string | null {
   if (typeof window === 'undefined') return null;
   try {
     return window.localStorage.getItem(ADMIN_EMAIL_KEY);
   } catch {
     return null;
+  }
+}
+
+/** True when the admin explicitly logged out and has not logged in again. */
+export function isAdminSignedOut(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return window.localStorage.getItem(ADMIN_SIGNED_OUT_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function markAdminSignedOut(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(ADMIN_SIGNED_OUT_KEY, '1');
+  } catch {
+    /* storage unavailable (private mode) — the in-memory event still fires */
+  }
+}
+
+function clearAdminSignedOut(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.removeItem(ADMIN_SIGNED_OUT_KEY);
+  } catch {
+    /* storage unavailable — nothing to clear */
   }
 }
 
@@ -71,18 +123,52 @@ function notifyUnauthorized(): void {
   }
 }
 
-async function adminApiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+interface AdminFetchInit extends RequestInit {
+  /** Abort the request after this many milliseconds. */
+  timeoutMs?: number;
+}
+
+async function adminApiFetch<T>(path: string, init?: AdminFetchInit): Promise<T> {
   if (!AUTH_API_URL) {
     throw new Error('Auth server configure nahi hai (NEXT_PUBLIC_AUTH_API_URL).');
   }
-  const headers = new Headers(init?.headers);
-  if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
-  const response = await fetch(`${AUTH_API_URL}${path}`, {
-    ...init,
-    // Required so the browser sends/receives the HttpOnly admin cookie.
-    credentials: 'include',
-    headers,
-  });
+  const { timeoutMs = ADMIN_REQUEST_TIMEOUT_MS, signal: callerSignal, ...rest } = init ?? {};
+
+  const headers = new Headers(rest.headers);
+  // Only send Content-Type when there is a body. Setting it on a GET makes the
+  // request "non-simple", which forces a CORS preflight — doubling the
+  // round-trips and making a cold backend start feel even slower.
+  if (rest.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  if (callerSignal) {
+    if (callerSignal.aborted) controller.abort();
+    else callerSignal.addEventListener('abort', () => controller.abort(), { once: true });
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`${AUTH_API_URL}${path}`, {
+      ...rest,
+      // Required so the browser sends/receives the HttpOnly admin cookie.
+      credentials: 'include',
+      headers,
+      signal: controller.signal,
+    });
+  } catch (failure) {
+    const aborted = (failure as Error)?.name === 'AbortError';
+    const error = new Error(
+      aborted
+        ? 'Server ne time par respond nahi kiya. Dobara try karo.'
+        : 'Server se connection nahi ho paya (network ya CORS error).',
+    );
+    (error as Error & { status?: number }).status = undefined;
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+
   const data = (await response.json().catch(() => null)) as
     | { ok?: boolean; message?: string; admin?: AdminSession }
     | null;
@@ -111,6 +197,8 @@ export async function adminLogin(payload: {
     method: 'POST',
     body: JSON.stringify(payload),
   });
+  // A successful login cancels any previous explicit logout.
+  clearAdminSignedOut();
   if (data.admin?.email && typeof window !== 'undefined') {
     try {
       window.localStorage.setItem(ADMIN_EMAIL_KEY, data.admin.email);
@@ -130,15 +218,34 @@ export function getAdminSession(): Promise<{ admin: AdminSession }> {
   return adminApiFetch('/admin/session');
 }
 
-/** Clears the HttpOnly cookie server-side, then drops the local email. */
+/**
+ * Signs the admin out.
+ *
+ * The server call is BEST-EFFORT ONLY. The backend may be asleep (Render cold
+ * start), unreachable, or CORS-blocked — in any of those cases the request can
+ * take a long time or fail outright. The `finally` block guarantees the local
+ * session is ALWAYS torn down and the guard is always notified, so the admin
+ * can never be stranded in a half-logged-in state.
+ *
+ * Because the session cookie is HttpOnly we cannot delete it from JavaScript.
+ * That is why `markAdminSignedOut()` persists an explicit "signed out" marker:
+ * it stops AdminGuard from silently restoring the still-valid server session
+ * on the next page load.
+ */
 export async function adminLogout(): Promise<void> {
   try {
-    await adminApiFetch('/admin/logout', { method: 'POST' });
+    await adminApiFetch('/admin/logout', {
+      method: 'POST',
+      timeoutMs: ADMIN_LOGOUT_TIMEOUT_MS,
+    });
   } catch {
-    /* even if the call fails, the client-side session is cleared below */
+    /* The backend could not be reached — the local session is still cleared
+       below, which is what actually matters for the user. */
+  } finally {
+    markAdminSignedOut();
+    clearAdminSession();
+    notifyUnauthorized();
   }
-  clearAdminSession();
-  notifyUnauthorized();
 }
 
 // -----------------------------------------------------------------------------

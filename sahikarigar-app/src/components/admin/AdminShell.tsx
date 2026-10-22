@@ -40,6 +40,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [email, setEmail] = useState<string | null>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
   const [verificationCount, setVerificationCount] = useState<number | null>(null);
   const [hireCount, setHireCount] = useState<number | null>(null);
 
@@ -86,9 +87,17 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const initials = email ? getInitials(email) : 'AM';
 
   const handleLogout = async () => {
-    // Clears the HttpOnly cookie server-side and drops the local email.
-    await adminLogout();
-    window.location.href = '/admin';
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      // adminLogout() never throws: it clears the local session in a finally
+      // block even when the backend is asleep or unreachable.
+      await adminLogout();
+    } finally {
+      // Always leave the panel. `location.replace` avoids leaving the admin
+      // page in the back-button history.
+      window.location.replace('/admin');
+    }
   };
   return (
     <div className="flex min-h-screen bg-[#F9FAFB] text-[#111827]">
@@ -178,10 +187,11 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           <button
             type="button"
             onClick={() => void handleLogout()}
-            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] font-medium text-gray-500 hover:bg-gray-100 hover:text-[#111827]"
+            disabled={loggingOut}
+            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] font-medium text-gray-500 hover:bg-gray-100 hover:text-[#111827] disabled:opacity-60"
           >
             <LogOut size={19} />
-            Logout
+            {loggingOut ? 'Logging out…' : 'Logout'}
           </button>
           <div className="mt-2 flex items-center gap-3 rounded-2xl px-2 py-2">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#111827] text-[13px] font-bold text-white">

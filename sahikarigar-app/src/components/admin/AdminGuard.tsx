@@ -3,7 +3,7 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { ShieldCheck } from 'lucide-react';
 import { Button, Card } from '@/components/ui';
-import { adminLogin, getAdminSession } from '@/lib/api';
+import { adminLogin, getAdminSession, isAdminSignedOut } from '@/lib/api';
 
 function AdminLogin({ onLogin }: { onLogin: () => void }) {
   const [email, setEmail] = useState('');
@@ -84,6 +84,16 @@ export function AdminGuard({ children }: { children: ReactNode }) {
     //                    out; keep the shell and let individual calls retry.
     let cancelled = false;
 
+    // An EXPLICIT logout always wins. The HttpOnly cookie may still be valid
+    // server-side (the logout call can fail when the backend is asleep), and
+    // without this check the guard would silently restore the session on the
+    // next load — which is exactly the "Logout does nothing" bug.
+    if (isAdminSignedOut()) {
+      setIsAuthenticated(false);
+      setLoading(false);
+      return;
+    }
+
     const verify = async () => {
       try {
         await getAdminSession();
@@ -95,6 +105,7 @@ export function AdminGuard({ children }: { children: ReactNode }) {
         // 500, network failure) is treated as "cannot verify right now" — we
         // optimistically keep the admin in so the UI doesn't bounce to login.
         if (status === 401) setIsAuthenticated(false);
+        else if (isAdminSignedOut()) setIsAuthenticated(false);
         else setIsAuthenticated(true);
       } finally {
         if (!cancelled) setLoading(false);
@@ -112,9 +123,22 @@ export function AdminGuard({ children }: { children: ReactNode }) {
     // our unauthorized event via adminApiFetch; keep tabs in sync.
     window.addEventListener('sahikarigar-admin-unauthorized', handleUnauthorized);
 
+    // The explicit "signed out" marker lives in localStorage, so a logout in
+    // another tab is observable here through the storage event.
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === null || event.key === 'admin_signed_out') {
+        if (isAdminSignedOut()) {
+          setIsAuthenticated(false);
+          setLoading(false);
+        }
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+
     return () => {
       cancelled = true;
       window.removeEventListener('sahikarigar-admin-unauthorized', handleUnauthorized);
+      window.removeEventListener('storage', handleStorage);
     };
   }, []);
 

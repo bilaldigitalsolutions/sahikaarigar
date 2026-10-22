@@ -168,10 +168,20 @@ const EXTRA_ORIGINS = (process.env.EXTRA_CORS_ORIGINS || '')
   .split(',')
   .map((o) => o.trim().replace(/\/+$/, ''))
   .filter(Boolean);
+// Origins of the deployed ADMIN PANEL. The panel is hosted separately from
+// this API (e.g. on Vercel) so its origin must be listed explicitly —
+// otherwise the browser blocks every /admin/* response and the panel shows
+// the opaque "Failed to fetch" error.
+const ADMIN_PANEL_ORIGINS = (process.env.ADMIN_PANEL_ORIGINS || '')
+  .split(',')
+  .map((o) => o.trim().replace(/\/+$/, ''))
+  .filter(Boolean);
 // The Firebase-hosted admin panel. Always allowed, even if WEBSITE_DOMAIN is
 // missing from the environment, so the admin API never fails CORS in prod.
 const PRODUCTION_ORIGIN = 'https://sahi-kaarigar.web.app';
-const ALLOWED_ORIGINS = [...new Set([PRODUCTION_ORIGIN, WEBSITE_DOMAIN, ...EXTRA_ORIGINS])];
+const ALLOWED_ORIGINS = [
+  ...new Set([PRODUCTION_ORIGIN, WEBSITE_DOMAIN, ...ADMIN_PANEL_ORIGINS, ...EXTRA_ORIGINS]),
+];
 const LOCALHOST_RE = /^https?:\/\/(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?$/;
 
 app.use(
@@ -181,6 +191,13 @@ app.use(
       if (ALLOWED_ORIGINS.includes(origin) || LOCALHOST_RE.test(origin)) {
         return callback(null, true);
       }
+      // Log it: a rejected origin is invisible in the browser (it only shows
+      // up as "Failed to fetch"), so the server log is the only place where
+      // it can be diagnosed.
+      console.warn(
+        `[cors] rejected origin "${origin}". Allowed: ${ALLOWED_ORIGINS.join(', ') || '(none)'}. ` +
+          'Add it to ADMIN_PANEL_ORIGINS on the server.',
+      );
       return callback(null, false);
     },
     // `authorization` is required for the admin panel's Bearer token. Without
@@ -707,16 +724,34 @@ async function requireAdmin(req, res) {
 }
 
 /**
- * Cookie options shared by set/clear. `sameSite: 'strict'` blocks CSRF from
- * cross-site pages; `secure` is on in production (Render/Firebase are HTTPS)
- * and relaxed on localhost so `npm run dev` works over http.
+ * Cookie options shared by set/clear.
+ *
+ * `sameSite`:
+ *   - The admin panel is deployed on a DIFFERENT site than this API (e.g.
+ *     Vercel -> Render). A `SameSite=Strict` cookie is NOT sent on such a
+ *     cross-site request, so the browser would never attach the session and
+ *     every /admin/* call would 401. `SameSite=None` is therefore required
+ *     for the split deployment and must be paired with `Secure` (browsers
+ *     reject `SameSite=None` without it).
+ *   - On plain http://localhost (local dev) a Secure cookie is dropped by the
+ *     browser, so we fall back to `Lax` there.
+ *   - Override with ADMIN_COOKIE_SAMESITE=strict|lax|none when the panel and
+ *     the API really are served from the same site.
+ *
+ * CSRF: the admin API always answers with `Content-Type: application/json`
+ * and the browser only sends it after a successful CORS preflight, so a
+ * third-party site cannot drive it — the origin allow-list is the real
+ * defence.
  */
 function adminCookieOptions() {
   const isProduction = (process.env.NODE_ENV || 'production') === 'production';
+  const configured = String(process.env.ADMIN_COOKIE_SAMESITE || '').trim().toLowerCase();
+  let sameSite = ['strict', 'lax', 'none'].includes(configured) ? configured : 'none';
+  if (!isProduction && sameSite === 'none') sameSite = 'lax';
   return {
     httpOnly: true,
     secure: isProduction,
-    sameSite: 'strict',
+    sameSite,
     path: '/',
   };
 }

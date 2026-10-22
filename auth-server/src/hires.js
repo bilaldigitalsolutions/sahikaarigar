@@ -11,6 +11,7 @@
 
 import crypto from 'node:crypto';
 
+import { notifyWorkerOfNewHire } from './push.js';
 import { db } from './users.js';
 import { getWorkerProfileIdForUser } from './workers.js';
 
@@ -272,7 +273,13 @@ export async function createHireRequest({
     .single();
 
   if (error) throw hireReadError(error);
-  return mapHire(data);
+
+  const hire = mapHire(data);
+  // Fire-and-forget: the assigned kaarigar gets a push about the new request.
+  // Kept inside createHireRequest so every caller notifies the worker — not
+  // just the POST /hires route.
+  void notifyWorkerOfNewHire(hire);
+  return hire;
 }
 
 /** Everything this user is involved in — as the hirer and as the worker. */

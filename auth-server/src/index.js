@@ -68,7 +68,11 @@ import {
   setWorkerApproval,
   setWorkerFlagged,
 } from './admin.js';
-import { notifyHireUpdate, notifyWorkerOfNewHire } from './push.js';
+import {
+  isValidPushToken,
+  notifyHireUpdate,
+  sendProfileCompletionReminders,
+} from './push.js';
 
 const PORT = Number(process.env.PORT || 4000);
 // Render exposes a web service's public URL as RENDER_EXTERNAL_URL, so the
@@ -293,7 +297,7 @@ app.post('/me/push-token', async (req, res, next) => {
     const { authUserId, phone } = await resolveSession(session);
     const user = await getOrCreateUserByAuthId(authUserId, phone);
     const token = typeof req.body?.token === 'string' ? req.body.token.trim() : '';
-    if (token && !token.startsWith('ExponentPushToken[')) {
+    if (token && !isValidPushToken(token)) {
       res.status(400).json({ ok: false, code: 'BAD_REQUEST', message: 'Invalid push token' });
       return;
     }
@@ -424,8 +428,7 @@ app.post('/hires', async (req, res, next) => {
       proposedRate: req.body?.proposedRate,
       scheduledDate: req.body?.scheduledDate,
     });
-    // Fire-and-forget: the kaarigar gets a push about the new request.
-    void notifyWorkerOfNewHire(hire);
+    // createHireRequest() already fires the worker push (fire-and-forget).
     res.json({ ok: true, hire });
   } catch (error) {
     next(error);
@@ -916,6 +919,21 @@ app.get('/admin/stats', async (req, res, next) => {
     const admin = await requireAdmin(req, res);
     if (!admin) return;
     res.json({ ok: true, stats: await getAdminStats() });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Manually (or cron-) trigger "complete your profile" push reminders.
+// Selects worker_profiles that are not approved yet OR have no Aadhaar number,
+// and pushes to every one that has a registered device. Optional body:
+//   { "limit": 500 }   max profiles scanned in this run (1–1000)
+app.post('/admin/send-profile-reminders', async (req, res, next) => {
+  try {
+    const admin = await requireAdmin(req, res);
+    if (!admin) return;
+    const result = await sendProfileCompletionReminders({ limit: req.body?.limit });
+    res.json({ ok: true, ...result });
   } catch (error) {
     next(error);
   }

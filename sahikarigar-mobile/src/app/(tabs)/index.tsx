@@ -207,7 +207,13 @@ export default function HomeScreen() {
         </Pressable>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.body}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.body}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
         <Pressable style={styles.mapBar} onPress={() => router.push('/map')}>
           <Ionicons name="map-outline" size={18} color={colors.primaryDark} />
           <Text style={styles.mapBarText}>View service areas on the map</Text>

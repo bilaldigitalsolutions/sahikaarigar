@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -62,6 +62,12 @@ export function SearchScreen() {
   const params = useLocalSearchParams<{ skill?: string; area?: string }>();
 
   const [query, setQuery] = useState('');
+  // Latest typed text for analytics only — kept in a ref so `load` (and the
+  // API fetch it triggers) does not re-run on every keystroke.
+  const queryRef = useRef(query);
+  useEffect(() => {
+    queryRef.current = query;
+  }, [query]);
   const [skill, setSkill] = useState<string | null>(params.skill ?? null);
   const [areaFilter, setAreaFilter] = useState<string | null>(params.area ?? null);
   const [filters, setFilters] = useState<PopularFilterId[]>([]);
@@ -97,7 +103,11 @@ export function SearchScreen() {
       const result = await searchWorkers({ skill: skill ?? undefined, limit: 50 });
       setWorkers(result.workers);
       setError(null);
-      trackEvent('search_performed', { skill: skill ?? undefined, resultCount: result.workers.length });
+      trackEvent('search_performed', {
+        skill: skill ?? undefined,
+        query_text: queryRef.current.trim(),
+        resultCount: result.workers.length,
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load workers.');
       setWorkers([]);

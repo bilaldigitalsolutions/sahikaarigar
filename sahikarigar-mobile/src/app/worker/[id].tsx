@@ -26,6 +26,7 @@ import { Avatar, Header, Rating, Screen } from '@/components';
 import { areaLabel, skillIconName, skillLabel, skillServices } from '@/constants';
 import { useAuth } from '@/contexts/AuthContext';
 import { getWorker, type ApiReview, type ApiWorker } from '@/lib/api';
+import { trackEvent } from '@/lib/observability';
 import { colors, fontSize, fontWeight, radius, shadows, spacing } from '@/theme';
 import { calculateDistance, formatCurrency, formatRelativeDate, generateStars } from '@/utils';
 
@@ -57,6 +58,10 @@ export default function WorkerDetailScreen() {
           setWorker(result.worker);
           setReviews(result.reviews ?? []);
           setError(null);
+          trackEvent('worker_viewed', {
+            workerId: result.worker.id,
+            skill: result.worker.skills?.[0] ?? null,
+          });
         }
       })
       .catch((e) => {

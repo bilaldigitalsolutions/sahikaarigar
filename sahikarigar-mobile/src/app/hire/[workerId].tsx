@@ -6,6 +6,7 @@ import { Button, Input, LocationPicker, RateInput, Screen, type PlaceResult } fr
 import { VALIDATION } from '@/constants';
 import { useAuth } from '@/contexts/AuthContext';
 import { createHire, getWorker } from '@/lib/api';
+import { trackEvent } from '@/lib/observability';
 import { colors, fontSize, fontWeight, spacing } from '@/theme';
 
 /** Phone numbers (India) are 10 digits; a rate field is max 5 digits. */
@@ -36,6 +37,10 @@ export default function CreateHireScreen() {
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   useEffect(() => {
+    // Funnel: opening the booking form is intent — fire before the form is
+    // submitted so abandoned bookings are still measurable.
+    trackEvent('booking_started', { workerId });
+
     const onShow = (e: { endCoordinates: { height: number } }) => {
       setKeyboardHeight(e.endCoordinates.height);
     };
@@ -46,7 +51,7 @@ export default function CreateHireScreen() {
       show.remove();
       hide.remove();
     };
-  }, []);
+  }, [workerId]);
 
   /** Creates the hire request directly — the SuperTokens session already
    *  proves who the user is, so no extra phone OTP is needed here. */

@@ -41,7 +41,9 @@
         "EXPO_PUBLIC_AUTH_API_URL": "https://sahikaarigar-auth.onrender.com",
         "EXPO_PUBLIC_APP_NAME": "Sahi Kaarigar",
         "EXPO_PUBLIC_DEMO_MODE": "0",
-        "EXPO_PUBLIC_POSTHOG_KEY": "phc_sv8Dzcdm29moWxn96AC9gys7MeTA2FyHyygAyXMjGh2F"
+        "EXPO_PUBLIC_POSTHOG_KEY": "phc_sv8Dzcdm29moWxn96AC9gys7MeTA2FyHyygAyXMjGh2F",
+        "EXPO_PUBLIC_POSTHOG_HOST": "https://eu.i.posthog.com",
+        "EXPO_PUBLIC_SENTRY_DSN": "https://7157c8fedfbd0b5e2729aab0424e81f0@o4512298339270656.ingest.de.sentry.io/4512298371514448"
       }
     }
   },

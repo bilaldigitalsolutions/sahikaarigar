@@ -1,4 +1,4 @@
-import { Stack } from 'expo-router';
+import { Stack, usePathname, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
@@ -17,10 +17,10 @@ import {
   requestNotificationPermission,
   useHireRequestNotificationRoute,
 } from '@/lib/notifications';
-import { initObservability, reportError, setObservabilityUser } from '@/lib/observability';
+import { initObservability, POSTHOG_HOST, reportError, setObservabilityUser, trackEvent } from '@/lib/observability';
 import { PostHogProvider } from 'posthog-react-native';
 import { PostHog } from 'posthog-react-native';
-const posthog = new PostHog(process.env.EXPO_PUBLIC_POSTHOG_KEY ?? '');
+const posthog = new PostHog(process.env.EXPO_PUBLIC_POSTHOG_KEY ?? '', { host: POSTHOG_HOST });
 import { colors, fontSize, fontWeight, spacing } from '@/theme';
 
 SplashScreen.preventAutoHideAsync();
@@ -50,6 +50,10 @@ function AppLoading() {
 
 function RootNavigator() {
   const { initializing, user } = useAuth();
+  const pathname = usePathname();
+  const segments = useSegments();
+  // Route pattern without dynamic ids, e.g. "worker/[id]" or "(tabs)/index".
+  const screenName = segments.join('/') || 'index';
 
   // Vector icons (Ionicons) must be loaded via Font.loadAsync BEFORE any screen
   // renders, otherwise tab bar icons and header back chevrons show as 'X' boxes.
@@ -86,6 +90,17 @@ function RootNavigator() {
       reportError(e, { where: 'RootNavigator.setObservabilityUser' });
     }
   }, [user]);
+
+  // Screen funnel: fire once per navigation. `pathname` changes on every route
+  // push/replace/back, and the route pattern is used as `screen_name` so no
+  // dynamic ids leak into analytics. Role is the coarse account type only.
+  const userRole = user ? String(user.role) : 'guest';
+  useEffect(() => {
+    trackEvent('screen_view', {
+      screen_name: screenName,
+      user_role: userRole,
+    });
+  }, [pathname, screenName, userRole]);
 
   // Hide the native splash the first frame we can render (loading screen).
   useEffect(() => {
@@ -150,7 +165,10 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <PostHogProvider apiKey={process.env.EXPO_PUBLIC_POSTHOG_KEY}>
+        <PostHogProvider
+          apiKey={process.env.EXPO_PUBLIC_POSTHOG_KEY}
+          options={{ host: POSTHOG_HOST }}
+        >
           <AuthProvider>
             <ModeProvider>
               <StatusBar style="dark" />

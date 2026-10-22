@@ -22,8 +22,10 @@ import { PostHog } from 'posthog-react-native';
 export const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN ?? '';
 export const ANALYTICS_ENDPOINT = process.env.EXPO_PUBLIC_ANALYTICS_ENDPOINT ?? '';
 export const POSTHOG_KEY = process.env.EXPO_PUBLIC_POSTHOG_KEY ?? '';
+/** EU Cloud unless overridden — events sent to the wrong region never appear. */
+export const POSTHOG_HOST = process.env.EXPO_PUBLIC_POSTHOG_HOST ?? 'https://eu.i.posthog.com';
 
-const posthog = new PostHog(POSTHOG_KEY);
+const posthog = new PostHog(POSTHOG_KEY, { host: POSTHOG_HOST });
 
 type SentryLike = {
   init: (options: Record<string, unknown>) => void;
@@ -105,10 +107,16 @@ export type AnalyticsEvent =
   | 'worker_registered'
   | 'hire_created'
   | 'hire_accepted'
+  | 'hire_arrived'
+  | 'hire_rejected'
+  | 'hire_cancelled'
   | 'hire_started'
   | 'hire_completed'
   | 'feedback_submitted'
-  | 'search_performed';
+  | 'search_performed'
+  | 'screen_view'
+  | 'worker_viewed'
+  | 'booking_started';
 
 /**
  * Fire-and-forget lifecycle event via PostHog. Dropped silently when in demo

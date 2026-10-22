@@ -419,6 +419,9 @@ export async function hireAction(
       body: JSON.stringify({ action, ...(coords ?? {}), ...(otp ? { otp } : {}) }),
     });
     if (action === 'accept') trackEvent('hire_accepted');
+    if (action === 'arrived') trackEvent('hire_arrived');
+    if (action === 'reject') trackEvent('hire_rejected');
+    if (action === 'cancel') trackEvent('hire_cancelled');
     if (action === 'start') trackEvent('hire_started');
     if (action === 'complete') trackEvent('hire_completed');
     return result;

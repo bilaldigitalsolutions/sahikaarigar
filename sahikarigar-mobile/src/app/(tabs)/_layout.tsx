@@ -53,7 +53,9 @@ export default function TabsLayout() {
   const isEmployer = role === 'employer';
 
   // Workers must be signed in — dashboard, jobs and availability need a session.
-  if (isWorker && !user) return <Redirect href="/(auth)/login" />;
+  // Send them to the public landing screen (not the login form) so a sign-out
+  // can never bounce back into the signed-in tab tree.
+  if (isWorker && !user) return <Redirect href="/welcome" />;
   // Worker role picked but registration not finished yet — complete it first.
   // (First-time role picking happens in /onboarding/role before login; the
   // legacy /role-selection route is kept for deep links from older builds.)
@@ -109,14 +111,14 @@ export default function TabsLayout() {
             name="index"
             options={{
               title: 'Dashboard',
-              tabBarIcon: ({ color }) => <Ionicons name="home-outline" color={color} size={24} />,
+              tabBarIcon: ({ color, size }) => <Ionicons name="home" color={color} size={size ?? 24} />,
             }}
           />
           <Tabs.Screen
             name="jobs"
             options={{
               title: 'My Work',
-              tabBarIcon: ({ color }) => <Ionicons name="briefcase-outline" color={color} size={24} />,
+              tabBarIcon: ({ color, size }) => <Ionicons name="briefcase" color={color} size={size ?? 24} />,
             }}
           />
           {/* Merged "My Jobs" + "Availability" into a single tab. */}
@@ -124,7 +126,7 @@ export default function TabsLayout() {
             name="availability"
             options={{
               title: 'Availability',
-              tabBarIcon: ({ color }) => <Ionicons name="calendar-outline" color={color} size={24} />,
+              tabBarIcon: ({ color, size }) => <Ionicons name="calendar" color={color} size={size ?? 24} />,
             }}
           />
         </>
@@ -134,7 +136,7 @@ export default function TabsLayout() {
         name="profile"
         options={{
           title: 'Profile',
-          tabBarIcon: ({ color }) => <Ionicons name="person-outline" color={color} size={24} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name="person" color={color} size={size ?? 24} />,
         }}
       />
 

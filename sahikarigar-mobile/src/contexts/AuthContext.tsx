@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import {
   createContext,
   useCallback,
@@ -48,6 +49,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [initializing, setInitializing] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -172,8 +174,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setDevOtp(null);
       nameRef.current = null;
       challengeRef.current = null;
+
+      // Hard reset the navigation stack: pop every screen the signed-in
+      // session pushed (modals, hire flow, nested tabs), then replace the
+      // root route with the public landing screen. Otherwise Android's
+      // hardware Back reopens the signed-in screens underneath.
+      if (router.canDismiss()) router.dismissAll();
+      router.replace('/welcome');
     }
-  }, []);
+  }, [router]);
 
   const refreshUser = useCallback(async () => {
     try {

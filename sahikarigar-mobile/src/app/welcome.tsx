@@ -43,6 +43,9 @@ export default function WelcomeScreen() {
   const [area, setArea] = useState<string | null>(null);
 
   const goRegister = () => router.push('/register-worker');
+  // Login always goes through "Aap Kaun Hain?" first so the app knows which
+  // side (worker / employer) the returning user wants before asking for OTP.
+  const goLogin = () => router.push('/onboarding/role' as never);
 
   // Guest browse — browsing is free, so the category cards and "Hire a
   // Worker" open the search screen instead of a login wall. Same split as the
@@ -78,6 +81,15 @@ export default function WelcomeScreen() {
       {/* Brand header */}
       <View style={styles.header}>
         <BrandLogo size={34} />
+        <Pressable
+          style={styles.loginBtn}
+          onPress={goLogin}
+          accessibilityRole="button"
+          accessibilityLabel="Login"
+        >
+          <Ionicons name="log-in-outline" size={16} color={colors.white} />
+          <Text style={styles.loginText}>Login</Text>
+        </Pressable>
       </View>
 
       {/* Hero */}
@@ -188,6 +200,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
     paddingBottom: spacing.sm,
+  },
+  loginBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primaryDark,
+  },
+  loginText: {
+    fontSize: fontSize.caption,
+    fontWeight: fontWeight.bold,
+    color: colors.white,
   },
   hero: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
   badgeRow: {

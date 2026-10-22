@@ -59,10 +59,10 @@ export default function ProfileScreen() {
     );
   }
 
+  // `signOut()` performs the full stack reset and lands on /welcome, so no
+  // extra navigation here — doing it in both places raced the reset.
   const onSignOut = async () => {
     await signOut();
-    router.dismissAll();
-    router.replace('/(auth)/login');
   };
 
   // The backend creates a nameless account with the placeholder "User" on the
@@ -90,7 +90,6 @@ export default function ProfileScreen() {
               // never leaves the user stranded inside a dead account
             }
             await signOut();
-            router.replace('/(auth)/login');
           },
         },
       ],

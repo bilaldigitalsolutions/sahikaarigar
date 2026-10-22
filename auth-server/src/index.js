@@ -863,7 +863,12 @@ app.patch('/admin/workers/:id', async (req, res, next) => {
         res.status(400).json({ ok: false, code: 'BAD_REQUEST', message: 'adminNotes string chahiye' });
         return;
       }
-      worker = await setWorkerApproval(req.params.id, req.body.approved, req.body.adminNotes);
+      worker = await setWorkerApproval(
+        req.params.id,
+        req.body.approved,
+        req.body.adminNotes,
+        admin.email,
+      );
     }
     res.json({ ok: true, worker });
   } catch (error) {

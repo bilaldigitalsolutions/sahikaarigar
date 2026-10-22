@@ -16,7 +16,7 @@ import { mapWorker } from './workers.js';
 import { mapHire, HIRE_SELECT } from './hires.js';
 
 /** Same projection the public worker endpoints use (includes the owner's user row).
- *  `!user_id` pins the FK (worker_profiles also has reviewed_by → users). */
+ *  `!user_id` pins the FK explicitly so PostgREST never guesses the join path. */
 const WORKER_WITH_USER =
   '*, user:users!user_id(id, name, avatar, phone, location_area, location_city, is_verified, trust_score)';
 

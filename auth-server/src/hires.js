@@ -19,9 +19,8 @@ export const HIRE_SELECT =
   'scheduled_date, completed_at, phone_revealed, created_at, updated_at, ' +
   'en_route_at, arrived_at, started_at, worker_lat, worker_lng, ' +
   'employer:users(id, name, phone, avatar, location_area, location_city), ' +
-  // `!user_id` pins the FK: worker_profiles also references users through
-  // `reviewed_by`, and without the hint PostgREST fails with
-  // "more than one relationship was found for 'worker_profiles' and 'users'".
+  // `!user_id` pins the FK explicitly so PostgREST always joins worker_profiles
+  // to users through user_id, never through another column.
   'worker:worker_profiles(id, user_id, skills, hourly_rate, rating_average, ' +
   'rating_count, availability, user:users!user_id(id, name, avatar, phone, location_area, location_city))';
 

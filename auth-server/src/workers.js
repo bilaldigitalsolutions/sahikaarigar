@@ -11,8 +11,7 @@ import { db } from './users.js';
 // Everything the public is allowed to see about a worker — NO phone number.
 // Public profiles must never leak contact details: the number only travels
 // via GET /hires/:id, and only once the booking is accepted. `!user_id` pins
-// the FK — worker_profiles also references users via reviewed_by, and without
-// the hint PostgREST errors with "more than one relationship was found".
+// the FK explicitly so PostgREST never has to guess the join path.
 const WORKER_WITH_USER =
   '*, user:users!user_id(id, name, avatar, location_area, location_city, is_verified, trust_score)';
 

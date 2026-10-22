@@ -196,11 +196,21 @@ export async function getAdminWorker(workerId) {
   return mapAdminWorker(data, await signedAadhaarUrl(data.aadhaar_photo_path));
 }
 
-/** Approve or reject a worker profile. */
-export async function setWorkerApproval(workerId, approved, adminNotes) {
+/**
+ * Approve or reject a worker profile.
+ *
+ * `reviewedBy` is the email of the admin performing the action (taken from the
+ * session payload returned by requireAdmin). The admin is a single
+ * env-configured account (ADMIN_EMAIL), NOT a row in `public.users`, so we
+ * record the email — `worker_profiles.reviewed_by` is a text column
+ * (see 0016_fix_reviewed_by.sql).
+ */
+export async function setWorkerApproval(workerId, approved, adminNotes, reviewedBy) {
   const reason = typeof adminNotes === 'string' ? adminNotes.trim() : '';
   if (!approved && reason.length < 3) throw new Error('Reject karne ka reason likho');
   if (reason.length > 500) throw new Error('Reason 500 characters se chhota hona chahiye');
+  const reviewer =
+    typeof reviewedBy === 'string' && reviewedBy.trim() ? reviewedBy.trim().toLowerCase() : null;
   const { data, error } = await db
     .from('worker_profiles')
     .update({
@@ -208,10 +218,13 @@ export async function setWorkerApproval(workerId, approved, adminNotes) {
       verification_status: approved ? 'approved' : 'rejected',
       admin_notes: approved ? null : reason,
       rejection_reason: approved ? null : reason,
+      reviewed_by: reviewer,
       reviewed_at: new Date().toISOString(),
     })
     .eq('id', workerId)
-    .select('id, is_approved, verification_status, admin_notes, rejection_reason, reviewed_at')
+    .select(
+      'id, is_approved, verification_status, admin_notes, rejection_reason, reviewed_by, reviewed_at',
+    )
     .maybeSingle();
 
   if (error) throw new Error(error.message);
@@ -222,6 +235,7 @@ export async function setWorkerApproval(workerId, approved, adminNotes) {
     verificationStatus: data.verification_status,
     adminNotes: data.admin_notes ?? null,
     rejectionReason: data.rejection_reason ?? data.admin_notes ?? null,
+    reviewedBy: data.reviewed_by ?? null,
     reviewedAt: data.reviewed_at ?? null,
   };
 }

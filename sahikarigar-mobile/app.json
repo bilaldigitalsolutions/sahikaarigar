@@ -15,7 +15,7 @@
     },
     "android": {
       "package": "com.sahikarigar.app",
-      "versionCode": 11,
+      "versionCode": 12,
       "adaptiveIcon": {
         "backgroundColor": "#16A34A",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -53,6 +53,9 @@
         "expo-build-properties",
         {
           "android": {
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36,
+            "buildToolsVersion": "36.0.0",
             "enablePngCrunchInReleaseBuilds": false
           }
         }

@@ -53,7 +53,8 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+
+    const loadBadges = async () => {
       try {
         const data = await getAdminStats();
         if (cancelled) return;
@@ -66,9 +67,20 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           setHireCount(null);
         }
       }
-    })();
+    };
+
+    void loadBadges();
+
+    // Poll so "Worker Verification" and the bell light up as soon as a new
+    // Kaarigar registers, on any admin page. Paused while the tab is hidden.
+    const timer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+      void loadBadges();
+    }, 60_000);
+
     return () => {
       cancelled = true;
+      clearInterval(timer);
     };
   }, []);
 
@@ -150,10 +162,14 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 >
                   <Icon size={19} strokeWidth={active ? 2.2 : 1.9} />
                   <span className="flex-1">{label}</span>
-                  {badge !== null && badge !== undefined && (
+                  {badge !== null && badge !== undefined && badge > 0 && (
                     <span
                       className={`rounded-full px-2.5 py-0.5 text-[12px] font-semibold ${
-                        active ? 'bg-white/25 text-white' : 'bg-gray-100 text-gray-500'
+                        active
+                          ? 'bg-white/25 text-white'
+                          : badgeKey === 'verification'
+                            ? 'bg-red-50 text-red-600 ring-1 ring-inset ring-red-100'
+                            : 'bg-gray-100 text-gray-500'
                       }`}
                     >
                       {badge}
@@ -238,16 +254,25 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 CMD K
               </kbd>
             </label>
-            <button
-              type="button"
+            <Link
+              href="/admin/workers"
               className="relative rounded-xl border border-gray-100 bg-white p-2.5 text-[#111827] hover:bg-gray-50"
-              aria-label="Notifications"
+              aria-label={
+                verificationCount && verificationCount > 0
+                  ? `${verificationCount} pending worker verifications`
+                  : 'No pending worker verifications'
+              }
+              title="Pending worker verifications"
             >
               <Bell size={19} />
-              <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white ring-2 ring-white">
-                3
-              </span>
-            </button>
+              {/* Real pending count — links straight to the review queue.
+                  (This used to be a hardcoded "3".) */}
+              {verificationCount !== null && verificationCount > 0 && (
+                <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white ring-2 ring-white">
+                  {verificationCount > 99 ? '99+' : verificationCount}
+                </span>
+              )}
+            </Link>
             <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#111827] text-[13px] font-bold text-white">
               {initials}
             </span>

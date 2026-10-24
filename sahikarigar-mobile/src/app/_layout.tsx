@@ -1,7 +1,7 @@
 import { Stack, usePathname, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -11,10 +11,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { BrandLogo, TopNotificationBanner } from '@/components';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { ModeProvider } from '@/contexts/ModeContext';
-import { requestLocationPermission } from '@/lib/location';
 import {
   configureNotificationHandler,
-  requestNotificationPermission,
+  promptForNotificationPermissionOnce,
   useHireRequestNotificationRoute,
 } from '@/lib/notifications';
 import { initObservability, POSTHOG_HOST, reportError, setObservabilityUser, trackEvent } from '@/lib/observability';
@@ -107,13 +106,22 @@ function RootNavigator() {
     SplashScreen.hideAsync().catch(() => {});
   }, []);
 
-  // Ask for location + notification permission ONCE at startup, so the user
-  // is never prompted in the middle of searching or booking. Best-effort —
-  // denying either one just disables nearby sorting / push updates.
+  // Why: the previous unconditional `requestPermissionsAsync()` at startup
+  // asked without context. Ask once, with a rationale, and never on the location
+  // screen where it would stack on top of the GPS permission dialog.
+  const notificationPromptedRef = useRef(false);
   useEffect(() => {
-    void requestLocationPermission();
-    void requestNotificationPermission();
-  }, []);
+    if (initializing || !fontsLoaded || notificationPromptedRef.current) return undefined;
+    if (pathname === '/' || pathname.startsWith('/onboarding/location')) return undefined;
+
+    const timer = setTimeout(() => {
+      if (notificationPromptedRef.current) return;
+      notificationPromptedRef.current = true;
+      void promptForNotificationPermissionOnce();
+    }, 700);
+
+    return () => clearTimeout(timer);
+  }, [initializing, fontsLoaded, pathname]);
 
   // Tapping a "Nayi kaam ki request 🛠️" push opens the Job Requests tab once
   // the session is restored (route exists only for signed-in workers).

@@ -244,8 +244,15 @@ export async function getAdminStats() {
   const [users, hires, pending, active] = await Promise.all([
     db.from('users').select('id', { count: 'exact', head: true }),
     db.from('hire_requests').select('id', { count: 'exact', head: true }),
-    db.from('worker_profiles').select('id', { count: 'exact', head: true })
-      .eq('verification_status', 'pending'),
+    // "Pending verification" = NOT approved and NOT rejected, keyed off
+    // `is_approved` so it stays correct even for rows created before
+    // `verification_status` existed. Rejected profiles must NOT be counted —
+    // they are not awaiting anything.
+    db
+      .from('worker_profiles')
+      .select('id', { count: 'exact', head: true })
+      .eq('is_approved', false)
+      .or('verification_status.eq.pending,verification_status.is.null'),
     db.from('worker_profiles').select('id', { count: 'exact', head: true })
       .eq('is_approved', true),
   ]);

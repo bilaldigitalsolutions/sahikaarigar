@@ -8,6 +8,7 @@
 import { createClient } from '@supabase/supabase-js';
 
 import { isBlockedFakeSequence, isValidAadhaar } from './validation.js';
+import { sendNewWorkerAdminAlert } from './email.js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -200,6 +201,20 @@ export async function upsertWorkerProfile(userId, input = {}) {
 
   const aadhaarNumber = normalizeAadhaarNumber(input.aadhaarNumber);
 
+  // A brand-new registration (or a rejected worker re-submitting) is the only
+  // event that should alert the admin. `upsert` cannot tell us, so look up the
+  // row first — cheap, indexed on user_id (unique).
+  const { data: existingProfile, error: existingError } = await db
+    .from('worker_profiles')
+    .select('id, verification_status')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (existingError) throw new Error(existingError.message);
+  // Re-submitting after a rejection puts the profile back to 'pending', so it
+  // re-enters the admin queue and must trigger a fresh alert.
+  const isNewRegistration =
+    !existingProfile || existingProfile.verification_status === 'rejected';
+
   const { error: roleError } = await db
     .from('users')
     .update({ role: 'worker' })
@@ -236,6 +251,31 @@ export async function upsertWorkerProfile(userId, input = {}) {
     .single();
 
   if (error) throw new Error(error.message);
+
+  // Admin notification — fire-and-forget. The worker's request returns as soon
+  // as the profile is written; a slow mail provider must never delay it.
+  if (isNewRegistration) {
+    void (async () => {
+      try {
+        const { data: owner } = await db
+          .from('users')
+          .select('name, phone')
+          .eq('id', userId)
+          .maybeSingle();
+        sendNewWorkerAdminAlert({
+          name: owner?.name,
+          phone: owner?.phone,
+          skills,
+          serviceAreas,
+          profileId: data.id,
+        });
+      } catch (notifyError) {
+        // Notification failures are never user-facing.
+        console.warn(`[email] new-worker alert failed: ${notifyError.message}`);
+      }
+    })();
+  }
+
   return data;
 }
 

@@ -18,7 +18,7 @@ let cached: DeviceCoords | null = null;
 
 /**
  * Ask for foreground location permission ONLY (no position fix).
- * Called once at app startup so the user is never prompted mid-flow.
+ * Screens that need a map can call this before rendering their own UI.
  * Never throws.
  */
 export async function requestLocationPermission(): Promise<boolean> {

@@ -1,37 +1,111 @@
 // =============================================================================
 // SahiKaarigar — push notifications (Expo Push, free)
 // =============================================================================
-// After login the app asks for notification permission, grabs the Expo push
-// token and hands it to the auth-server (POST /me/push-token). The server then
-// pings this device when a hire is accepted / en route / arrived / completed.
+// The app shows a one-time rationale before asking for notification permission.
+// Once granted, it grabs the Expo push token and hands it to the auth-server
+// (POST /me/push-token). The server then pings this device when a hire is
+// accepted / en route / arrived / completed.
 //
 // Everything is best-effort: denied permission or a missing EAS project id
 // simply means no push — the app works exactly as before.
 // =============================================================================
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
-import { Platform } from 'react-native';
+import { Alert, AppState, Linking, Platform } from 'react-native';
 
 import { savePushToken, getHire } from './api';
 
 import { formatCurrency } from '../utils';
 
+/** AsyncStorage flag: the one-time in-app permission rationale was shown. */
+const PERMISSION_PROMPT_KEY = 'notif_permission_prompted_v1';
+
 /**
- * Ask for notification permission ONLY (no token, no server call).
- * Called once at app startup so the user is never prompted mid-flow.
- * Never throws.
+ * Open the OS notification settings and register the push token as soon as the
+ * user comes back with notifications enabled. Without this the token would
+ * only reach the server on the next cold start.
  */
-export async function requestNotificationPermission(): Promise<boolean> {
+async function openNotificationSettings(): Promise<void> {
+  const subscription = AppState.addEventListener('change', (nextState) => {
+    if (nextState !== 'active') return;
+    subscription.remove();
+    void (async () => {
+      try {
+        const { status } = await Notifications.getPermissionsAsync();
+        if (status === 'granted') void registerForPushNotifications();
+      } catch {
+        // Best-effort — the next app launch registers the token anyway.
+      }
+    })();
+  });
+
   try {
-    if (Platform.OS === 'web') return false;
-    const { status: existing } = await Notifications.getPermissionsAsync();
-    if (existing === 'granted') return true;
-    const request = await Notifications.requestPermissionsAsync();
-    return request.status === 'granted';
+    await Linking.openSettings();
   } catch {
-    return false;
+    subscription.remove();
+  }
+}
+
+/**
+ * One-time, explain-before-asking notification permission prompt.
+ *
+ * The old flow requested permission silently at startup, so a denial left the
+ * user with an unexplained warning and no way to fix it. This shows a proper
+ * rationale instead, only while the permission is not granted, and at most once
+ * per install. If Android/iOS will no longer show the native prompt, the button
+ * opens the app settings page.
+ *
+ * Never throws — permission UI must not break app startup.
+ */
+export async function promptForNotificationPermissionOnce(): Promise<void> {
+  try {
+    if (Platform.OS === 'web') return;
+
+    const permission = await Notifications.getPermissionsAsync();
+    if (permission.status === 'granted') return;
+
+    const alreadyPrompted = await AsyncStorage.getItem(PERMISSION_PROMPT_KEY);
+    if (alreadyPrompted === '1') return;
+    // Set the flag before showing the dialog so a re-render/remount can't stack
+    // two prompts on top of each other.
+    await AsyncStorage.setItem(PERMISSION_PROMPT_KEY, '1');
+
+    const needsSettings = permission.status === 'denied' || !permission.canAskAgain;
+
+    Alert.alert(
+      'Notifications on karein?',
+      'Nayi job requests aur booking updates ka notification turant milega. Aap ise kabhi bhi Settings se band kar sakte hain.',
+      [
+        { text: 'Not now', style: 'cancel' },
+        {
+          text: needsSettings ? 'Open settings' : 'Enable',
+          onPress: () => {
+            void (async () => {
+              try {
+                if (!needsSettings) {
+                  const request = await Notifications.requestPermissionsAsync();
+                  if (request.status === 'granted') {
+                    // The user may have enabled notifications after login; give
+                    // the server the token now instead of waiting for relaunch.
+                    void registerForPushNotifications();
+                    return;
+                  }
+                }
+                await openNotificationSettings();
+              } catch {
+                // Ignore — the user can still turn notifications on in Settings.
+              }
+            })();
+          },
+        },
+      ],
+      { cancelable: true },
+    );
+  } catch {
+    // Best-effort: a failed rationale must never affect app startup.
   }
 }
 
@@ -39,7 +113,6 @@ export async function requestNotificationPermission(): Promise<boolean> {
 export function configureNotificationHandler() {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
-      shouldShowAlert: true,
       shouldShowBanner: true,
       shouldShowList: true,
       shouldPlaySound: true,
@@ -49,20 +122,17 @@ export function configureNotificationHandler() {
 }
 
 /**
- * Ask permission, fetch the Expo push token and register it with the server.
- * Returns the token (or null when notifications are unavailable). Never throws.
+ * Fetch the Expo push token (only when permission is already granted) and
+ * register it with the server. Never throws.
  */
 export async function registerForPushNotifications(): Promise<string | null> {
   try {
     // Physical devices only — simulators / web can't receive push.
     if (Platform.OS === 'web') return null;
 
-    const { status: existing } = await Notifications.getPermissionsAsync();
-    let status = existing;
-    if (existing !== 'granted') {
-      const request = await Notifications.requestPermissionsAsync();
-      status = request.status;
-    }
+    // Permission is requested only from promptForNotificationPermissionOnce()
+    // so the user always sees the rationale first. Registration stays silent.
+    const { status } = await Notifications.getPermissionsAsync();
     if (status !== 'granted') return null;
 
     // Android needs a default channel for the sound/vibration to fire.

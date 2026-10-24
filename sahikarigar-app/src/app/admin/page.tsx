@@ -116,43 +116,55 @@ export default function AdminDashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  const loadAll = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      // Real data only — no hardcoded fallbacks. The admin session cookie is
-      // attached automatically by adminApiFetch (`credentials: 'include'`).
-      const [statsRes, workersRes] = await Promise.all([
-        getAdminStats(),
-        listAdminWorkers('pending', 1),
-      ]);
-      setStats(statsRes.stats);
-      setPendingTotal(workersRes.pagination.total);
-      setActivity((workersRes.workers ?? []).slice(0, 5).map(workerToActivityRow));
-      setLastUpdated(new Date());
-      setLoading(false);
-    } catch (loadError) {
-      setStats(null);
-      setActivity([]);
-      setPendingTotal(0);
-      setError(
-        loadError instanceof Error
-          ? loadError.message
-          : 'Stats load nahi hue. Kripya dobara try karein.',
-      );
-      setLoading(false);
-    }
-  }, []);
+  const loadAll = useCallback(
+    async ({ silent = false }: { silent?: boolean } = {}) => {
+      // `silent` is the background poll: no spinner flash, and a transient
+      // failure leaves the numbers already on screen untouched.
+      if (!silent) setLoading(true);
+      setError(null);
+      try {
+        // Real data only — no hardcoded fallbacks. The admin session cookie is
+        // attached automatically by adminApiFetch (`credentials: 'include'`).
+        const [statsRes, workersRes] = await Promise.all([
+          getAdminStats(),
+          listAdminWorkers('pending', 1),
+        ]);
+        setStats(statsRes.stats);
+        setPendingTotal(workersRes.pagination.total);
+        setActivity((workersRes.workers ?? []).slice(0, 5).map(workerToActivityRow));
+        setLastUpdated(new Date());
+        setLoading(false);
+      } catch (loadError) {
+        if (!silent) {
+          setStats(null);
+          setActivity([]);
+          setPendingTotal(0);
+          setError(
+            loadError instanceof Error
+              ? loadError.message
+              : 'Stats load nahi hue. Kripya dobara try karein.',
+          );
+        } else {
+          console.warn('[admin] background refresh failed:', loadError);
+        }
+        setLoading(false);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      if (cancelled) return;
-      await loadAll();
-    })();
-    return () => {
-      cancelled = true;
-    };
+    void loadAll();
+
+    // Poll every 60s so a newly registered Kaarigar appears in "Pending
+    // verifications" (and the badge) without the admin refreshing the page.
+    // Skipped while the tab is hidden to avoid pointless requests.
+    const timer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+      void loadAll({ silent: true });
+    }, 60_000);
+
+    return () => clearInterval(timer);
   }, [loadAll]);
   const cards = useMemo(
     () => [

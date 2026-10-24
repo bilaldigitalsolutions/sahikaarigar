@@ -22,13 +22,20 @@ import {
   View,
 } from 'react-native';
 
-import { Avatar, Header, Rating, Screen } from '@/components';
+import { Avatar, Badge, Header, Rating, Screen } from '@/components';
 import { areaLabel, skillIconName, skillLabel, skillServices } from '@/constants';
 import { useAuth } from '@/contexts/AuthContext';
 import { getWorker, type ApiReview, type ApiWorker } from '@/lib/api';
 import { trackEvent } from '@/lib/observability';
 import { colors, fontSize, fontWeight, radius, shadows, spacing } from '@/theme';
-import { calculateDistance, formatCurrency, formatRelativeDate, generateStars } from '@/utils';
+import {
+  calculateDistance,
+  formatCurrency,
+  formatRelativeDate,
+  generateStars,
+  getWorkerBadge,
+  workerBadgeTone,
+} from '@/utils';
 
 type Tab = 'about' | 'services' | 'reviews';
 
@@ -77,6 +84,7 @@ export default function WorkerDetailScreen() {
 
   const name = worker?.user?.name ?? 'Kaarigar';
   const workerUser = worker?.user;
+  const workerBadge = getWorkerBadge(worker);
 
   const distance =
     user?.lat != null && user?.lng != null && worker?.lat != null && worker?.lng != null
@@ -145,6 +153,16 @@ export default function WorkerDetailScreen() {
                 <Text style={styles.ratingMeta}>
                   ({worker.ratingCount} {worker.ratingCount === 1 ? 'review' : 'reviews'})
                 </Text>
+              </View>
+
+              <View style={styles.badgeRow}>
+                <Badge label={`${workerBadge} Worker`} tone={workerBadgeTone(workerBadge)} />
+                {worker.totalJobsCompleted > 0 ? (
+                  <Badge
+                    label={`${Math.round(worker.systemRatingScore ?? 0)}% On-Time`}
+                    tone="success"
+                  />
+                ) : null}
               </View>
 
               <View style={styles.statRow}>
@@ -416,6 +434,13 @@ const styles = StyleSheet.create({
   },
   ratingValue: { fontSize: fontSize.body, fontWeight: fontWeight.bold, color: colors.textPrimary },
   ratingMeta: { fontSize: fontSize.caption, color: colors.textSecondary },
+  badgeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
   statRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
   statPill: {
     flexDirection: 'row',

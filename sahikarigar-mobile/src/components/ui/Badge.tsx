@@ -2,7 +2,15 @@ import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-na
 
 import { colors, fontSize, fontWeight, radius, spacing } from '@/theme';
 
-type Tone = 'neutral' | 'success' | 'warning' | 'danger' | 'primary';
+type Tone =
+  | 'neutral'
+  | 'success'
+  | 'warning'
+  | 'danger'
+  | 'primary'
+  | 'gold'
+  | 'silver'
+  | 'bronze';
 
 export interface BadgeProps {
   label: string;
@@ -16,6 +24,9 @@ const TONES: Record<Tone, { bg: string; fg: string }> = {
   warning: { bg: '#FEF9C3', fg: '#854D0E' },
   danger: { bg: '#FEE2E2', fg: '#991B1B' },
   primary: { bg: '#DCFCE7', fg: colors.primaryDark },
+  gold: { bg: '#FEF3C7', fg: '#92400E' },
+  silver: { bg: '#E5E7EB', fg: '#374151' },
+  bronze: { bg: '#FCE7D6', fg: '#9A3412' },
 };
 
 export function Badge({ label, tone = 'neutral', style }: BadgeProps) {

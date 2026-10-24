@@ -1,6 +1,6 @@
 // Hire Request Types
 import type { PublicUser } from './user';
-import type { Availability } from './worker';
+import type { Availability, WorkerBadge } from './worker';
 
 export type HireStatus =
   | 'pending'
@@ -29,6 +29,12 @@ export interface HireWorker {
   hourlyRate: number;
   ratingAverage: number;
   ratingCount: number;
+  completedJobs: number;
+  totalJobsCompleted: number;
+  onTimeJobs: number;
+  customerRatingAvg: number;
+  systemRatingScore: number;
+  badge: WorkerBadge;
   availability: Availability;
   user: PublicUser | null;
 }
@@ -42,9 +48,17 @@ export interface Hire {
   proposedRate: number;
   status: HireStatus;
   scheduledDate?: string | null;
+  scheduledTime?: string | null;
+  /** Customer -> worker distance saved when the booking was created. */
+  distanceKm?: number | null;
+  /** Distance-derived arrival window: 20 / 35 / 50 minutes. */
+  expectedArrivalMinutes?: number | null;
+  /** null until arrival, then true when on time / false when late. */
+  arrivedOnTime?: boolean | null;
   completedAt?: string | null;
   enRouteAt?: string | null;
   arrivedAt?: string | null;
+  arrivedTime?: string | null;
   startedAt?: string | null;
   workerLat?: number | null;
   workerLng?: number | null;

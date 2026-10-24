@@ -5,7 +5,12 @@ import { Badge, Card } from '@/components/ui';
 import { HIRE_STATUS_LABELS } from '@/constants';
 import type { ApiHire } from '@/lib/api';
 import { colors, fontSize, fontWeight, radius, spacing } from '@/theme';
-import { formatCurrency, formatRelativeDate } from '@/utils';
+import {
+  formatCurrency,
+  formatRelativeDate,
+  getWorkerBadge,
+  workerBadgeTone,
+} from '@/utils';
 
 export interface HireCardProps {
   hire: ApiHire;
@@ -32,13 +37,19 @@ export function HireCard({ hire, perspective, onPress, notice }: HireCardProps) 
   const counterparty =
     perspective === 'employer' ? hire.worker?.user?.name : hire.employer?.name;
   const title = counterparty ?? 'Booking';
+  const workerBadge = hire.worker ? getWorkerBadge(hire.worker) : null;
 
   return (
     <Card onPress={onPress} style={styles.card}>
       <View style={styles.header}>
-        <Text style={styles.title} numberOfLines={1}>
-          {title}
-        </Text>
+        <View style={styles.titleWrap}>
+          <Text style={styles.title} numberOfLines={1}>
+            {title}
+          </Text>
+          {workerBadge ? (
+            <Badge label={`${workerBadge} Worker`} tone={workerBadgeTone(workerBadge)} />
+          ) : null}
+        </View>
         <Badge label={HIRE_STATUS_LABELS[hire.status]} tone={TONE[hire.status] ?? 'neutral'} />
       </View>
 
@@ -64,8 +75,9 @@ export function HireCard({ hire, perspective, onPress, notice }: HireCardProps) 
 
 const styles = StyleSheet.create({
   card: { marginBottom: spacing.md },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  title: { flex: 1, fontSize: fontSize.body, fontWeight: fontWeight.semibold, color: colors.textPrimary, marginRight: spacing.sm },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
+  titleWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  title: { flexShrink: 1, fontSize: fontSize.body, fontWeight: fontWeight.semibold, color: colors.textPrimary },
   notice: {
     flexDirection: 'row',
     alignItems: 'center',

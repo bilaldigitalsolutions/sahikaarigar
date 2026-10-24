@@ -22,7 +22,12 @@ import {
   type ApiWorkerDashboard,
 } from '@/lib/api';
 import { colors, fontSize, fontWeight, radius, shadows, spacing } from '@/theme';
-import { formatCurrency, formatRelativeDate } from '@/utils';
+import {
+  formatCurrency,
+  formatRelativeDate,
+  getWorkerBadge,
+  workerBadgeTone,
+} from '@/utils';
 
 /**
  * "My Work" — the kaarigar's own dashboard: availability switch, headline stats
@@ -129,6 +134,10 @@ export default function WorkerJobsScreen() {
   const worker = data.worker;
   const stats = data.stats;
   const isAvailable = worker.availability === 'available';
+  const workerBadge = getWorkerBadge(worker);
+  const performanceScore = Math.round(
+    Number(stats?.systemRatingScore ?? worker.systemRatingScore ?? 0),
+  );
   /** Business rule: a worker can hold exactly ONE active job at a time. */
   const isWorkerBusy = data.active.length > 0;
 
@@ -220,6 +229,19 @@ export default function WorkerJobsScreen() {
             </Text>
           </View>
         ) : null}
+
+        <Card style={styles.performanceCard}>
+          <View style={styles.performanceInfo}>
+            <Text style={styles.performanceLabel}>Performance Score</Text>
+            <Text style={styles.performanceValue}>{performanceScore}% On-Time</Text>
+            <Text style={styles.performanceMeta}>
+              {stats && stats.totalJobsCompleted > 0
+                ? `${stats.onTimeJobs} of ${stats.totalJobsCompleted} completed jobs arrived on time`
+                : 'Complete your first job to start building your score.'}
+            </Text>
+          </View>
+          <Badge label={`${workerBadge} Worker`} tone={workerBadgeTone(workerBadge)} />
+        </Card>
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
@@ -491,6 +513,35 @@ const styles = StyleSheet.create({
 
   ratingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.md },
   ratingText: { fontSize: fontSize.caption, color: colors.textSecondary },
+
+  performanceCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+    marginTop: spacing.lg,
+    borderColor: colors.primaryBorder,
+    backgroundColor: colors.primaryTint,
+  },
+  performanceInfo: { flex: 1 },
+  performanceLabel: {
+    fontSize: fontSize.caption - 1,
+    fontWeight: fontWeight.semibold,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  performanceValue: {
+    fontSize: fontSize.title,
+    fontWeight: fontWeight.bold,
+    color: colors.primaryDark,
+    marginTop: 2,
+  },
+  performanceMeta: {
+    fontSize: fontSize.caption - 2,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
 
   errorText: { color: colors.danger, fontSize: fontSize.caption, marginTop: spacing.md },
 

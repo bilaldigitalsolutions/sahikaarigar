@@ -246,7 +246,13 @@ export async function getWorkerDashboard(userId) {
       active: hires.filter((hire) => ACTIVE_STATUSES.includes(hire.status)).length,
       completed: completed.length,
       // Lifetime counter maintained by the `increment_worker_completed_jobs` RPC.
-      lifetimeJobs: worker.completedJobs,
+      lifetimeJobs: worker.totalJobsCompleted ?? worker.completedJobs,
+      // Punctuality + badge (see supabase/migrations/0017_worker_performance.sql).
+      totalJobsCompleted: worker.totalJobsCompleted,
+      onTimeJobs: worker.onTimeJobs,
+      customerRatingAvg: worker.customerRatingAvg,
+      systemRatingScore: worker.systemRatingScore,
+      badge: worker.badge,
       // A hire only records the agreed hourly rate (no hours), so this is the sum
       // of those rates across completed jobs — an estimate, labelled as such in UI.
       estimatedEarnings: completed.reduce((sum, hire) => sum + (Number(hire.proposedRate) || 0), 0),

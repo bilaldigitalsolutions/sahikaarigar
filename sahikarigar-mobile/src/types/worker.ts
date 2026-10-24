@@ -17,6 +17,9 @@ export type Skill =
 
 export type Availability = 'available' | 'busy' | 'offline';
 
+/** Performance badge derived from punctuality. */
+export type WorkerBadge = 'Gold' | 'Silver' | 'Bronze';
+
 export interface WorkerProfile {
   id: string;
   userId: string;
@@ -29,6 +32,11 @@ export interface WorkerProfile {
   ratingAverage: number;
   ratingCount: number;
   completedJobs: number;
+  totalJobsCompleted: number;
+  onTimeJobs: number;
+  customerRatingAvg: number;
+  systemRatingScore: number;
+  badge: WorkerBadge;
   serviceAreas: string[];
   lat?: number | null;
   lng?: number | null;

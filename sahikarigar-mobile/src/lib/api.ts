@@ -7,7 +7,7 @@
 // user (there is no separate signup form).
 // =============================================================================
 
-import type { HireAction, HireStatus, User } from '@/types';
+import type { HireAction, HireStatus, User, WorkerBadge } from '@/types';
 
 import { initAuth } from './auth';
 import { DEMO_MODE, requireAuthApiUrl } from './config';
@@ -179,6 +179,15 @@ export interface ApiWorker {
   ratingAverage: number;
   ratingCount: number;
   completedJobs: number;
+  /** Lifetime completed jobs (mirrors completedJobs). */
+  totalJobsCompleted: number;
+  /** Arrived within the booking's distance-aware window. */
+  onTimeJobs: number;
+  /** Average customer review rating (mirrors ratingAverage). */
+  customerRatingAvg: number;
+  /** Punctuality percentage: onTimeJobs / totalJobsCompleted * 100. */
+  systemRatingScore: number;
+  badge: WorkerBadge;
   serviceAreas: string[];
   lat?: number | null;
   lng?: number | null;
@@ -202,6 +211,12 @@ export interface ApiHireWorker {
   hourlyRate: number;
   ratingAverage: number;
   ratingCount: number;
+  completedJobs: number;
+  totalJobsCompleted: number;
+  onTimeJobs: number;
+  customerRatingAvg: number;
+  systemRatingScore: number;
+  badge: WorkerBadge;
   availability: ApiAvailability;
   user: ApiPublicUser | null;
 }
@@ -215,9 +230,17 @@ export interface ApiHire {
   proposedRate: number;
   status: HireStatus;
   scheduledDate?: string | null;
+  scheduledTime?: string | null;
+  /** Customer -> worker distance saved when the booking was created. */
+  distanceKm?: number | null;
+  /** Distance-derived arrival window: 20 / 35 / 50 minutes. */
+  expectedArrivalMinutes?: number | null;
+  /** null until arrival, then true when on time / false when late. */
+  arrivedOnTime?: boolean | null;
   completedAt?: string | null;
   enRouteAt?: string | null;
   arrivedAt?: string | null;
+  arrivedTime?: string | null;
   startedAt?: string | null;
   workerLat?: number | null;
   workerLng?: number | null;
@@ -461,6 +484,15 @@ export interface ApiWorkerStats {
   completed: number;
   /** Lifetime completed-jobs counter on the profile. */
   lifetimeJobs: number;
+  /** Lifetime completed jobs (same as lifetimeJobs). */
+  totalJobsCompleted: number;
+  /** Jobs where the worker arrived within the distance-aware window. */
+  onTimeJobs: number;
+  /** Average customer review rating. */
+  customerRatingAvg: number;
+  /** Punctuality percentage: onTimeJobs / totalJobsCompleted * 100. */
+  systemRatingScore: number;
+  badge: WorkerBadge;
   /** Sum of the quoted rates of completed jobs (no hours are recorded). */
   estimatedEarnings: number;
   ratingAverage: number;

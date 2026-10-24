@@ -5,6 +5,7 @@ import { ActivityIndicator, BackHandler, Pressable, RefreshControl, ScrollView, 
 
 import {
   Avatar,
+  Badge,
   BrandLogo,
   HireCard,
   LocationPicker,
@@ -23,7 +24,7 @@ import {
   type ApiWorker,
 } from '@/lib/api';
 import { colors, fontSize, fontWeight, radius, spacing } from '@/theme';
-import { calculateDistance } from '@/utils';
+import { calculateDistance, getWorkerBadge, workerBadgeTone } from '@/utils';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -351,6 +352,13 @@ function WorkerHomeScreen({
   const [refreshing, setRefreshing] = useState(false);
   const isApproved = dashboard?.worker?.isApproved ?? false;
   const stats = dashboard?.stats;
+  const worker = dashboard?.worker;
+  const workerBadge = getWorkerBadge(worker);
+  const performanceScore = Math.round(
+    Number(stats?.systemRatingScore ?? worker?.systemRatingScore ?? 0),
+  );
+  const onTimeJobs = Number(stats?.onTimeJobs ?? worker?.onTimeJobs ?? 0);
+  const totalJobs = Number(stats?.totalJobsCompleted ?? worker?.totalJobsCompleted ?? 0);
   // "New Job Requests" = sirf pending. listHires() sab statuses laata hai —
   // bina filter ke accepted/active jobs bhi yahan aa jaate the, jisse
   // "Active jobs 2 dikh rahi hain" jaisa dup effect hota tha.
@@ -407,6 +415,20 @@ function WorkerHomeScreen({
           </View>
         ) : (
           <>
+            {/* Performance Score + badge */}
+            <View style={styles.performanceCard}>
+              <View style={styles.performanceInfo}>
+                <Text style={styles.performanceLabel}>Performance Score</Text>
+                <Text style={styles.performanceValue}>{performanceScore}% On-Time</Text>
+                <Text style={styles.performanceMeta}>
+                  {totalJobs > 0
+                    ? `${onTimeJobs} of ${totalJobs} completed jobs arrived on time`
+                    : 'Complete your first job to start building your score.'}
+                </Text>
+              </View>
+              <Badge label={`${workerBadge} Worker`} tone={workerBadgeTone(workerBadge)} />
+            </View>
+
             {/* Dashboard Cards */}
             <View style={styles.cardsRow}>
               <DashboardCard
@@ -523,6 +545,37 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.xxl },
+  performanceCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+    backgroundColor: colors.primaryTint,
+  },
+  performanceInfo: { flex: 1 },
+  performanceLabel: {
+    fontSize: fontSize.caption - 1,
+    fontWeight: fontWeight.semibold,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  performanceValue: {
+    fontSize: fontSize.title,
+    fontWeight: fontWeight.bold,
+    color: colors.primaryDark,
+    marginTop: 2,
+  },
+  performanceMeta: {
+    fontSize: fontSize.caption - 2,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
   // Verification pending card
   pendingCard: {
     alignItems: 'center',

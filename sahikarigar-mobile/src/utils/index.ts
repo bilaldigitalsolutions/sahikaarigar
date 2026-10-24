@@ -1,5 +1,36 @@
 // Utility Functions
 
+import type { WorkerBadge } from '@/types';
+
+/** The minimum fields needed to derive a worker's performance badge. */
+export interface WorkerBadgeInput {
+  systemRatingScore?: number | null;
+}
+
+/**
+ * Worker performance badge.
+ *
+ *   Gold   -> punctuality above 90%
+ *   Silver -> punctuality above 70%
+ *   Bronze -> everything else (including brand-new workers)
+ *
+ * Missing fields count as 0, so an older API payload never crashes the UI.
+ */
+export function getWorkerBadge(worker: WorkerBadgeInput | null | undefined): WorkerBadge {
+  const score = Number(worker?.systemRatingScore ?? 0);
+
+  if (score > 90) return 'Gold';
+  if (score > 70) return 'Silver';
+  return 'Bronze';
+}
+
+export type WorkerBadgeTone = 'gold' | 'silver' | 'bronze';
+
+/** Badge tone used by the shared <Badge /> component. */
+export function workerBadgeTone(badge: WorkerBadge): WorkerBadgeTone {
+  return badge.toLowerCase() as WorkerBadgeTone;
+}
+
 /** Format a 10-digit Indian phone number for display. */
 export function formatPhone(phone: string): string {
   if (phone.length === 10) {

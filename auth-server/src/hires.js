@@ -11,19 +11,28 @@
 
 import crypto from 'node:crypto';
 
+import {
+  getExpectedArrivalTime,
+  haversineDistanceKm,
+  normalizeArea,
+  toFiniteNumber,
+} from './geo.js';
 import { notifyWorkerOfNewHire } from './push.js';
 import { db } from './users.js';
-import { getWorkerProfileIdForUser } from './workers.js';
+import { getWorkerBadge, getWorkerProfileIdForUser } from './workers.js';
 
 export const HIRE_SELECT =
   'id, employer_id, worker_id, description, location, proposed_rate, status, ' +
-  'scheduled_date, completed_at, phone_revealed, created_at, updated_at, ' +
-  'en_route_at, arrived_at, started_at, worker_lat, worker_lng, ' +
+  'scheduled_date, scheduled_time, completed_at, phone_revealed, created_at, updated_at, ' +
+  'en_route_at, arrived_at, arrived_time, started_at, worker_lat, worker_lng, ' +
+  'distance_km, arrived_on_time, ' +
   'employer:users(id, name, phone, avatar, location_area, location_city), ' +
   // `!user_id` pins the FK explicitly so PostgREST always joins worker_profiles
   // to users through user_id, never through another column.
   'worker:worker_profiles(id, user_id, skills, hourly_rate, rating_average, ' +
-  'rating_count, availability, user:users!user_id(id, name, avatar, phone, location_area, location_city))';
+  'rating_count, completed_jobs, on_time_jobs, total_jobs_completed, ' +
+  'customer_rating_avg, system_rating_score, availability, ' +
+  'user:users!user_id(id, name, avatar, phone, location_area, location_city))';
 
 /** Statuses from which a job can still be completed / cancelled.
  *  `in_progress` = the kaarigar reached the site and verified the start OTP. */
@@ -41,7 +50,53 @@ function hireReadError(error) {
       'Booking ka timeline abhi database me nahi hai — Supabase me 0010_hire_start_flow.sql migration chalao',
     );
   }
+  if (/distance_km|arrived_on_time/i.test(error.message)) {
+    return new Error(
+      'Booking distance data abhi database me nahi hai — Supabase me 0018_hire_distance.sql migration chalao',
+    );
+  }
+  if (
+    /scheduled_time|arrived_time|on_time_jobs|total_jobs_completed|customer_rating_avg|system_rating_score/i.test(
+      error.message,
+    )
+  ) {
+    return new Error(
+      'Worker performance data abhi database me nahi hai — Supabase me 0017_worker_performance.sql migration chalao',
+    );
+  }
   return new Error(error.message);
+}
+
+/**
+ * Customer -> worker distance for a new booking.
+ *
+ * 1. GPS first: employer `users.lat/lng` -> worker `worker_profiles.lat/lng`.
+ * 2. Service-area fallback: when GPS is missing, a matching worker service
+ *    area (against the employer's saved area or the booking address) is
+ *    treated as a local 0 km job.
+ *
+ * Returns null when neither source can identify the distance (the arrival
+ * window falls back to 35 minutes in that case).
+ */
+function computeHireDistance({ employer, worker, place }) {
+  const fromGps = haversineDistanceKm(employer?.lat, employer?.lng, worker?.lat, worker?.lng);
+  if (fromGps !== null) return fromGps;
+
+  const customerArea = normalizeArea(employer?.location_area);
+  const placeText = normalizeArea(place);
+  const workerAreas = Array.isArray(worker?.service_areas) ? worker.service_areas : [];
+
+  const sameServiceArea = workerAreas.some((area) => {
+    const normalized = normalizeArea(area);
+    if (!normalized) return false;
+    return (
+      normalized === customerArea ||
+      customerArea.includes(normalized) ||
+      placeText.includes(normalized)
+    );
+  });
+
+  return sameServiceArea ? 0 : null;
 }
 
 // OTP secret used to derive start-work codes. Falls back to a dev secret when
@@ -172,18 +227,35 @@ function mapHireUser(row, revealPhone) {
 export function mapHire(row) {
   if (!row) return null;
   const revealPhone = PHONE_REVEALED_STATUSES.includes(row.status);
-  const worker = row.worker
-    ? {
-        id: row.worker.id,
-        userId: row.worker.user_id,
-        skills: row.worker.skills ?? [],
-        hourlyRate: row.worker.hourly_rate ?? 0,
-        ratingAverage: Number(row.worker.rating_average ?? 0),
-        ratingCount: row.worker.rating_count ?? 0,
-        availability: row.worker.availability ?? 'available',
-        user: mapHireUser(row.worker.user, revealPhone),
-      }
-    : null;
+
+  let worker = null;
+  if (row.worker) {
+    const totalJobsCompleted = Number(
+      row.worker.total_jobs_completed ?? row.worker.completed_jobs ?? 0,
+    );
+    const onTimeJobs = Number(row.worker.on_time_jobs ?? 0);
+    const customerRatingAvg = Number(
+      row.worker.customer_rating_avg ?? row.worker.rating_average ?? 0,
+    );
+    const systemRatingScore = Number(row.worker.system_rating_score ?? 0);
+
+    worker = {
+      id: row.worker.id,
+      userId: row.worker.user_id,
+      skills: row.worker.skills ?? [],
+      hourlyRate: row.worker.hourly_rate ?? 0,
+      ratingAverage: Number(row.worker.rating_average ?? 0),
+      ratingCount: row.worker.rating_count ?? 0,
+      completedJobs: Number(row.worker.completed_jobs ?? totalJobsCompleted),
+      totalJobsCompleted,
+      onTimeJobs,
+      customerRatingAvg,
+      systemRatingScore,
+      badge: getWorkerBadge({ systemRatingScore }),
+      availability: row.worker.availability ?? 'available',
+      user: mapHireUser(row.worker.user, revealPhone),
+    };
+  }
 
   return {
     id: row.id,
@@ -194,9 +266,14 @@ export function mapHire(row) {
     proposedRate: row.proposed_rate,
     status: row.status,
     scheduledDate: row.scheduled_date ?? null,
+    scheduledTime: row.scheduled_time ?? row.scheduled_date ?? null,
+    distanceKm: toFiniteNumber(row.distance_km),
+    expectedArrivalMinutes: getExpectedArrivalTime(row.distance_km),
+    arrivedOnTime: row.arrived_on_time ?? null,
     completedAt: row.completed_at ?? null,
     enRouteAt: row.en_route_at ?? null,
     arrivedAt: row.arrived_at ?? null,
+    arrivedTime: row.arrived_time ?? row.arrived_at ?? null,
     startedAt: row.started_at ?? null,
     workerLat: row.worker_lat ?? null,
     workerLng: row.worker_lng ?? null,
@@ -209,9 +286,12 @@ export function mapHire(row) {
 }
 
 async function fetchRaw(hireId) {
+  // `*` keeps the state machine working on databases where the 0017 migration
+  // has not been applied yet: scheduled_time/arrived_time are simply absent
+  // and the code below falls back to scheduled_date / arrived_at.
   const { data, error } = await db
     .from('hire_requests')
-    .select('id, employer_id, worker_id, status')
+    .select('*')
     .eq('id', hireId)
     .maybeSingle();
 
@@ -237,16 +317,39 @@ export async function createHireRequest({
   const rate = Number(proposedRate);
   if (!Number.isFinite(rate) || rate <= 0) throw new Error('Rate sahi daalo');
 
-  const { data: worker, error: workerError } = await db
-    .from('worker_profiles')
-    .select('id, is_approved, availability')
-    .eq('id', workerId)
-    .maybeSingle();
+  // scheduled_time is the baseline for punctuality. If the customer did not
+  // pick an explicit date, treat the booking as "immediate" and use now. The
+  // actual on-time window comes from the booking distance (20 / 35 / 50 min)
+  // when the worker presses Arrived.
+  const scheduledAt = scheduledDate ? new Date(scheduledDate) : null;
+  const scheduledIso =
+    scheduledAt && !Number.isNaN(scheduledAt.getTime())
+      ? scheduledAt.toISOString()
+      : new Date().toISOString();
+
+  const [{ data: worker, error: workerError }, { data: employer, error: employerError }] =
+    await Promise.all([
+      db
+        .from('worker_profiles')
+        .select('id, is_approved, availability, lat, lng, service_areas')
+        .eq('id', workerId)
+        .maybeSingle(),
+      db
+        .from('users')
+        .select('lat, lng, location_area')
+        .eq('id', employerId)
+        .maybeSingle(),
+    ]);
 
   if (workerError) throw new Error(workerError.message);
+  if (employerError) throw new Error(employerError.message);
   if (!worker) throw new Error('Kaarigar nahi mila');
   if (!worker.is_approved) throw new Error('Ye kaarigar abhi approved nahi hai');
   if (worker.availability !== 'available') throw new Error('Ye kaarigar abhi available nahi hai');
+
+  // Store the distance at booking time so the arrival window stays stable even
+  // if the worker later moves or updates their service areas.
+  const distanceKm = computeHireDistance({ employer, worker, place });
 
   const { data: existing, error: existingError } = await db
     .from('hire_requests')
@@ -267,7 +370,9 @@ export async function createHireRequest({
       description: text,
       location: place,
       proposed_rate: Math.round(rate),
-      scheduled_date: scheduledDate ? new Date(scheduledDate).toISOString() : null,
+      scheduled_date: scheduledDate ? scheduledIso : null,
+      scheduled_time: scheduledIso,
+      distance_km: distanceKm,
     })
     .select(HIRE_SELECT)
     .single();
@@ -357,6 +462,8 @@ export async function hireAction({ hireId, userId, action, lat, lng, otp }) {
   let workerBecomesBusy = false;
   let workerBecomesFree = false;
   let countJob = false;
+  /** Set by the arrived case — increments on_time_jobs AFTER the update. */
+  let recordOnTime = false;
   /** Set by the cancel case — Trust & Penalty bookkeeping AFTER the update. */
   let trustPenalty = null;
 
@@ -399,8 +506,30 @@ export async function hireAction({ hireId, userId, action, lat, lng, otp }) {
       if (!isWorker) throw new Error('Sirf kaarigar hi status badal sakta hai');
       if (!TRACKABLE.includes(raw.status)) throw new Error('Pehle request accept honi chahiye');
       patch.status = action;
-      if (action === 'en_route') patch.en_route_at = new Date().toISOString();
-      else patch.arrived_at = new Date().toISOString();
+      if (action === 'en_route') {
+        patch.en_route_at = new Date().toISOString();
+      } else {
+        const arrivedAt = new Date();
+        patch.arrived_at = arrivedAt.toISOString();
+        patch.arrived_time = patch.arrived_at;
+
+        // Only the FIRST arrival counts. A repeated tap (or a retry after a
+        // dropped response) must never inflate the worker's score.
+        const alreadyArrived = Boolean(raw.arrived_time || raw.arrived_at);
+        if (!alreadyArrived) {
+          const baseline = raw.scheduled_time || raw.scheduled_date || raw.created_at;
+          const baselineMs = baseline ? new Date(baseline).getTime() : NaN;
+          const minutesFromSchedule = (arrivedAt.getTime() - baselineMs) / 60000;
+          const expectedArrivalMinutes = getExpectedArrivalTime(raw.distance_km);
+
+          recordOnTime =
+            Number.isFinite(minutesFromSchedule) &&
+            minutesFromSchedule <= expectedArrivalMinutes;
+          // Persist the outcome too, so a late arrival stays visibly late even
+          // after the worker's rolling counters change.
+          patch.arrived_on_time = recordOnTime;
+        }
+      }
       if (Number.isFinite(Number(lat))) patch.worker_lat = Number(lat);
       if (Number.isFinite(Number(lng))) patch.worker_lng = Number(lng);
       break;
@@ -494,6 +623,18 @@ export async function hireAction({ hireId, userId, action, lat, lng, otp }) {
         'Booking ka timeline abhi database me nahi hai — Supabase me 0010_hire_start_flow.sql migration chalao',
       );
     }
+    // Distance columns are missing — 0018_hire_distance.sql not applied.
+    if (/distance_km|arrived_on_time/i.test(error.message)) {
+      throw new Error(
+        'Booking distance data abhi database me nahi hai — Supabase me 0018_hire_distance.sql migration chalao',
+      );
+    }
+    // Performance columns are missing — 0017_worker_performance.sql not applied.
+    if (/scheduled_time|arrived_time|on_time_jobs|total_jobs_completed|customer_rating_avg|system_rating_score/i.test(error.message)) {
+      throw new Error(
+        'Worker performance data abhi database me nahi hai — Supabase me 0017_worker_performance.sql migration chalao',
+      );
+    }
     // Trust & Penalty columns are missing — 0011_trust_penalty.sql not applied.
     if (/cancelled_by|cancelled_at|cancel_count|is_flagged/i.test(error.message)) {
       throw new Error(
@@ -541,6 +682,15 @@ export async function hireAction({ hireId, userId, action, lat, lng, otp }) {
       p_worker_id: raw.worker_id,
     });
     if (rpcError) console.error('increment_worker_completed_jobs failed:', rpcError.message);
+  }
+
+  // Punctuality is recorded on arrival (not completion) so a worker who is
+  // waiting on the customer still gets credit for turning up on time.
+  if (recordOnTime) {
+    const { error: onTimeError } = await db.rpc('increment_worker_on_time_jobs', {
+      p_worker_id: raw.worker_id,
+    });
+    if (onTimeError) console.error('increment_worker_on_time_jobs failed:', onTimeError.message);
   }
 
   if (workerBecomesBusy || workerBecomesFree) {

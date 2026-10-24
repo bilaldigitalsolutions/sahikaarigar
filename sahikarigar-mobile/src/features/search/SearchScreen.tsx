@@ -56,6 +56,12 @@ function matchesArea(worker: ApiWorker, area: string): boolean {
   return candidates.some((label) => needle.includes(label) || label.includes(needle));
 }
 
+/** "2 km away" / "5.4 km away" — no trailing zero for whole kilometres. */
+function formatDistance(km: number): string {
+  const rounded = Math.round(km * 10) / 10;
+  return `${Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1)} km away`;
+}
+
 export function SearchScreen() {
   const router = useRouter();
   const { user } = useAuth();
@@ -76,8 +82,8 @@ export function SearchScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Device GPS — fallback for "near me" sorting when the profile has no
-  // saved coordinates (permission is requested lazily, best-effort).
+  // Device GPS — fallback for nearby sorting and distance labels when the
+  // profile has no saved coordinates (permission is requested lazily, best-effort).
   const [deviceCoords, setDeviceCoords] = useState<DeviceCoords | null>(null);
 
   useEffect(() => {
@@ -124,17 +130,23 @@ export function SearchScreen() {
   const toggleFilter = (id: PopularFilterId) =>
     setFilters((prev) => (prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]));
 
+  // Profile coordinates first; device GPS as fallback so nearby sorting and
+  // distance labels work even when the user never set a profile location.
+  const customerLat = user?.lat ?? deviceCoords?.lat ?? null;
+  const customerLng = user?.lng ?? deviceCoords?.lng ?? null;
+
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
-    // Profile coordinates first; device GPS as fallback so "near me" works
-    // even when the user never set a profile location.
-    const lat = user?.lat ?? deviceCoords?.lat ?? null;
-    const lng = user?.lng ?? deviceCoords?.lng ?? null;
 
     // Free text like "plumber in Hyderabad" → match the skill "plumber".
     const querySkills: string[] = q
       ? SKILLS.filter((s) => q.includes(s.label.toLowerCase()) || q.includes(s.id)).map((s) => s.id)
       : [];
+
+    const distance = (w: ApiWorker) =>
+      customerLat != null && customerLng != null && w.lat != null && w.lng != null
+        ? calculateDistance(customerLat, customerLng, w.lat, w.lng)
+        : null;
 
     let list = workers.filter((w) => {
       if (skill && !w.skills.includes(skill)) return false;
@@ -144,24 +156,29 @@ export function SearchScreen() {
         const matchesSkill = w.skills.some((s) => querySkills.includes(s) || q.includes(s));
         if (!name.includes(q) && !matchesSkill) return false;
       }
+      // "Near Me" keeps the 10 km radius that the card warning calls out.
+      // Without customer coordinates it falls back to the distance sort only.
+      if (filters.includes('near') && customerLat != null && customerLng != null) {
+        const km = distance(w);
+        if (km == null || km > 10) return false;
+      }
       if (filters.includes('under300') && w.hourlyRate > 300) return false;
       if (filters.includes('available') && w.availability !== 'available') return false;
       if (maxPrice < PRICE_MAX && w.hourlyRate > maxPrice) return false;
       return true;
     });
 
-    const distance = (w: ApiWorker) =>
-      lat != null && lng != null && w.lat != null && w.lng != null
-        ? calculateDistance(lat, lng, w.lat, w.lng)
-        : null;
-
+    // Default ordering is always nearest-first. "Top Rated" is the explicit
+    // user override; workers without coordinates stay at the end.
     if (filters.includes('top')) {
       list = [...list].sort((a, b) => b.ratingAverage - a.ratingAverage);
-    } else if (filters.includes('near')) {
-      list = [...list].sort((a, b) => (distance(a) ?? Infinity) - (distance(b) ?? Infinity));
+    } else {
+      list = [...list].sort(
+        (a, b) => (distance(a) ?? Infinity) - (distance(b) ?? Infinity),
+      );
     }
     return list;
-  }, [workers, query, skill, areaFilter, filters, maxPrice, user?.lat, user?.lng, deviceCoords]);
+  }, [workers, query, skill, areaFilter, filters, maxPrice, customerLat, customerLng]);
 
   /** Works both as a tab and as the standalone public route. */
   const goBack = () => {
@@ -324,7 +341,14 @@ export function SearchScreen() {
           {maxPrice >= PRICE_MAX ? '+' : ''}
         </Text>
       </View>
-      <Text style={styles.priceSort}>Sorted by: {filters.includes('top') ? 'Top Rated' : 'Best match'}</Text>
+      <Text style={styles.priceSort}>
+        Sorted by:{' '}
+        {filters.includes('top')
+          ? 'Top Rated'
+          : customerLat != null && customerLng != null
+            ? 'Nearest first'
+            : 'Best match'}
+      </Text>
       <Slider min={0} max={PRICE_MAX} step={50} value={maxPrice} onChange={setMaxPrice} />
 
       <View style={styles.sectionRow}>
@@ -361,8 +385,8 @@ export function SearchScreen() {
             <WorkerRow
               key={w.id}
               worker={w}
-              userLat={user?.lat ?? null}
-              userLng={user?.lng ?? null}
+              userLat={customerLat}
+              userLng={customerLng}
               onPress={() =>
                 w.id.startsWith('demo-')
                   ? Alert.alert(
@@ -403,6 +427,7 @@ function WorkerRow({
     userLat != null && userLng != null && worker.lat != null && worker.lng != null
       ? calculateDistance(userLat, userLng, worker.lat, worker.lng)
       : null;
+  const farAway = distance != null && distance > 10;
 
   return (
     <Pressable style={styles.resultCard} onPress={onPress}>
@@ -416,14 +441,24 @@ function WorkerRow({
         </Text>
         <Text style={styles.resultMeta} numberOfLines={1}>
           ★ {worker.ratingAverage.toFixed(1)} ({worker.ratingCount})
-          {distance != null ? ` • ${distance} km away` : ''}
           {areaId ? ` • ${areaLabel(areaId)}` : ''}
         </Text>
-        {worker.availability === 'available' ? (
-          <View style={styles.availablePill}>
-            <Ionicons name="checkmark-circle" size={13} color={colors.primaryDark} />
-            <Text style={styles.availableText}>Available Now</Text>
-          </View>
+        <View style={styles.resultTagRow}>
+          {distance != null ? (
+            <View style={styles.distancePill}>
+              <Ionicons name="navigate-outline" size={12} color={colors.primaryDark} />
+              <Text style={styles.distanceText}>{formatDistance(distance)}</Text>
+            </View>
+          ) : null}
+          {worker.availability === 'available' ? (
+            <View style={styles.availablePill}>
+              <Ionicons name="checkmark-circle" size={13} color={colors.primaryDark} />
+              <Text style={styles.availableText}>Available Now</Text>
+            </View>
+          ) : null}
+        </View>
+        {farAway ? (
+          <Text style={styles.farWarning}>Door hai, thoda time lagega.</Text>
         ) : null}
       </View>
       <View style={styles.fromPill}>
@@ -536,18 +571,45 @@ const styles = StyleSheet.create({
   resultName: { fontSize: fontSize.body, fontWeight: fontWeight.semibold, color: colors.textPrimary },
   resultSkill: { fontSize: fontSize.caption, color: colors.textSecondary, marginTop: 2 },
   resultMeta: { fontSize: fontSize.caption, color: colors.textSecondary, marginTop: 3 },
+  resultTagRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 5,
+  },
+  distancePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primaryTint,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+  },
+  distanceText: {
+    fontSize: fontSize.caption - 1,
+    fontWeight: fontWeight.semibold,
+    color: colors.primaryDark,
+  },
   availablePill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    alignSelf: 'flex-start',
-    marginTop: 5,
     paddingHorizontal: spacing.sm,
     paddingVertical: 2,
     borderRadius: radius.pill,
     backgroundColor: colors.primaryBg,
   },
   availableText: { fontSize: fontSize.caption - 1, fontWeight: fontWeight.semibold, color: colors.primaryDark },
+  farWarning: {
+    marginTop: 3,
+    fontSize: fontSize.caption - 1,
+    fontWeight: fontWeight.medium,
+    color: colors.brandOrange,
+  },
   fromPill: {
     paddingHorizontal: spacing.sm,
     paddingVertical: 4,

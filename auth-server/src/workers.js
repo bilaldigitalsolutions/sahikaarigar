@@ -28,8 +28,32 @@ function mapPublicUser(row) {
   };
 }
 
+/**
+ * Worker performance badge.
+ *
+ * Gold   -> on-time score above 90%
+ * Silver -> on-time score above 70%
+ * Bronze -> everything else (including brand-new workers)
+ *
+ * Accepts either the mapped camelCase shape or a raw `worker_profiles` row, so
+ * it can be reused by every endpoint that selects different projections.
+ */
+export function getWorkerBadge(worker) {
+  const score = Number(worker?.systemRatingScore ?? worker?.system_rating_score ?? 0);
+
+  if (score > 90) return 'Gold';
+  if (score > 70) return 'Silver';
+  return 'Bronze';
+}
+
 export function mapWorker(row) {
   if (!row) return null;
+
+  const totalJobsCompleted = Number(row.total_jobs_completed ?? row.completed_jobs ?? 0);
+  const onTimeJobs = Number(row.on_time_jobs ?? 0);
+  const customerRatingAvg = Number(row.customer_rating_avg ?? row.rating_average ?? 0);
+  const systemRatingScore = Number(row.system_rating_score ?? 0);
+
   return {
     id: row.id,
     userId: row.user_id,
@@ -41,7 +65,12 @@ export function mapWorker(row) {
     portfolio: row.portfolio ?? [],
     ratingAverage: Number(row.rating_average ?? 0),
     ratingCount: row.rating_count ?? 0,
-    completedJobs: row.completed_jobs ?? 0,
+    completedJobs: Number(row.completed_jobs ?? row.total_jobs_completed ?? 0),
+    totalJobsCompleted,
+    onTimeJobs,
+    customerRatingAvg,
+    systemRatingScore,
+    badge: getWorkerBadge({ systemRatingScore }),
     serviceAreas: row.service_areas ?? [],
     lat: row.lat ?? null,
     lng: row.lng ?? null,

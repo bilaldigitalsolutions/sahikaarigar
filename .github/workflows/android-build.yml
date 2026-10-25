@@ -80,6 +80,21 @@ jobs:
           EXPO_NO_TELEMETRY: "1"
         run: npx expo prebuild --platform android --no-install --clean
 
+      # expo prebuild regenerates android/gradle.properties with a small default
+      # heap. Raise it here too, otherwise it can override GRADLE_OPTS and the
+      # release build still dies with "Java heap space".
+      - name: Increase Gradle heap
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          GRADLE_PROPS=android/gradle.properties
+          test -f "$GRADLE_PROPS"
+          if grep -q '^org.gradle.jvmargs=' "$GRADLE_PROPS"; then
+            sed -i 's|^org.gradle.jvmargs=.*|org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m -XX:+HeapDumpOnOutOfMemoryError|' "$GRADLE_PROPS"
+          else
+            echo 'org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m -XX:+HeapDumpOnOutOfMemoryError' >> "$GRADLE_PROPS"
+          fi
+          grep '^org.gradle.jvmargs=' "$GRADLE_PROPS"
+
       - name: Setup Java (Zulu 17)
         uses: actions/setup-java@v4
         with:
@@ -144,7 +159,7 @@ jobs:
           MYAPP_UPLOAD_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           MYAPP_UPLOAD_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           MYAPP_UPLOAD_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx1536m -Dorg.gradle.daemon=false"
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.daemon=false -Dorg.gradle.parallel=true"
           # EXPO_PUBLIC_* vars Metro bundle time par inline hote hain —
           # eas.json ke barabar values yahan set karo (GitHub builds eas.json
           # ka env block use nahi karte).

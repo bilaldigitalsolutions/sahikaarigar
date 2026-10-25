@@ -261,10 +261,8 @@ function BookingBody({
   const fetchStartOtp = useCallback(async () => {
     if (isWorkerViewer) return;
     let active = true;
-    console.log('[HireDetail] fetching start OTP for hire', hire.id, 'status:', hire.status);
     try {
       const { otp } = await getHireStartOtp(hire.id);
-      console.log('[HireDetail] start OTP received:', otp);
       if (active) {
         setStartOtp(otp);
         setOtpError(null);

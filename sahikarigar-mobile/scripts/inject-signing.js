@@ -14,8 +14,8 @@
 // Ye charo variables isi step ke env me aane chahiye (workflow me define hue
 // hain). Script inhe build.gradle me `System.getenv(...)` ke roop me likhti
 // hai, taaki Gradle ke time par value milti rahe — secret file me hardcode
-// nahi hota. Agar koi variable missing hai toh build waise bhi chalega, par
-// release APK debug key se sign hoga (sideload ke liye theek, Play ke liye nahi).
+// nahi hota. Agar koi variable missing hai toh release build fail hoga;
+// release kabhi debug key se sign nahi hoga.
 //
 // Ye script idempotent hai — dobara chalne par duplicate block nahi banega.
 // =============================================================================
@@ -42,11 +42,12 @@ const SIGNING_CONFIG = `        release {
 function main() {
   const missing = REQUIRED_ENV.filter((name) => !process.env[name]);
   if (missing.length > 0) {
-    console.warn(
+    console.error(
       '[inject-signing] Missing env vars: ' +
         missing.join(', ') +
-        '\n[inject-signing] Release APK debug signingConfig se sign hoga.',
+        '\n[inject-signing] Release signing ke bina build nahi banega.',
     );
+    process.exit(1);
   }
 
   const scriptDir = path.dirname(path.resolve(process.argv[1] || 'scripts/inject-signing.js'));
@@ -93,7 +94,7 @@ function main() {
   }
   const releaseEndIndex = findBlockEnd(source, releaseIndex);
   const releaseBlock = source.slice(releaseIndex, releaseEndIndex);
-  const patchedRelease = releaseBlock.replace(
+  let patchedRelease = releaseBlock.replace(
     /signingConfig\s+signingConfigs\.\w+/,
     'signingConfig signingConfigs.release',
   );
@@ -101,6 +102,12 @@ function main() {
     console.warn(
       '[inject-signing] buildTypes.release me signingConfig line nahi mili — ' +
         'wahi chhod diya gaya.',
+    );
+  }
+  if (!/debuggable\s+/.test(patchedRelease)) {
+    patchedRelease = patchedRelease.replace(
+      'signingConfig signingConfigs.release',
+      'signingConfig signingConfigs.release\n            debuggable false',
     );
   }
   source = source.slice(0, releaseIndex) + patchedRelease + source.slice(releaseEndIndex);

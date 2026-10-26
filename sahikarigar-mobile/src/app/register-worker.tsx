@@ -47,6 +47,8 @@ export default function RegisterWorkerScreen() {
     areaLat: null,
     areaLng: null,
     aadhaar: '',
+    aadhaarPhotoUri: null,
+    aadhaarPhotoDataUrl: null,
     profilePhotoUri: null,
     profilePhotoDataUrl: null,
     profilePhotoUrl: null,
@@ -62,6 +64,34 @@ export default function RegisterWorkerScreen() {
 
   const patch = (p: Partial<WorkerProfileFormValues>) =>
     setValues((prev) => ({ ...prev, ...p }));
+
+  // Keep the button disabled until every required field is valid. Aadhaar is
+  // mandatory for new worker registrations, including the card photo.
+  const aadhaarDigits = values.aadhaar.replace(/\D/g, '');
+  const aadhaarCheck = validateAadhaar(aadhaarDigits);
+  const aadhaarValid = aadhaarDigits.length === 12 && aadhaarCheck.valid;
+  const experienceValue = Number(values.experience);
+  const experienceValid =
+    Number.isFinite(experienceValue) &&
+    experienceValue >= VALIDATION.MIN_EXPERIENCE &&
+    experienceValue <= VALIDATION.MAX_EXPERIENCE;
+  const rateValue = Number(values.rate);
+  const rateValid =
+    Number.isFinite(rateValue) &&
+    rateValue >= VALIDATION.MIN_RATE &&
+    rateValue <= VALIDATION.MAX_RATE;
+  const submitDisabled =
+    !user ||
+    values.name.trim().length < VALIDATION.NAME_MIN_LENGTH ||
+    values.skills.length === 0 ||
+    !experienceValid ||
+    !values.area ||
+    !aadhaarValid ||
+    !values.aadhaarPhotoUri ||
+    !values.aadhaarPhotoDataUrl ||
+    !rateValid ||
+    !terms ||
+    busy;
 
   const onSubmit = async () => {
     if (!user) {
@@ -79,8 +109,7 @@ export default function RegisterWorkerScreen() {
       setError('Select at least one skill.');
       return;
     }
-    const exp = Number(values.experience);
-    if (!Number.isFinite(exp) || exp < VALIDATION.MIN_EXPERIENCE || exp > VALIDATION.MAX_EXPERIENCE) {
+    if (!experienceValid) {
       setError(`Enter experience between ${VALIDATION.MIN_EXPERIENCE} and ${VALIDATION.MAX_EXPERIENCE} years.`);
       return;
     }
@@ -88,18 +117,21 @@ export default function RegisterWorkerScreen() {
       setError('Select your area.');
       return;
     }
-    // Strict Aadhaar gate — if the worker typed anything, it must pass the
-    // UIDAI Verhoeff checksum, not just be 12 digits.
-    const aadhaarDigits = values.aadhaar.replace(/\D/g, '');
-    if (aadhaarDigits) {
-      const aadhaarCheck = validateAadhaar(aadhaarDigits);
-      if (!aadhaarCheck.valid) {
-        setError(aadhaarCheck.error ?? 'Kripya valid 12-digit Aadhaar number daalein.');
-        return;
-      }
+    // Aadhaar is mandatory: exactly 12 digits AND a valid UIDAI Verhoeff
+    // checksum. An empty field is no longer accepted.
+    if (!aadhaarDigits) {
+      setError('Aadhaar number is required.');
+      return;
     }
-    const rateValue = Number(values.rate);
-    if (!Number.isFinite(rateValue) || rateValue < VALIDATION.MIN_RATE || rateValue > VALIDATION.MAX_RATE) {
+    if (!aadhaarValid) {
+      setError(aadhaarCheck.error ?? 'Kripya valid 12-digit Aadhaar number daalein.');
+      return;
+    }
+    if (!values.aadhaarPhotoUri || !values.aadhaarPhotoDataUrl) {
+      setError('Aadhaar photo is required.');
+      return;
+    }
+    if (!rateValid) {
       setError(`Enter a charge between ₹${VALIDATION.MIN_RATE} and ₹${VALIDATION.MAX_RATE}.`);
       return;
     }
@@ -112,18 +144,19 @@ export default function RegisterWorkerScreen() {
     setBusy(true);
     try {
       // NOTE: the API stores one hourly rate per worker; the form's charge is
-      // sent as `hourlyRate`. The Aadhaar number is optional and only visible
-      // to admins during verification.
+      // sent as `hourlyRate`. Aadhaar number + photo are mandatory and are
+      // only visible to admins during verification.
       await registerWorker({
         name: values.name.trim(),
         profile: {
           skills: values.skills,
-          experience: exp,
+          experience: experienceValue,
           hourlyRate: rateValue,
           serviceAreas: [values.area as string],
           lat: values.areaLat ?? undefined,
           lng: values.areaLng ?? undefined,
-          aadhaarNumber: aadhaarDigits || undefined,
+          aadhaarNumber: aadhaarDigits,
+          aadhaarPhotoDataUrl: values.aadhaarPhotoDataUrl,
           profilePhotoDataUrl: values.profilePhotoDataUrl ?? undefined,
           workPhotoDataUrls: values.newWorkPhotoDataUrls.length
             ? values.newWorkPhotoDataUrls
@@ -181,7 +214,12 @@ export default function RegisterWorkerScreen() {
             </View>
           ) : null}
 
-          <WorkerProfileForm values={values} onChange={patch} error={error} />
+          <WorkerProfileForm
+            values={values}
+            onChange={patch}
+            error={error}
+            requireAadhaarPhoto
+          />
 
           <Pressable style={[styles.mt, styles.termsRow]} onPress={() => setTerms(!terms)}>
             <View style={[styles.termsBox, terms && styles.termsBoxChecked]}>
@@ -215,6 +253,7 @@ export default function RegisterWorkerScreen() {
             label="Submit Application"
             onPress={onSubmit}
             loading={busy}
+            disabled={submitDisabled}
             size="lg"
             style={styles.mt}
           />

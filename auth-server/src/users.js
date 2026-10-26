@@ -200,6 +200,14 @@ export async function upsertWorkerProfile(userId, input = {}) {
   if (serviceAreas.length === 0) throw new Error('At least one service area is required');
 
   const aadhaarNumber = normalizeAadhaarNumber(input.aadhaarNumber);
+  // Aadhaar is mandatory for a complete worker profile. normalizeAadhaarNumber
+  // already rejects invalid 12-digit numbers; an empty value returns null.
+  if (!aadhaarNumber) {
+    throw new Error('Aadhaar number is required');
+  }
+  if (!input.aadhaarPhotoPath) {
+    throw new Error('Aadhaar photo is required');
+  }
 
   // A brand-new registration (or a rejected worker re-submitting) is the only
   // event that should alert the admin. `upsert` cannot tell us, so look up the

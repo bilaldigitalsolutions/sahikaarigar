@@ -33,6 +33,10 @@ export interface WorkerProfileFormValues {
   areaLat?: number | null;
   areaLng?: number | null;
   aadhaar: string;
+  /** Local preview of the freshly picked Aadhaar photo. */
+  aadhaarPhotoUri: string | null;
+  /** Data URL of the freshly picked Aadhaar photo (upload payload). */
+  aadhaarPhotoDataUrl: string | null;
   /** Local preview of a freshly picked profile photo (null = unchanged). */
   profilePhotoUri: string | null;
   /** Data URL of the freshly picked profile photo (upload payload). */
@@ -60,6 +64,8 @@ export interface WorkerProfileFormProps {
   aadhaarMasked?: string | null;
   /** Skill ids stored in the DB that are not part of the known SKILLS list. */
   extraSkills?: string[];
+  /** Registration requires an Aadhaar photo; Edit Profile does not render it. */
+  requireAadhaarPhoto?: boolean;
 }
 
 export function WorkerProfileForm({
@@ -69,10 +75,14 @@ export function WorkerProfileForm({
   aadhaarLocked = false,
   aadhaarMasked = null,
   extraSkills = [],
+  requireAadhaarPhoto = false,
 }: WorkerProfileFormProps) {
   const aadhaarDigits = (values.aadhaar ?? '').replace(/\D/g, '');
-  const aadhaarCheck = aadhaarDigits ? validateAadhaar(aadhaarDigits) : null;
-  const aadhaarValid = !aadhaarCheck || aadhaarCheck.valid;
+  const aadhaarCheck = validateAadhaar(aadhaarDigits);
+  // Empty is NOT valid: Aadhaar is mandatory during worker registration.
+  const aadhaarValid = aadhaarDigits.length === 12 && aadhaarCheck.valid;
+  const aadhaarPhotoMissing =
+    requireAadhaarPhoto && (!values.aadhaarPhotoUri || !values.aadhaarPhotoDataUrl);
 
   const toggleSkill = (id: string) => {
     onChange({
@@ -104,6 +114,29 @@ export function WorkerProfileForm({
 
   const removeProfilePhoto = () => {
     onChange({ profilePhotoUri: null, profilePhotoDataUrl: null, profilePhotoUrl: null });
+  };
+
+  const pickAadhaarPhoto = async () => {
+    const res = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.7,
+      base64: true,
+    });
+    if (res.canceled || !res.assets?.[0]) return;
+    const asset = res.assets[0];
+    // Keep the same 5MB limit as the backend's decodeImageDataUrl().
+    if (asset.fileSize && asset.fileSize > 5 * 1024 * 1024) {
+      Alert.alert('Photo 5MB se badi hai', 'Kripya 5MB tak ki chhoti photo chunein.');
+      return;
+    }
+    onChange({
+      aadhaarPhotoUri: asset.uri,
+      aadhaarPhotoDataUrl: asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : null,
+    });
+  };
+
+  const removeAadhaarPhoto = () => {
+    onChange({ aadhaarPhotoUri: null, aadhaarPhotoDataUrl: null });
   };
 
   const pickWorkPhotos = async () => {
@@ -248,7 +281,7 @@ export function WorkerProfileForm({
 
       {/* ---- Aadhaar ---- */}
       <View style={styles.mt}>
-        <Text style={styles.label}>Aadhaar Number (optional)</Text>
+        <Text style={styles.label}>Aadhaar Number (required)</Text>
         <View style={[styles.phoneField, aadhaarLocked && styles.fieldLocked]}>
           <Ionicons name="shield-checkmark-outline" size={18} color={colors.textSecondary} />
           <TextInput
@@ -267,14 +300,58 @@ export function WorkerProfileForm({
           <Text style={styles.hint}>
             Aadhaar number submit ho chuka hai — verification ke liye use change nahi hota sakta.
           </Text>
-        ) : aadhaarDigits && !aadhaarValid ? (
-          <Text style={styles.fieldError}>Kripya valid 12-digit Aadhaar number daalein.</Text>
+        ) : !aadhaarValid ? (
+          <Text style={styles.fieldError}>
+            {aadhaarDigits.length === 0
+              ? 'Aadhaar number zaroori hai — 12 digits daalein.'
+              : (aadhaarCheck.error ?? 'Kripya valid 12-digit Aadhaar number daalein.')}
+          </Text>
         ) : (
           <Text style={styles.hint}>
-            Optional — admin verification ke liye. UIDAI checksum galat number pakad leta hai, isliye dhyan se daalo.
+            Aadhaar number admin verification ke liye zaroori hai. UIDAI checksum galat number pakad leta hai.
           </Text>
         )}
       </View>
+
+      {/* ---- Aadhaar photo (registration only) ---- */}
+      {requireAadhaarPhoto ? (
+        <View style={styles.mt}>
+          <Text style={styles.label}>Aadhaar Photo (required)</Text>
+          <Pressable
+            style={[styles.uploadBox, styles.aadhaarUploadBox]}
+            onPress={pickAadhaarPhoto}
+            accessibilityRole="button"
+            accessibilityLabel="Upload Aadhaar photo"
+          >
+            {values.aadhaarPhotoUri ? (
+              <Image
+                source={{ uri: values.aadhaarPhotoUri }}
+                style={styles.uploadPreview}
+                contentFit="cover"
+              />
+            ) : (
+              <>
+                <Ionicons name="card-outline" size={24} color={colors.primaryDark} />
+                <Text style={styles.uploadTitle}>Upload Aadhaar Photo</Text>
+                <Text style={styles.uploadHint}>JPG/PNG, max 5MB</Text>
+              </>
+            )}
+          </Pressable>
+          {values.aadhaarPhotoUri ? (
+            <Pressable style={styles.removeRow} onPress={removeAadhaarPhoto}>
+              <Ionicons name="trash-outline" size={13} color={colors.danger} />
+              <Text style={styles.removeText}>Remove Aadhaar photo</Text>
+            </Pressable>
+          ) : null}
+          {aadhaarPhotoMissing ? (
+            <Text style={styles.fieldError}>Aadhaar photo upload karna zaroori hai.</Text>
+          ) : (
+            <Text style={styles.hint}>
+              Aadhaar card ki saaf photo upload karein — sirf admin verification ke liye.
+            </Text>
+          )}
+        </View>
+      ) : null}
 
       {/* ---- Photos ---- */}
       <View style={[styles.mt, styles.uploadRow]}>
@@ -446,6 +523,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryTint,
     overflow: 'hidden',
   },
+  aadhaarUploadBox: { height: 150 },
   uploadPreview: { width: '100%', height: '100%' },
   uploadTitle: {
     fontSize: fontSize.caption,

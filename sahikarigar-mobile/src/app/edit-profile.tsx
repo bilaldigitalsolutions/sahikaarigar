@@ -47,6 +47,8 @@ export default function EditProfileScreen() {
     areaLat: null,
     areaLng: null,
     aadhaar: '',
+    aadhaarPhotoUri: null,
+    aadhaarPhotoDataUrl: null,
     profilePhotoUri: null,
     profilePhotoDataUrl: null,
     profilePhotoUrl: null,

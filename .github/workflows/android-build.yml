@@ -179,7 +179,7 @@ jobs:
           APK=android/app/build/outputs/apk/release/app-release.apk
           test -f "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$APK" > "$RUNNER_TEMP/apk-badging.txt"
-          grep -q "versionCode='13'" "$RUNNER_TEMP/apk-badging.txt"
+          grep -q "versionCode='14'" "$RUNNER_TEMP/apk-badging.txt"
           grep -q "targetSdkVersion:'36'" "$RUNNER_TEMP/apk-badging.txt"
           if grep -q 'application-debuggable' "$RUNNER_TEMP/apk-badging.txt"; then
             echo "::error::APK is debuggable"
@@ -187,7 +187,7 @@ jobs:
           fi
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$APK" > "$RUNNER_TEMP/apk-certs.txt"
           grep -q '1fe43ea48e3944cf21ad0e96d0c178265d2c2612e427ce683d46ed6503f45bfc' "$RUNNER_TEMP/apk-certs.txt"
-          echo "APK verification passed: versionCode 13, targetSdk 36, not debuggable, release-signed."
+          echo "APK verification passed: versionCode 14, targetSdk 36, not debuggable, release-signed."
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4

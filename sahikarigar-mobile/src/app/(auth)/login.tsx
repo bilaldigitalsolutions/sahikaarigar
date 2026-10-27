@@ -1,12 +1,23 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Linking,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import { BrandLogo, Button, Input, Screen } from '@/components';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors, fontSize, fontWeight, spacing } from '@/theme';
 import { isFakePhoneSequence, isValidPhone, normalizeIndianPhone } from '@/utils';
+
+/** Official DPDP consent notice link for this app listing. */
+const PRIVACY_POLICY_URL = 'https://appland.info/app/33336/privacy-policy';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -103,8 +114,25 @@ export default function LoginScreen() {
             importantForAutofill="no"
             containerStyle={styles.mt}
           />
+
+          {/*
+           * DPDP consent notice. There is deliberately NO pre-ticked checkbox:
+           * tapping "Continue" is the affirmative action that records consent.
+           */}
+          <Text style={styles.consent}>
+            By continuing, you agree to our{' '}
+            <Text
+              style={styles.consentLink}
+              onPress={() => Linking.openURL(PRIVACY_POLICY_URL).catch(() => {})}
+              accessibilityRole="link"
+            >
+              Privacy Policy
+            </Text>{' '}
+            and consent to the collection of your phone number and location for the purpose of booking home services.
+          </Text>
+
           <Button
-            label="Send OTP"
+            label="Continue"
             onPress={onSubmit}
             loading={busy}
             size="lg"
@@ -112,10 +140,6 @@ export default function LoginScreen() {
             style={styles.mt}
           />
         </View>
-
-        <Text style={styles.terms}>
-          By continuing you agree to our Terms &amp; Privacy Policy.
-        </Text>
       </KeyboardAvoidingView>
     </Screen>
   );
@@ -134,11 +158,17 @@ const styles = StyleSheet.create({
   },
   form: { marginTop: spacing.lg },
   mt: { marginTop: spacing.md },
-  terms: {
-    marginTop: 'auto',
+  consent: {
+    marginTop: spacing.lg,
     textAlign: 'center',
     fontSize: fontSize.caption,
     color: colors.textSecondary,
-    paddingBottom: spacing.lg,
+    lineHeight: 20,
+  },
+  consentLink: {
+    fontSize: fontSize.caption,
+    fontWeight: fontWeight.semibold,
+    color: colors.primaryDark,
+    textDecorationLine: 'underline',
   },
 });

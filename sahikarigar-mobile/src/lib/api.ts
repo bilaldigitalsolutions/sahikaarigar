@@ -321,11 +321,11 @@ export async function fetchMe(): Promise<User> {
 }
 
 /**
- * Delete the signed-in user's account and everything attached to it
- * (Play policy: an in-app delete path). Rows are gone server-side; the caller
- * must then sign out locally.
+ * Permanently delete the signed-in user's account and everything attached to
+ * it (DPDP / Play policy: an in-app delete path). Rows and uploaded documents
+ * are gone server-side; the caller must then clear the local session.
  */
-export async function deleteAccount(): Promise<void> {
+export async function deleteUserAccount(): Promise<void> {
   await apiFetch<{ deleted: boolean }>('/account', { method: 'DELETE' });
 }
 

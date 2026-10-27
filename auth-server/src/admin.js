@@ -3,7 +3,7 @@
 // =============================================================================
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { db } from './users.js';
+import { db, decryptAadhaarNumber } from './users.js';
 
 const ADMIN_SESSION_TTL_SECONDS = 4 * 60 * 60;
 
@@ -115,8 +115,9 @@ function mapAdminWorker(row, aadhaarPhotoUrl) {
     adminNotes: row.admin_notes ?? null,
     rejectionReason: row.rejection_reason ?? row.admin_notes ?? null,
     reviewedAt: row.reviewed_at ?? null,
-    // Full number is only exposed to authenticated admins.
-    aadhaarNumber: row.aadhaar_number ?? null,
+    // Full number is only exposed to authenticated admins, and only after
+    // decrypting the at-rest ciphertext.
+    aadhaarNumber: decryptAadhaarNumber(row.aadhaar_number),
     aadhaarPhotoUrl,
     // Trust & Penalty — cancel record for the admin panel (record-only).
     cancelCount: row.cancel_count ?? 0,

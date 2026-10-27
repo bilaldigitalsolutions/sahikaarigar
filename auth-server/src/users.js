@@ -5,6 +5,8 @@
 // except users are now keyed on `auth_user_id` (the SuperTokens user id).
 // =============================================================================
 
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
+
 import { createClient } from '@supabase/supabase-js';
 
 import { isBlockedFakeSequence, isValidAadhaar } from './validation.js';
@@ -20,6 +22,132 @@ if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
 export const db = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
+
+// -----------------------------------------------------------------------------
+// Aadhaar at rest (DPDP data minimisation)
+// -----------------------------------------------------------------------------
+// Aadhaar is reversible-encrypted (AES-256-GCM) because admins must be able to
+// read it during identity verification. The key never lives in the database;
+// it is supplied by AADHAAR_ENCRYPTION_KEY and must stay stable — changing it
+// makes existing ciphertext unreadable.
+const AADHAAR_CIPHERTEXT_PREFIX = 'enc:v1:';
+const AADHAAR_KEY_BYTES = 32;
+
+/**
+ * The SQL projection used for normal `users` reads. `push_token` is deliberately
+ * excluded: only src/push.js needs it, and it should never travel to the app.
+ */
+const USER_COLUMNS =
+  'id, firebase_uid, auth_user_id, phone, name, role, avatar, location_area, location_city, ' +
+  'lat, lng, is_active, is_verified, address, trust_score, created_at, updated_at';
+
+/**
+ * One-time/idempotent upgrade for rows written before encryption existed.
+ * Called after the server starts; new registrations are encrypted inline.
+ */
+export async function encryptLegacyAadhaarNumbers() {
+  if (!String(process.env.AADHAAR_ENCRYPTION_KEY || '').trim()) {
+    console.warn('[aadhaar] AADHAAR_ENCRYPTION_KEY missing; legacy backfill skipped');
+    return { scanned: 0, updated: 0 };
+  }
+
+  const { data, error } = await db
+    .from('worker_profiles')
+    .select('id, aadhaar_number')
+    .not('aadhaar_number', 'is', null);
+  if (error) throw new Error(error.message);
+
+  let updated = 0;
+  for (const row of data ?? []) {
+    if (String(row.aadhaar_number).startsWith(AADHAAR_CIPHERTEXT_PREFIX)) continue;
+    try {
+      const encrypted = encryptAadhaarNumber(row.aadhaar_number);
+      if (!encrypted) continue;
+      const { error: updateError } = await db
+        .from('worker_profiles')
+        .update({ aadhaar_number: encrypted })
+        .eq('id', row.id);
+      if (updateError) throw new Error(updateError.message);
+      updated += 1;
+    } catch (rowError) {
+      console.warn(`[aadhaar] could not encrypt legacy row ${row.id}: ${rowError.message}`);
+    }
+  }
+
+  return { scanned: data?.length ?? 0, updated };
+}
+
+function aadhaarEncryptionKey() {
+  const raw = String(process.env.AADHAAR_ENCRYPTION_KEY || '').trim();
+  if (!raw) {
+    throw new Error('AADHAAR_ENCRYPTION_KEY is required to store Aadhaar numbers');
+  }
+
+  // Accept a 64-char hex key, a 32-byte base64 key, or any long passphrase
+  // (hashed to 32 bytes). Generate one with:
+  //   node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+  let key;
+  if (/^[0-9a-f]{64}$/i.test(raw)) {
+    key = Buffer.from(raw, 'hex');
+  } else {
+    const decoded = Buffer.from(raw, 'base64');
+    key = decoded.length === AADHAAR_KEY_BYTES ? decoded : createHash('sha256').update(raw).digest();
+  }
+
+  if (key.length !== AADHAAR_KEY_BYTES) {
+    throw new Error('AADHAAR_ENCRYPTION_KEY must resolve to exactly 32 bytes');
+  }
+  return key;
+}
+
+/** Encrypt a validated 12-digit Aadhaar number for storage. */
+export function encryptAadhaarNumber(value) {
+  const digits = normalizeAadhaarNumber(value);
+  if (!digits) return null;
+
+  const iv = randomBytes(12);
+  const cipher = createCipheriv('aes-256-gcm', aadhaarEncryptionKey(), iv);
+  const ciphertext = Buffer.concat([cipher.update(digits, 'utf8'), cipher.final()]);
+  const tag = cipher.getAuthTag();
+
+  return (
+    AADHAAR_CIPHERTEXT_PREFIX +
+    [iv.toString('base64'), tag.toString('base64'), ciphertext.toString('base64')].join('.')
+  );
+}
+
+/**
+ * Decrypt an Aadhaar ciphertext for an authorised admin/owner response.
+ * Legacy plaintext rows (written before encryption) are still readable so the
+ * admin panel keeps working until they are re-saved.
+ */
+export function decryptAadhaarNumber(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return null;
+
+  if (!raw.startsWith(AADHAAR_CIPHERTEXT_PREFIX)) {
+    return /^\d{12}$/.test(raw) ? raw : null;
+  }
+
+  const parts = raw.slice(AADHAAR_CIPHERTEXT_PREFIX.length).split('.');
+  if (parts.length !== 3) return null;
+
+  const [ivPart, tagPart, dataPart] = parts;
+  const key = aadhaarEncryptionKey();
+
+  try {
+    const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(ivPart, 'base64'));
+    decipher.setAuthTag(Buffer.from(tagPart, 'base64'));
+    const plaintext = Buffer.concat([
+      decipher.update(Buffer.from(dataPart, 'base64')),
+      decipher.final(),
+    ]).toString('utf8');
+    return /^\d{12}$/.test(plaintext) ? plaintext : null;
+  } catch {
+    // Wrong key or tampered ciphertext — never leak partial data.
+    return null;
+  }
+}
 
 /** Firebase/Telecom styles -> the 10-digit Indian format stored in Postgres. */
 export function normalizeIndianPhone(value) {
@@ -58,7 +186,7 @@ function asNumber(value) {
 export async function getOrCreateUserByAuthId(authUserId, phone, name) {
   const { data: existing, error } = await db
     .from('users')
-    .select('*')
+    .select(USER_COLUMNS)
     .eq('auth_user_id', authUserId)
     .maybeSingle();
 
@@ -72,7 +200,7 @@ export async function getOrCreateUserByAuthId(authUserId, phone, name) {
         .from('users')
         .update({ name: cleanName })
         .eq('id', existing.id)
-        .select('*')
+        .select(USER_COLUMNS)
         .single();
       if (updateError) throw new Error(updateError.message);
       return updated;
@@ -92,7 +220,7 @@ export async function getOrCreateUserByAuthId(authUserId, phone, name) {
       name: cleanName.length >= 2 ? cleanName : 'User',
       role: 'employer',
     })
-    .select('*')
+    .select(USER_COLUMNS)
     .single();
 
   if (insertError) throw new Error(insertError.message);
@@ -251,7 +379,8 @@ export async function upsertWorkerProfile(userId, input = {}) {
         is_approved: false,
         verification_status: 'pending',
         ...(input.aadhaarPhotoPath ? { aadhaar_photo_path: input.aadhaarPhotoPath } : {}),
-        ...(aadhaarNumber ? { aadhaar_number: aadhaarNumber } : {}),
+        // Encrypt at rest — never store the raw Aadhaar number in Postgres.
+        ...(aadhaarNumber ? { aadhaar_number: encryptAadhaarNumber(aadhaarNumber) } : {}),
         ...(Array.isArray(input.workPhotoUrls) && input.workPhotoUrls.length
           ? { portfolio: input.workPhotoUrls }
           : {}),
@@ -259,7 +388,14 @@ export async function upsertWorkerProfile(userId, input = {}) {
       },
       { onConflict: 'user_id' },
     )
-    .select('*')
+    // Explicit safe columns: never return aadhaar_number, aadhaar_photo_path,
+    // admin_notes or other review-only fields to the client.
+    .select(
+      'id, user_id, skills, experience, description, hourly_rate, availability, portfolio, ' +
+        'rating_average, rating_count, completed_jobs, total_jobs_completed, on_time_jobs, ' +
+        'customer_rating_avg, system_rating_score, service_areas, lat, lng, is_approved, ' +
+        'verification_status, created_at, updated_at',
+    )
     .single();
 
   if (error) throw new Error(error.message);
@@ -295,7 +431,8 @@ export async function upsertWorkerProfile(userId, input = {}) {
  * Update the editable profile fields of the signed-in user.
  * Only whitelisted columns are ever written.
  */
-export async function updateUser(userId, input = {}) {  const row = {};
+export async function updateUser(userId, input = {}) {
+  const row = {};
 
   if (typeof input.name === 'string' && input.name.trim().length >= 2) {
     row.name = input.name.trim();
@@ -311,7 +448,11 @@ export async function updateUser(userId, input = {}) {  const row = {};
   }
 
   if (Object.keys(row).length === 0) {
-    const { data, error } = await db.from('users').select('*').eq('id', userId).single();
+    const { data, error } = await db
+      .from('users')
+      .select(USER_COLUMNS)
+      .eq('id', userId)
+      .single();
     if (error) throw new Error(error.message);
     return data;
   }
@@ -320,7 +461,7 @@ export async function updateUser(userId, input = {}) {  const row = {};
     .from('users')
     .update(row)
     .eq('id', userId)
-    .select('*')
+    .select(USER_COLUMNS)
     .single();
 
   if (error) throw new Error(error.message);
@@ -340,17 +481,68 @@ export async function savePushToken(userId, token) {
 }
 
 /**
+ * Remove the user's uploaded files. Storage is part of the DPDP deletion, so
+ * a real storage error aborts the request (the caller can retry) instead of
+ * reporting success while an Aadhaar scan is left behind.
+ */
+async function removeAccountFiles(userId) {
+  const { data: aadhaarFiles, error: aadhaarListError } = await db.storage
+    .from('aadhaar-documents')
+    .list(userId);
+  if (aadhaarListError) {
+    throw new Error(`Could not list Aadhaar documents: ${aadhaarListError.message}`);
+  }
+  const aadhaarPaths = (aadhaarFiles ?? []).map((file) => `${userId}/${file.name}`);
+  if (aadhaarPaths.length > 0) {
+    const { error: aadhaarError } = await db.storage
+      .from('aadhaar-documents')
+      .remove(aadhaarPaths);
+    if (aadhaarError) {
+      throw new Error(`Could not delete Aadhaar documents: ${aadhaarError.message}`);
+    }
+  }
+
+  const { data: rootFiles, error: rootError } = await db.storage.from('avatars').list(userId);
+  if (rootError) {
+    throw new Error(`Could not list profile photos: ${rootError.message}`);
+  }
+
+  const avatarPaths = [];
+  if ((rootFiles ?? []).some((file) => file.name === 'profile')) {
+    avatarPaths.push(`${userId}/profile`);
+  }
+
+  if ((rootFiles ?? []).some((file) => file.name === 'work')) {
+    const { data: workFiles, error: workError } = await db.storage
+      .from('avatars')
+      .list(`${userId}/work`);
+    if (workError) {
+      throw new Error(`Could not list work photos: ${workError.message}`);
+    }
+    avatarPaths.push(...(workFiles ?? []).map((file) => `${userId}/work/${file.name}`));
+  }
+
+  if (avatarPaths.length > 0) {
+    const { error: avatarError } = await db.storage.from('avatars').remove(avatarPaths);
+    if (avatarError) {
+      throw new Error(`Could not delete profile photos: ${avatarError.message}`);
+    }
+  }
+}
+
+/**
  * Delete the signed-in user's account and everything it owns.
  * Play Store policy needs an in-app delete path; the privacy page promises it.
  *
  * Deletion order matters — child rows first, `users` last.
  * (All FKs are `on delete cascade`, but explicit order keeps behaviour stable
  * even if a constraint is ever relaxed.)
- *   1. reviews they wrote + reviews on their worker profile
- *   2. their worker profile (cascades their hire_requests + those reviews)
- *   3. hire_requests where they are the employer (cascades reviews + platform_feedback)
- *   4. reports for/against them + their platform_feedback
- *   5. the users row itself, then the SuperTokens identity so the number
+ *   1. uploaded Aadhaar / avatar / work photos
+ *   2. reviews they wrote + reviews on their worker profile
+ *   3. their worker profile (cascades their hire_requests + those reviews)
+ *   4. hire_requests where they are the employer (cascades reviews + platform_feedback)
+ *   5. reports for/against them + their platform_feedback
+ *   6. the users row itself, then the SuperTokens identity so the number
  *      can never sign back into a ghost row
  */
 export async function deleteUserAccount({ userId, authUserId }) {
@@ -360,6 +552,8 @@ export async function deleteUserAccount({ userId, authUserId }) {
     .eq('user_id', userId)
     .maybeSingle();
   const workerProfileId = workerProfile?.id ?? null;
+
+  await removeAccountFiles(userId);
 
   // Reviews they wrote (as an employer/customer).
   {
@@ -407,13 +601,16 @@ export async function deleteUserAccount({ userId, authUserId }) {
     if (error) throw new Error(error.message);
   }
 
-  // The SuperTokens identity, so the number signs up fresh afterwards.
+  // The SuperTokens identity, so the number signs up fresh afterwards. This is
+  // best-effort: the profile data is already gone, and failing the API here
+  // would leave the app thinking deletion failed while the account no longer
+  // exists. A leftover identity only means the phone can create a fresh row.
   try {
     const { default: supertokens } = await import('supertokens-node');
     if (authUserId) {
       await supertokens.deleteUser(authUserId);
     }
   } catch (error) {
-    throw new Error(`Account rows deleted, but SuperTokens cleanup failed: ${error.message}`);
+    console.warn(`[delete] SuperTokens cleanup failed for ${authUserId}: ${error.message}`);
   }
 }

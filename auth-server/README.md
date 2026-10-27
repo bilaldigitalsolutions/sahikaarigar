@@ -72,8 +72,10 @@ The `/auth/*` paths are managed by SuperTokens — call them with the
 ## Environment
 
 See `.env.example`. Required: `SUPERTOKENS_CONNECTION_URI`, `SUPABASE_URL`,
-`SUPABASE_SERVICE_ROLE_KEY`. In production also set `API_DOMAIN`,
-`WEBSITE_DOMAIN` (the `https://sahi-kaarigar.web.app` origin) and an API key.
+`SUPABASE_SERVICE_ROLE_KEY`. Worker registration also requires
+`AADHAAR_ENCRYPTION_KEY` (AES-256-GCM key for Aadhaar at rest). In production
+also set `API_DOMAIN`, `WEBSITE_DOMAIN` (the `https://sahi-kaarigar.web.app`
+origin) and an API key.
 
 ## Deploying
 
@@ -87,6 +89,9 @@ server is a normal Express app — `npm start` with the env vars set.
 
 - `SUPABASE_SERVICE_ROLE_KEY` bypasses RLS — it must only ever live in this
   server's environment, never in the browser bundle.
+- `AADHAAR_ENCRYPTION_KEY` encrypts Aadhaar numbers at rest with AES-256-GCM.
+  Keep it stable; changing it makes existing Aadhaar ciphertext unreadable.
+  Plaintext rows are re-encrypted automatically on the next server start.
 - Sessions are HTTP-only cookies; the frontend sends `credentials: 'include'`.
 - Every database write goes through this server, exactly like the edge function
   it replaces.

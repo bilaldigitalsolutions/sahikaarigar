@@ -106,7 +106,7 @@ export function mapWorkerProfile(row: Row): WorkerProfile {
     lat: toNumberOrNull(row.lat),
     lng: toNumberOrNull(row.lng),
     isApproved: row.is_approved === true,
-    adminNotes: toTextOrNull(row.admin_notes),
+    // admin_notes is staff-only and must never be part of a public worker DTO.
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
   };

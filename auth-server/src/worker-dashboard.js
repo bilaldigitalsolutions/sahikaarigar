@@ -11,14 +11,28 @@
 // without creating a cycle between them.
 // =============================================================================
 
-import { db, normalizeAadhaarNumber, uploadWorkerImages } from './users.js';
-import { mapWorker } from './workers.js';
+import {
+  db,
+  decryptAadhaarNumber,
+  encryptAadhaarNumber,
+  normalizeAadhaarNumber,
+  uploadWorkerImages,
+} from './users.js';
+import { mapWorker, WORKER_PUBLIC_SELECT } from './workers.js';
 import { mapHire, HIRE_SELECT } from './hires.js';
 
-/** Same projection the public worker endpoints use (includes the owner's user row).
- *  `!user_id` pins the FK explicitly so PostgREST never guesses the join path. */
-const WORKER_WITH_USER =
-  '*, user:users!user_id(id, name, avatar, phone, location_area, location_city, is_verified, trust_score)';
+/**
+ * Owner-only projection. It adds private fields the owner may see (exact
+ * coordinates, encrypted Aadhaar, verification state) while still avoiding
+ * admin-only columns such as `admin_notes` / `rejection_reason`.
+ * `!user_id` pins the FK explicitly so PostgREST never guesses the join path.
+ */
+const WORKER_OWNER_SELECT =
+  'id, user_id, skills, experience, description, hourly_rate, availability, portfolio, ' +
+  'rating_average, rating_count, completed_jobs, total_jobs_completed, on_time_jobs, ' +
+  'customer_rating_avg, system_rating_score, service_areas, lat, lng, is_approved, ' +
+  'verification_status, aadhaar_number, created_at, ' +
+  'user:users!user_id(id, name, avatar, phone, location_area, location_city, is_verified, trust_score)';
 
 /** Values allowed by the `worker_profiles_availability` check constraint. */
 const AVAILABILITY_VALUES = ['available', 'busy', 'offline'];
@@ -38,9 +52,15 @@ const COMPLETED_LIMIT = 10;
 export function mapOwnWorker(row) {
   if (!row) return null;
   const base = mapWorker(row);
-  const aadhaar = row.aadhaar_number ?? null;
+  // Decrypt only for the owner's masked display; the raw number never leaves
+  // the server. Legacy plaintext rows are handled by decryptAadhaarNumber().
+  const aadhaar = decryptAadhaarNumber(row.aadhaar_number);
   return {
     ...base,
+    // Private-only fields for the owner. The public mapWorker() deliberately
+    // omits exact coordinates so they never leak from public worker endpoints.
+    lat: row.lat ?? null,
+    lng: row.lng ?? null,
     aadhaarOnFile: Boolean(aadhaar),
     aadhaarMasked: aadhaar ? `XXXX XXXX ${String(aadhaar).slice(-4)}` : null,
     verificationStatus: row.verification_status ?? null,
@@ -56,7 +76,7 @@ export function mapOwnWorker(row) {
 export async function getOwnWorkerProfile(userId) {
   const { data, error } = await db
     .from('worker_profiles')
-    .select(WORKER_WITH_USER)
+    .select(WORKER_OWNER_SELECT)
     .eq('user_id', userId)
     .maybeSingle();
 
@@ -110,7 +130,7 @@ export async function updateOwnWorkerProfile(userId, input = {}) {
       throw new Error('Aadhaar number pehle se submit ho chuka hai — use badla nahi ja sakta');
     }
     const aadhaarNumber = normalizeAadhaarNumber(input.aadhaarNumber);
-    if (aadhaarNumber) row.aadhaar_number = aadhaarNumber;
+    if (aadhaarNumber) row.aadhaar_number = encryptAadhaarNumber(aadhaarNumber);
   }
 
   if (input.skills !== undefined) {
@@ -172,7 +192,7 @@ export async function updateOwnWorkerProfile(userId, input = {}) {
     // Photo-only update — nothing to write on the worker_profiles row.
     const { data: existing, error: existingError } = await db
       .from('worker_profiles')
-      .select(WORKER_WITH_USER)
+      .select(WORKER_OWNER_SELECT)
       .eq('user_id', userId)
       .maybeSingle();
     if (existingError) throw new Error(existingError.message);
@@ -184,7 +204,7 @@ export async function updateOwnWorkerProfile(userId, input = {}) {
     .from('worker_profiles')
     .update(row)
     .eq('user_id', userId)
-    .select(WORKER_WITH_USER)
+    .select(WORKER_OWNER_SELECT)
     .maybeSingle();
 
   if (error) throw new Error(error.message);
@@ -207,7 +227,7 @@ export async function setWorkerAvailability(userId, availability) {
     .from('worker_profiles')
     .update({ availability: value })
     .eq('user_id', userId)
-    .select(WORKER_WITH_USER)
+    .select(WORKER_PUBLIC_SELECT)
     .maybeSingle();
 
   if (error) throw new Error(error.message);
@@ -222,7 +242,7 @@ export async function setWorkerAvailability(userId, availability) {
 export async function getWorkerDashboard(userId) {
   const { data: profile, error } = await db
     .from('worker_profiles')
-    .select(WORKER_WITH_USER)
+    .select(WORKER_PUBLIC_SELECT)
     .eq('user_id', userId)
     .maybeSingle();
 

@@ -27,6 +27,7 @@ import {
   updateUser,
   savePushToken,
   deleteUserAccount,
+  encryptLegacyAadhaarNumbers,
   normalizeIndianPhone,
   isValidIndianPhone,
 } from './users.js';
@@ -1086,4 +1087,12 @@ app.listen(PORT, () => {
   console.log(`  SMS provider : ${resolveSmsProvider()}`);
   console.log(`  Core         : ${process.env.SUPERTOKENS_CONNECTION_URI}`);
   console.log(`  CORS origin  : ${WEBSITE_DOMAIN}\n`);
+
+  // Idempotent: encrypt any Aadhaar rows created before encryption was added.
+  // Fire-and-forget so a slow database can never block the health check.
+  void encryptLegacyAadhaarNumbers()
+    .then(({ scanned, updated }) => {
+      if (scanned > 0) console.log(`[aadhaar] legacy rows scanned=${scanned} encrypted=${updated}`);
+    })
+    .catch((error) => console.warn(`[aadhaar] legacy backfill failed: ${error.message}`));
 });

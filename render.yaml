@@ -45,6 +45,11 @@ services:
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
+      # AES-256-GCM key for Aadhaar at rest. Generate once with:
+      #   node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+      # Changing it makes existing Aadhaar ciphertext unreadable.
+      - key: AADHAAR_ENCRYPTION_KEY
+        sync: false
       - key: ADMIN_EMAIL
         sync: false
       - key: ADMIN_PASSWORD

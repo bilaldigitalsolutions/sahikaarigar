@@ -8,8 +8,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getLocation } from '@/lib/storage';
 import { colors, fontSize, fontWeight, radius, shadows, spacing } from '@/theme';
 import { formatPhone } from '@/utils';
-import { deleteAccount } from '@/lib/api';
-import { useEffect, useRef, useState } from 'react';
+import { deleteUserAccount } from '@/lib/api';
+import { useEffect, useState } from 'react';
 
 const ROLE_LABEL: Record<string, string> = {
   worker: 'Kaarigar',
@@ -71,25 +71,31 @@ export default function ProfileScreen() {
   const needsName = !user.name || user.name.trim().length < 2 || user.name === 'User';
   const displayName = needsName ? '' : user.name;
 
-  /** Two-step in-app delete (Play policy). Server wipes the rows; the local
-   *  session is cleared no matter what the network said. */
+  /** DPDP / Play policy in-app deletion. The server removes the database
+   *  rows and uploaded documents; only then do we clear the local session and
+   *  send the user back to login. */
   const onDeleteAccount = () => {
     Alert.alert(
-      'Delete account?',
-      'Ye permanent hai: aapki profile, bookings, reviews aur worker profile hamesha ke liye delete ho jayenge.',
+      'Delete Account',
+      'Are you sure you want to delete your account? This will permanently delete all your data.',
       [
-        { text: 'Ruko', style: 'cancel' },
+        { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Delete karo',
+          text: 'Delete',
           style: 'destructive',
           onPress: async () => {
             try {
-              await deleteAccount();
-            } catch {
-              // ignore — sign out locally anyway so a failed request
-              // never leaves the user stranded inside a dead account
+              await deleteUserAccount();
+            } catch (e) {
+              Alert.alert(
+                'Delete failed',
+                e instanceof Error ? e.message : 'Could not delete your account. Please try again.',
+              );
+              return;
             }
-            await signOut();
+            // The account is gone; clear the local session even if the
+            // server-side session revoke itself fails.
+            await signOut('/(auth)/login').catch(() => {});
           },
         },
       ],
@@ -182,6 +188,13 @@ export default function ProfileScreen() {
         variant="secondary"
         onPress={onSignOut}
         style={styles.signOut}
+      />
+
+      <Button
+        label="Delete Account"
+        variant="danger"
+        onPress={onDeleteAccount}
+        style={styles.deleteBtn}
       />
 
       <Text style={styles.legalNote}>
@@ -328,13 +341,6 @@ export default function ProfileScreen() {
           </Pressable>
         </View>
       </Modal>
-
-      <Button
-        label="Delete Account"
-        variant="danger"
-        onPress={onDeleteAccount}
-        style={styles.deleteBtn}
-      />
     </Screen>
   );
 }
@@ -566,5 +572,5 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 1,
   },
-  deleteBtn: { marginTop: spacing.lg },
+  deleteBtn: { marginTop: spacing.sm },
 });

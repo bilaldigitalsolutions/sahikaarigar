@@ -41,7 +41,11 @@ interface AuthContextValue {
   /** Verifies the OTP and resolves the fresh backend user (for smart routing). */
   confirmOtp: (code: string) => Promise<User>;
   resend: () => Promise<void>;
-  signOut: () => Promise<void>;
+  /**
+   * Clear the stored session and reset navigation. Defaults to the public
+   * welcome screen; account deletion lands directly on the login screen.
+   */
+  signOut: (redirectTo?: '/welcome' | '/(auth)/login') => Promise<void>;
   refreshUser: () => Promise<void>;
   resetOtpFlow: () => void;
 }
@@ -163,26 +167,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const signOut = useCallback(async () => {
-    try {
-      await logoutSession();
-    } finally {
-      setDemoMode(false);
-      setIsDemo(false);
-      setUser(null);
-      setPendingPhone(null);
-      setDevOtp(null);
-      nameRef.current = null;
-      challengeRef.current = null;
+  const signOut = useCallback(
+    async (redirectTo: '/welcome' | '/(auth)/login' = '/welcome') => {
+      try {
+        await logoutSession();
+      } finally {
+        setDemoMode(false);
+        setIsDemo(false);
+        setUser(null);
+        setPendingPhone(null);
+        setDevOtp(null);
+        nameRef.current = null;
+        challengeRef.current = null;
 
-      // Hard reset the navigation stack: pop every screen the signed-in
-      // session pushed (modals, hire flow, nested tabs), then replace the
-      // root route with the public landing screen. Otherwise Android's
-      // hardware Back reopens the signed-in screens underneath.
-      if (router.canDismiss()) router.dismissAll();
-      router.replace('/welcome');
-    }
-  }, [router]);
+        // Hard reset the navigation stack: pop every screen the signed-in
+        // session pushed (modals, hire flow, nested tabs), then replace the
+        // root route with the public landing screen. Otherwise Android's
+        // hardware Back reopens the signed-in screens underneath.
+        if (router.canDismiss()) router.dismissAll();
+        router.replace(redirectTo);
+      }
+    },
+    [router],
+  );
 
   const refreshUser = useCallback(async () => {
     try {

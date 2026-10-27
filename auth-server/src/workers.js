@@ -8,12 +8,16 @@
 
 import { db } from './users.js';
 
-// Everything the public is allowed to see about a worker — NO phone number.
-// Public profiles must never leak contact details: the number only travels
-// via GET /hires/:id, and only once the booking is accepted. `!user_id` pins
-// the FK explicitly so PostgREST never has to guess the join path.
-const WORKER_WITH_USER =
-  '*, user:users!user_id(id, name, avatar, location_area, location_city, is_verified, trust_score)';
+// Everything the public is allowed to see about a worker — NO phone number,
+// NO Aadhaar data, NO admin notes and NO exact coordinates. Selecting explicit
+// columns (instead of `*`) means sensitive fields are never even fetched by
+// the public endpoints. `!user_id` pins the FK explicitly so PostgREST never
+// has to guess the join path.
+export const WORKER_PUBLIC_SELECT =
+  'id, user_id, skills, experience, description, hourly_rate, availability, portfolio, ' +
+  'rating_average, rating_count, completed_jobs, total_jobs_completed, on_time_jobs, ' +
+  'customer_rating_avg, system_rating_score, service_areas, is_approved, created_at, ' +
+  'user:users!user_id(id, name, avatar, location_area, location_city, is_verified, trust_score)';
 
 function mapPublicUser(row) {
   if (!row) return null;
@@ -72,8 +76,9 @@ export function mapWorker(row) {
     systemRatingScore,
     badge: getWorkerBadge({ systemRatingScore }),
     serviceAreas: row.service_areas ?? [],
-    lat: row.lat ?? null,
-    lng: row.lng ?? null,
+    // Exact coordinates are private: they can reveal a worker's home. Public
+    // clients only get area-level location. The owner's own coordinates are
+    // added back by mapOwnWorker() in worker-dashboard.js.
     isApproved: row.is_approved ?? false,
     createdAt: row.created_at ?? null,
     user: mapPublicUser(row.user),
@@ -88,7 +93,7 @@ export async function searchWorkers({ skill, area, page = 1, limit = 20 } = {}) 
 
   let query = db
     .from('worker_profiles')
-    .select(WORKER_WITH_USER, { count: 'exact' })
+    .select(WORKER_PUBLIC_SELECT, { count: 'exact' })
     .eq('is_approved', true)
     .eq('availability', 'available')
     .order('rating_average', { ascending: false })
@@ -113,7 +118,7 @@ export async function searchWorkers({ skill, area, page = 1, limit = 20 } = {}) 
 export async function getWorkerById(profileId) {
   const { data, error } = await db
     .from('worker_profiles')
-    .select(WORKER_WITH_USER)
+    .select(WORKER_PUBLIC_SELECT)
     .eq('id', profileId)
     .maybeSingle();
 

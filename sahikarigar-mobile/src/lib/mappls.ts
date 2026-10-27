@@ -126,13 +126,16 @@ export async function mapplsAutosuggest(
  * Mappls' autosuggest response does not include lat/lng, so we resolve it here
  * when the caller needs coordinates.
  */
-export async function mapplsGeocode(address: string): Promise<{ lat?: number; lng?: number }> {
+export async function mapplsGeocode(
+  address: string,
+  signal?: AbortSignal,
+): Promise<{ lat?: number; lng?: number }> {
   const token = await getMapplsToken();
   if (!token) return {};
 
   const url = `${GEOCODE_URL}?address=${encodeURIComponent(address.trim())}&access_token=${encodeURIComponent(token)}`;
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, { signal });
     if (!res.ok) return {};
     const data = (await res.json()) as GeocodeResponse;
     const first = data.results?.[0];

@@ -131,63 +131,65 @@ export function LocationPicker({
       return;
     }
 
-    // Remote fetch with strict 3-second timeout.
-    // Show spinner only if there are no local results to display yet.
-    setLoading(localResults.length === 0);
+    // Remote fetch — debounced so we don't hit the API on every keystroke.
+    const debounceId = setTimeout(() => {
+      // Show spinner only if there are no local results to display yet.
+      setLoading(localResults.length === 0);
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
 
-    let active = true;
-    (async () => {
-      const remote: PickerItem[] = [];
-      try {
-        if (mapplsEnabled) {
-          remote.push(...(await mapplsAutosuggest(q, deviceBias, controller.signal)));
-        } else if (googleEnabled) {
-          const url =
-            'https://maps.googleapis.com/maps/api/place/autocomplete/json' +
-            `?input=${encodeURIComponent(q)}&components=country:in&language=en&key=${GOOGLE_MAPS_API_KEY}`;
-          const res = await fetch(url, { signal: controller.signal });
-          const data = (await res.json()) as AutocompleteResponse;
-          remote.push(...(data.predictions ?? []).map((p) => ({
-            description: p.description,
-            placeId: p.place_id,
-          })));
+      let active = true;
+      (async () => {
+        const remote: PickerItem[] = [];
+        try {
+          if (mapplsEnabled) {
+            remote.push(...(await mapplsAutosuggest(q, deviceBias, controller.signal)));
+          } else if (googleEnabled) {
+            const url =
+              'https://maps.googleapis.com/maps/api/place/autocomplete/json' +
+              `?input=${encodeURIComponent(q)}&components=country:in&language=en&key=${GOOGLE_MAPS_API_KEY}`;
+            const res = await fetch(url, { signal: controller.signal });
+            const data = (await res.json()) as AutocompleteResponse;
+            remote.push(...(data.predictions ?? []).map((p) => ({
+              description: p.description,
+              placeId: p.place_id,
+            })));
+          }
+
+          if (remote.length === 0) {
+            remote.push(...(await photonAutosuggest(q, deviceBias, controller.signal)));
+          }
+        } catch {
+          // Slow/failing provider is silent — local list already visible.
         }
+
+        if (!active) return;
+
+        clearTimeout(timeoutId);
+        setLoading(false);
+
+        if (queryRef.current !== q) return;
 
         if (remote.length === 0) {
-          remote.push(...(await photonAutosuggest(q, deviceBias, controller.signal)));
+          // Remote failed or timed out — keep local results, show fallback hint
+          // so the user knows they are seeing saved Hyderabad areas.
+          setResults(localResults);
+          setError(FALLBACK_HINT);
+          return;
         }
-      } catch {
-        // Slow/failing provider is silent — local list already visible.
-      }
 
-      if (!active) return;
-
-      clearTimeout(timeoutId);
-      setLoading(false);
-
-      if (queryRef.current !== q) return;
-
-      if (remote.length === 0) {
-        // Remote failed or timed out — keep local results, no error shown.
-        setResults(localResults);
+        const merged: PickerItem[] = [...localResults];
+        for (const r of remote) {
+          if (!merged.some((m) => m.description === r.description)) merged.push(r);
+        }
+        setResults(merged);
         setError(null);
-        return;
-      }
-
-      const merged: PickerItem[] = [...localResults];
-      for (const r of remote) {
-        if (!merged.some((m) => m.description === r.description)) merged.push(r);
-      }
-      setResults(merged);
-      setError(null);
-    })();
+      })();
+    }, 300);
 
     return () => {
-      active = false;
-      clearTimeout(timeoutId);
+      clearTimeout(debounceId);
     };
   }, [query, open, localResults, deviceBias, googleEnabled]);
 
@@ -206,10 +208,18 @@ export function LocationPicker({
     if (place.lat == null && place.lng == null) {
       if (mapplsEnabled) {
         // Mappls autosuggest doesn't return coordinates — resolve them (best effort).
+        // 3-second timeout so a slow geocode can't hang the picker.
+        const geoController = new AbortController();
+        const geoTimeout = setTimeout(() => geoController.abort(), 3000);
         try {
-          place = { ...place, ...(await mapplsGeocode(item.description)) };
+          place = {
+            ...place,
+            ...(await mapplsGeocode(item.description, geoController.signal)),
+          };
         } catch {
-          // Geocode failed — keep the autocomplete description, lat/lng stay null.
+          // Geocode failed/timed out — keep the autocomplete description, lat/lng stay null.
+        } finally {
+          clearTimeout(geoTimeout);
         }
       } else if (googleEnabled && item.placeId) {
         try {
@@ -476,8 +486,8 @@ const styles = StyleSheet.create({
     fontWeight: fontWeight.medium,
     color: colors.primaryDark,
   },
-  list: { marginTop: spacing.sm, flexShrink: 1 },
-  listContent: { paddingBottom: spacing.xs },
+  list: { marginTop: spacing.sm, flex: 1, flexShrink: 1 },
+  listContent: { paddingBottom: spacing.xs, flexGrow: 1 },
   option: {
     flexDirection: 'row',
     alignItems: 'center',

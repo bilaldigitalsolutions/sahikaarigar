@@ -39,7 +39,11 @@ export function isValidIndianPhone(phone) {
 
 function asStringArray(value) {
   if (!Array.isArray(value)) return [];
-  return value.map((item) => String(item).trim().toLowerCase()).filter(Boolean);
+  // De-dupe so a double-tapped chip can never be stored twice while keeping
+  // every distinct selected value.
+  return Array.from(
+    new Set(value.map((item) => String(item).trim().toLowerCase()).filter(Boolean)),
+  );
 }
 
 function asNumber(value) {

@@ -12,6 +12,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
+import { useEffect, useRef } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Input, LocationPicker, Select, type PlaceResult } from '@/components/ui';
@@ -84,12 +85,21 @@ export function WorkerProfileForm({
   const aadhaarPhotoMissing =
     requireAadhaarPhoto && (!values.aadhaarPhotoUri || !values.aadhaarPhotoDataUrl);
 
+  // Keep a synchronous mirror of the latest selection. Two chips tapped in the
+  // same frame would otherwise both read the same `values.skills` prop and the
+  // second patch would overwrite the first — making multi-select look broken.
+  const skillsRef = useRef<string[]>(values.skills);
+  useEffect(() => {
+    skillsRef.current = values.skills;
+  }, [values.skills]);
+
   const toggleSkill = (id: string) => {
-    onChange({
-      skills: values.skills.includes(id)
-        ? values.skills.filter((s) => s !== id)
-        : [...values.skills, id],
-    });
+    const current = skillsRef.current;
+    const next = current.includes(id)
+      ? current.filter((skill) => skill !== id)
+      : [...current, id];
+    skillsRef.current = next;
+    onChange({ skills: next });
   };
 
   // ---- Photos --------------------------------------------------------------
@@ -230,8 +240,8 @@ export function WorkerProfileForm({
                 key={chip.id}
                 style={[styles.chip, selected && styles.chipSelected]}
                 onPress={() => toggleSkill(chip.id)}
-                accessibilityRole="button"
-                accessibilityState={{ selected }}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: selected }}
               >
                 <Text
                   style={[
@@ -245,7 +255,11 @@ export function WorkerProfileForm({
             );
           })}
         </View>
-        <Text style={styles.hint}>Ek se zyada skill chun sakte ho.</Text>
+        <Text style={styles.hint}>
+          {values.skills.length > 0
+            ? `${values.skills.length} selected — ek se zyada skill chun sakte ho.`
+            : 'Ek se zyada skill chun sakte ho.'}
+        </Text>
       </View>
 
       {/* ---- Experience ---- */}

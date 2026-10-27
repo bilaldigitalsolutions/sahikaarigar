@@ -65,6 +65,12 @@ export default function RegisterWorkerScreen() {
   const patch = (p: Partial<WorkerProfileFormValues>) =>
     setValues((prev) => ({ ...prev, ...p }));
 
+  // The exact skill list we validate and submit. Trimming plus de-duping here
+  // means every selected chip reaches the API, in the order it was tapped.
+  const selectedSkills = Array.from(
+    new Set(values.skills.map((skill) => skill.trim()).filter(Boolean)),
+  );
+
   // Keep the button disabled until every required field is valid. Aadhaar is
   // mandatory for new worker registrations, including the card photo.
   const aadhaarDigits = values.aadhaar.replace(/\D/g, '');
@@ -83,7 +89,7 @@ export default function RegisterWorkerScreen() {
   const submitDisabled =
     !user ||
     values.name.trim().length < VALIDATION.NAME_MIN_LENGTH ||
-    values.skills.length === 0 ||
+    selectedSkills.length === 0 ||
     !experienceValid ||
     !values.area ||
     !aadhaarValid ||
@@ -105,7 +111,7 @@ export default function RegisterWorkerScreen() {
       setError('Enter your full name.');
       return;
     }
-    if (values.skills.length === 0) {
+    if (selectedSkills.length === 0) {
       setError('Select at least one skill.');
       return;
     }
@@ -149,7 +155,7 @@ export default function RegisterWorkerScreen() {
       await registerWorker({
         name: values.name.trim(),
         profile: {
-          skills: values.skills,
+          skills: selectedSkills,
           experience: experienceValue,
           hourlyRate: rateValue,
           serviceAreas: [values.area as string],

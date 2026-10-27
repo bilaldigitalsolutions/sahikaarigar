@@ -5,7 +5,7 @@
 // is a single env var (`SMS_PROVIDER`) because every adapter below exposes the
 // same `({ phone, otp })` signature.
 //
-//   console         dev only — prints the OTP, sends nothing, costs nothing
+//   console         disabled — fails closed; never prints or returns the OTP
 //   startmessaging  India, DLT-FREE SMS OTP (~Rs.0.25/OTP) — accepts our own code
 //   msg91           India, cheapest, needs DLT registration
 //   fast2sms        India, cheap (~Rs.0.25/SMS). Smart-OTP SMS needs DLT;
@@ -41,8 +41,13 @@ export function buildMessage(otp, appName = process.env.APP_NAME || 'SahiKaariga
 // -----------------------------------------------------------------------------
 
 const providers = {
-  async console({ phone, otp }) {
-    console.log(`\n[SMS:console] OTP for +91${phone} -> ${otp}\n`);
+  async console() {
+    // Never log or return the OTP. A misconfigured deployment must fail closed
+    // instead of silently "succeeding" with a code that nobody can receive.
+    throw new Error(
+      'SMS provider is not configured. Set SMS_PROVIDER and its credentials; ' +
+        'OTPs are never printed to the server log.',
+    );
   },
 
   async msg91({ phone, otp }) {
@@ -231,9 +236,9 @@ export function isSmsProviderConfigured(name) {
  * keep in sync (and no Blueprint sync to fight with).
  *
  * A provider that is selected but NOT configured (e.g. `SMS_PROVIDER=fast2sms`
- * with no `FAST2SMS_API_KEY` on the host) falls back to `console` with a loud
- * warning, instead of throwing `<KEY> is not set` on every OTP request — that
- * used to make the whole sign-in / hire flow unusable.
+ * with no `FAST2SMS_API_KEY` on the host) falls back to the disabled `console`
+ * provider with a loud warning. OTP delivery then fails closed instead of
+ * leaking the code to the logs.
  */
 export function resolveSmsProvider() {
   const explicit = (process.env.SMS_PROVIDER || '').trim().toLowerCase();
@@ -243,7 +248,7 @@ export function resolveSmsProvider() {
     console.warn(
       `[sms] SMS_PROVIDER="${explicit}" is set but ${(REQUIRED_ENV[explicit] || ['its credentials']).join(
         ' + ',
-      )} is missing — falling back to "console" (OTP goes to the logs). ` +
+      )} is missing — falling back to "console" (OTP delivery is disabled). ` +
         'Add the key in the host dashboard to switch to real SMS.',
     );
     return 'console';

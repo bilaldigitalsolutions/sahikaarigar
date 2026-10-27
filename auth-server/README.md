@@ -23,8 +23,9 @@ copy .env.example .env      # Windows   (cp on macOS/Linux)
 npm start
 ```
 
-With `SMS_PROVIDER=console` the OTP is simply **printed in the terminal** — no
-SMS account, no card, no cost. Perfect for building and testing the whole flow.
+`SMS_PROVIDER=console` is a fail-closed placeholder: it never prints or returns
+the OTP. Configure a real SMS provider (or a provider sandbox) in `.env` to
+receive login codes; there is no console fallback.
 
 You still need a SuperTokens Core. Easiest:
 

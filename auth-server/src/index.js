@@ -1,7 +1,7 @@
 // =============================================================================
 // SahiKaarigar auth-server — SuperTokens (passwordless phone OTP) + Express
 // =============================================================================
-//   npm install && cp .env.example .env && npm start        (SMS_PROVIDER=console)
+//   npm install && cp .env.example .env && npm start        (configure a real SMS provider)
 //
 // Endpoints
 //   /auth/*            SuperTokens managed (createCode, signinup/code/consume, ...)
@@ -133,28 +133,7 @@ supertokens.init({
             if (!otp) throw new Error('SuperTokens did not supply an OTP to deliver');
             if (!phone) throw new Error('SuperTokens did not supply a phone number to deliver to');
 
-            // Stashed on the request's userContext so createCodePOST below can
-            // echo it back when no real SMS provider is configured (dev only).
-            if (input?.userContext) input.userContext.devOtp = otp;
-
             await sendOtpSms({ phone, otp });
-          },
-        }),
-      },
-      // Dev convenience: with no SMS provider configured the OTP only reaches
-      // the server logs, so we also return it in the createCode response and the
-      // app shows / auto-fills it (see OtpVerifier). As soon as a real provider
-      // is configured (see src/sms.js) the code never leaves the server.
-      override: {
-        apis: (originalImplementation) => ({
-          ...originalImplementation,
-          createCodePOST: async (input) => {
-            const response = await originalImplementation.createCodePOST(input);
-            if (response?.status === 'OK' && resolveSmsProvider() === 'console') {
-              const devOtp = input?.userContext?.devOtp;
-              if (devOtp) return { ...response, userInputCode: String(devOtp) };
-            }
-            return response;
           },
         }),
       },
@@ -213,42 +192,95 @@ app.use(
 );
 
 // ---------------------------------------------------------------------------
-// Rate limiting for login OTP — prevents SMS bombing
-// Max 3 requests per minute per IP+phone combination.
-// In-memory map is fine here: SMS bombing is a real-time attack, and a
-// redeploy resetting the counter is acceptable. (Start-work OTP rate limiting
-// uses the persistent `rate_limits` table in hires.js.)
+// Rate limiting for login OTP.
+//
+// Two separate budgets:
+//   * code creation/resend — 3 per minute per IP + phone (SMS bombing)
+//   * code verification  — 5 per 5 minutes per preAuthSessionId + deviceId
+//                          (brute-force protection; rotating IP/phone does not
+//                          reset the attempt budget for a challenge)
+//
+// In-memory maps are fine here: both attacks are real-time, and a redeploy
+// resetting the counters is acceptable. (Start-work OTP rate limiting uses the
+// persistent `rate_limits` table in hires.js.)
 // ---------------------------------------------------------------------------
 const LOGIN_OTP_MAX_ATTEMPTS = 3;
 const LOGIN_OTP_WINDOW_MS = 60_000;
 const loginOtpAttempts = new Map();
 
-app.use(
-  '/auth/signinup/code',
+const LOGIN_OTP_CONSUME_MAX_ATTEMPTS = 5;
+const LOGIN_OTP_CONSUME_WINDOW_MS = 5 * 60_000;
+const loginOtpConsumeAttempts = new Map();
+
+/** Add one attempt to a sliding-window bucket; false when the limit is hit. */
+function takeRateLimitSlot(store, key, maxAttempts, windowMs) {
+  const now = Date.now();
+  const recent = (store.get(key) ?? []).filter((t) => now - t < windowMs);
+
+  if (recent.length >= maxAttempts) {
+    store.set(key, recent);
+    return false;
+  }
+
+  recent.push(now);
+  store.set(key, recent);
+  return true;
+}
+
+// Exact POST routes only. `app.post` does not match `/consume` or any other
+// sub-path, so the old prefix-mounted limiter no longer covers verification.
+// `/resend` is included because it also sends an SMS and would otherwise allow
+// SMS bombing after the prefix limiter is removed.
+app.post(
+  ['/auth/signinup/code', '/auth/signinup/code/resend'],
   express.json({ limit: '15mb' }),
-  async (_req, res, next) => {
-    // Only POST requests create OTPs; GET/other methods pass through.
-    if (_req.method !== 'POST') return next();
-
-    const phone = _req.body?.phoneNumber || '';
-    const ip = _req.ip || _req.socket.remoteAddress || 'unknown';
+  (req, res, next) => {
+    const phone = String(req.body?.phoneNumber || '').slice(0, 20);
+    const ip = req.ip || req.socket.remoteAddress || 'unknown';
     const key = `login_otp:${ip}:${phone}`;
-    const now = Date.now();
 
-    let attempts = loginOtpAttempts.get(key) ?? [];
-    attempts = attempts.filter((t) => now - t < LOGIN_OTP_WINDOW_MS);
-
-    if (attempts.length >= LOGIN_OTP_MAX_ATTEMPTS) {
+    if (
+      !takeRateLimitSlot(loginOtpAttempts, key, LOGIN_OTP_MAX_ATTEMPTS, LOGIN_OTP_WINDOW_MS)
+    ) {
       return res.status(429).json({
         status: 'GENERAL_ERROR',
-        message:
-          'Bahut zyada OTP requests. Kripya 1 minute baad try karein.',
+        message: 'Bahut zyada OTP requests. Kripya 1 minute baad try karein.',
       });
     }
 
-    attempts.push(now);
-    loginOtpAttempts.set(key, attempts);
-    next();
+    return next();
+  },
+);
+
+// Verification is keyed by the challenge, not by the caller-controlled phone
+// number. That closes the bypass where a new phone/IP reset the old counter.
+app.post(
+  '/auth/signinup/code/consume',
+  express.json({ limit: '15mb' }),
+  (req, res, next) => {
+    const preAuthSessionId = String(req.body?.preAuthSessionId || '').trim().slice(0, 200);
+    const deviceId = String(req.body?.deviceId || '').trim().slice(0, 200);
+    const ip = req.ip || req.socket.remoteAddress || 'unknown';
+    const key =
+      preAuthSessionId && deviceId
+        ? `login_consume:${preAuthSessionId}:${deviceId}`
+        : `login_consume:ip:${ip}`;
+
+    if (
+      !takeRateLimitSlot(
+        loginOtpConsumeAttempts,
+        key,
+        LOGIN_OTP_CONSUME_MAX_ATTEMPTS,
+        LOGIN_OTP_CONSUME_WINDOW_MS,
+      )
+    ) {
+      return res.status(429).json({
+        status: 'GENERAL_ERROR',
+        message: 'Bahut zyada galat OTP attempts. Kripya naya code maangein.',
+      });
+    }
+
+    return next();
   },
 );
 
@@ -472,10 +504,13 @@ app.get('/hires/:id/start-otp', async (req, res, next) => {
     const { authUserId, phone } = await resolveSession(session);
     const user = await getOrCreateUserByAuthId(authUserId, phone);
     const { otp } = await getHireStartOtp({ hireId: req.params.id, userId: user.id });
-    console.log('[OTP] hireId=%s employerId=%s otp=%s', req.params.id, user.id, otp);
     res.json({ ok: true, otp });
   } catch (error) {
-    console.log('[OTP] hireId=%s error=%s', req.params.id, error instanceof Error ? error.message : String(error));
+    console.warn(
+      '[hires] start-otp failed for hire %s: %s',
+      req.params.id,
+      error instanceof Error ? error.message : String(error),
+    );
     next(error);
   }
 });

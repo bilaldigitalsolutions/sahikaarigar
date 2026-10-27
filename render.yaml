@@ -33,7 +33,7 @@ services:
       #   MSG91    -> MSG91_AUTH_KEY + MSG91_TEMPLATE_ID     (India, needs DLT)
       #   Twilio   -> TWILIO_ACCOUNT_SID/AUTH_TOKEN/FROM     (global, needs card)
       #   Admin    -> ADMIN_EMAIL + ADMIN_PASSWORD + ADMIN_SESSION_SECRET (32+ chars)
-      # With no credentials the OTP is printed in the Render logs instead (free).
+      # With no credentials OTP delivery fails closed; configure a real provider.
       - key: APP_NAME
         value: SahiKaarigar
       # Set these in the Render dashboard (marked "sync: false" = not in git).

@@ -99,18 +99,14 @@ function computeHireDistance({ employer, worker, place }) {
   return sameServiceArea ? 0 : null;
 }
 
-// OTP secret used to derive start-work codes. Falls back to a dev secret when
-// OTP_SECRET is not set on Render so the OTP flow never hard-fails with a 500.
-// In production, set OTP_SECRET on Render — the fallback is NOT secure.
-const OTP_SECRET = process.env.OTP_SECRET || 'fallback_secret_for_dev_123';
-if (!process.env.OTP_SECRET) {
-  console.warn(
-    '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n' +
-    'WARNING: OTP_SECRET environment variable is not set on the server.\n' +
-    'Using fallback development secret — OTPs will still generate but are NOT secure.\n' +
-    'Set OTP_SECRET on Render for production.\n' +
-    'Generate one: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"\n' +
-    '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!',
+// OTP secret used to derive start-work codes. There is intentionally NO
+// fallback: a known development secret would let anyone forge a start code.
+// Fail at boot instead of silently running with a predictable secret.
+const OTP_SECRET = process.env.OTP_SECRET || '';
+if (OTP_SECRET.length < 16) {
+  throw new Error(
+    'OTP_SECRET must be set to at least 16 characters. ' +
+      'Generate one with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"',
   );
 }
 

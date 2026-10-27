@@ -20,6 +20,9 @@ import {
 import { useEffect, useState } from 'react';
 import { adminLogout, getAdminEmail, getAdminStats } from '@/lib/api';
 
+/** Sidebar/bell badge refresh cadence — matches the dashboard auto-refresh. */
+const BADGE_POLL_INTERVAL_MS = 30_000;
+
 const NAV_LINKS = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, badgeKey: null as null },
   { href: '/admin/workers', label: 'Worker Verification', icon: UserCheck, badgeKey: 'verification' as const },
@@ -72,11 +75,13 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     void loadBadges();
 
     // Poll so "Worker Verification" and the bell light up as soon as a new
-    // Kaarigar registers, on any admin page. Paused while the tab is hidden.
+    // Kaarigar registers, on any admin page. Kept in step with the dashboard's
+    // 30s auto-refresh (POLL_INTERVAL_MS in app/admin/page.tsx).
+    // Paused while the tab is hidden.
     const timer = setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
       void loadBadges();
-    }, 60_000);
+    }, BADGE_POLL_INTERVAL_MS);
 
     return () => {
       cancelled = true;

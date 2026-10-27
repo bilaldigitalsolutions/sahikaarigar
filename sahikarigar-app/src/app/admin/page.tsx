@@ -37,6 +37,9 @@ interface ActivityRow {
 
 const AVATAR_COLORS = ['bg-blue-500', 'bg-violet-500', 'bg-amber-500', 'bg-emerald-500', 'bg-orange-500'];
 
+/** How often the dashboard quietly re-fetches while the tab is visible. */
+const POLL_INTERVAL_MS = 30_000;
+
 function formatNumber(value: number | string): string {
   if (typeof value === 'string') return value;
   return value.toLocaleString('en-IN');
@@ -119,7 +122,8 @@ export default function AdminDashboardPage() {
   const loadAll = useCallback(
     async ({ silent = false }: { silent?: boolean } = {}) => {
       // `silent` is the background poll: no spinner flash, and a transient
-      // failure leaves the numbers already on screen untouched.
+      // failure leaves the numbers already on screen untouched. Manual refresh
+      // and the first load do NOT pass it, so they DO show the spinner.
       if (!silent) setLoading(true);
       setError(null);
       try {
@@ -132,6 +136,8 @@ export default function AdminDashboardPage() {
         setStats(statsRes.stats);
         setPendingTotal(workersRes.pagination.total);
         setActivity((workersRes.workers ?? []).slice(0, 5).map(workerToActivityRow));
+        // Requirement: every successful refresh (manual OR automatic) advances
+        // the timestamp shown in the header.
         setLastUpdated(new Date());
         setLoading(false);
       } catch (loadError) {
@@ -145,6 +151,7 @@ export default function AdminDashboardPage() {
               : 'Stats load nahi hue. Kripya dobara try karein.',
           );
         } else {
+          // Keep whatever is already on screen; the next tick retries.
           console.warn('[admin] background refresh failed:', loadError);
         }
         setLoading(false);
@@ -154,17 +161,54 @@ export default function AdminDashboardPage() {
   );
 
   useEffect(() => {
+    let timer: ReturnType<typeof setInterval> | null = null;
+    // Guard so a slow background request can never be stacked on top of the
+    // next tick (Render cold starts can take a while).
+    let inFlight = false;
+
+    const tick = async () => {
+      if (inFlight) return;
+      inFlight = true;
+      try {
+        await loadAll({ silent: true });
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    const stopPolling = () => {
+      if (timer !== null) {
+        clearInterval(timer);
+        timer = null;
+      }
+    };
+
+    const startPolling = () => {
+      stopPolling();
+      timer = setInterval(() => void tick(), POLL_INTERVAL_MS);
+    };
+
+    // First load shows the spinner (it is not a background refresh).
     void loadAll();
 
-    // Poll every 60s so a newly registered Kaarigar appears in "Pending
-    // verifications" (and the badge) without the admin refreshing the page.
-    // Skipped while the tab is hidden to avoid pointless requests.
-    const timer = setInterval(() => {
-      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
-      void loadAll({ silent: true });
-    }, 60_000);
+    // Pause when the tab is hidden — a background tab should not keep hitting
+    // the API. On return, refresh immediately (catch up) then resume the timer.
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void tick();
+        startPolling();
+      } else {
+        stopPolling();
+      }
+    };
 
-    return () => clearInterval(timer);
+    if (document.visibilityState === 'visible') startPolling();
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      stopPolling();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [loadAll]);
   const cards = useMemo(
     () => [
@@ -242,6 +286,8 @@ export default function AdminDashboardPage() {
               ? ` • Last updated ${lastUpdated.toLocaleTimeString('en-IN', {
                   hour: '2-digit',
                   minute: '2-digit',
+                  // Seconds matter now that the dashboard refreshes every 30s.
+                  second: '2-digit',
                 })}`
               : ''}
           </p>

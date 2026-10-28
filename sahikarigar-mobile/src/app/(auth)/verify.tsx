@@ -5,7 +5,7 @@ import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } fro
 import { Button, Input, Screen } from '@/components';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMode } from '@/contexts/ModeContext';
-import { trackEvent } from '@/lib/observability';
+import { setAnalyticsUserId, trackEvent } from '@/lib/observability';
 import { colors, fontSize, fontWeight, radius, spacing } from '@/theme';
 import { formatPhone } from '@/utils';
 
@@ -28,7 +28,10 @@ export default function VerifyScreen() {
       // when the worker_profiles row exists (upsertWorkerProfile flips it), so
       // routing can trust it instead of guessing client-side.
       const me = await confirmOtp(code.trim());
-      trackEvent('user_signup');
+      // Signup lifecycle event — through the SINGLE shared PostHog client, with
+      // the freshly issued user id as the analytics distinct_id.
+      setAnalyticsUserId(me.id);
+      trackEvent('user_signup', { user_id: me.id });
 
       // A Hire-time login carries `next` (e.g. /hire/<workerId>) — resume the
       // exact booking the guest started instead of dropping them on Home.

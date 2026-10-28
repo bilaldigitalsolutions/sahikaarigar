@@ -23,6 +23,7 @@ import {
 import { DEMO_MODE } from '@/lib/config';
 import { DEMO_USER, setDemoMode } from '@/lib/demoData';
 import { registerForPushNotifications } from '@/lib/notifications';
+import { posthog, setAnalyticsUserId } from '@/lib/observability';
 import type { User } from '@/types';
 
 interface AuthContextValue {
@@ -180,6 +181,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         nameRef.current = null;
         challengeRef.current = null;
 
+        // Analytics: tear the identity down on sign-out. Without this the next
+        // session would inherit the previous user's distinct_id / events.
+        posthog.reset();
+        setAnalyticsUserId(null);
+
         // Hard reset the navigation stack: pop every screen the signed-in
         // session pushed (modals, hire flow, nested tabs), then replace the
         // root route with the public landing screen. Otherwise Android's
@@ -188,7 +194,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         router.replace(redirectTo);
       }
     },
-    [router],
+    [router, posthog, setAnalyticsUserId],
   );
 
   const refreshUser = useCallback(async () => {

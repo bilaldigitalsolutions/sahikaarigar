@@ -16,10 +16,8 @@ import {
   promptForNotificationPermissionOnce,
   useHireRequestNotificationRoute,
 } from '@/lib/notifications';
-import { initObservability, POSTHOG_HOST, reportError, setObservabilityUser, trackEvent } from '@/lib/observability';
+import { initObservability, posthog, POSTHOG_HOST, reportError, setAnalyticsUserId, setObservabilityUser, trackEvent } from '@/lib/observability';
 import { PostHogProvider } from 'posthog-react-native';
-import { PostHog } from 'posthog-react-native';
-const posthog = new PostHog(process.env.EXPO_PUBLIC_POSTHOG_KEY ?? '', { host: POSTHOG_HOST });
 import { colors, fontSize, fontWeight, spacing } from '@/theme';
 
 SplashScreen.preventAutoHideAsync();
@@ -82,13 +80,15 @@ function RootNavigator() {
       setObservabilityUser(user ? { id: user.id, role: user.role } : null);
       if (user) {
         posthog.identify(String(user.id), { role: String(user.role) });
+        setAnalyticsUserId(String(user.id));
       } else {
         posthog.reset();
+        setAnalyticsUserId(null);
       }
     } catch (e) {
       reportError(e, { where: 'RootNavigator.setObservabilityUser' });
     }
-  }, [user]);
+  }, [user, setAnalyticsUserId]);
 
   // Screen funnel: fire once per navigation. `pathname` changes on every route
   // push/replace/back, and the route pattern is used as `screen_name` so no
@@ -173,10 +173,7 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <PostHogProvider
-          apiKey={process.env.EXPO_PUBLIC_POSTHOG_KEY}
-          options={{ host: POSTHOG_HOST }}
-        >
+        <PostHogProvider client={posthog} options={{ host: POSTHOG_HOST }}>
           <AuthProvider>
             <ModeProvider>
               <StatusBar style="dark" />

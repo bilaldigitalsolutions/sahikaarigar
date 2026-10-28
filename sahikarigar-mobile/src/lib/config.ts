@@ -29,11 +29,14 @@ export const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?
  *   EXPO_PUBLIC_MAPPLS_CLIENT_ID      – from the Mappls console "credentials"
  *   EXPO_PUBLIC_MAPPLS_CLIENT_SECRET  – from the Mappls console "credentials"
  */
-export const MAPPLS_ACCESS_TOKEN =
-  process.env.EXPO_PUBLIC_MAPPLS_ACCESS_TOKEN ?? process.env.EXPO_PUBLIC_MAPPLS_API_KEY ?? '';
-export const MAPPLS_API_KEY = process.env.EXPO_PUBLIC_MAPPLS_API_KEY ?? '';
-export const MAPPLS_CLIENT_ID = process.env.EXPO_PUBLIC_MAPPLS_CLIENT_ID ?? '';
-export const MAPPLS_CLIENT_SECRET = process.env.EXPO_PUBLIC_MAPPLS_CLIENT_SECRET ?? '';
+const mapplsEnv = (value: string | undefined) => (value ?? '').trim();
+
+export const MAPPLS_ACCESS_TOKEN = mapplsEnv(
+  process.env.EXPO_PUBLIC_MAPPLS_ACCESS_TOKEN ?? process.env.EXPO_PUBLIC_MAPPLS_API_KEY,
+);
+export const MAPPLS_API_KEY = mapplsEnv(process.env.EXPO_PUBLIC_MAPPLS_API_KEY);
+export const MAPPLS_CLIENT_ID = mapplsEnv(process.env.EXPO_PUBLIC_MAPPLS_CLIENT_ID);
+export const MAPPLS_CLIENT_SECRET = mapplsEnv(process.env.EXPO_PUBLIC_MAPPLS_CLIENT_SECRET);
 
 /** Throws a friendly error when the auth server has not been configured. */
 export function requireAuthApiUrl(): string {

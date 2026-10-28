@@ -207,7 +207,8 @@ export function LocationPicker({
 
     if (place.lat == null && place.lng == null) {
       if (mapplsEnabled) {
-        // Mappls autosuggest doesn't return coordinates — resolve them (best effort).
+        // Mappls may return coordinates, but many accounts get "RESTRICTED".
+        // Resolve them with geocode only when the row has no usable lat/lng.
         // 3-second timeout so a slow geocode can't hang the picker.
         const geoController = new AbortController();
         const geoTimeout = setTimeout(() => geoController.abort(), 3000);

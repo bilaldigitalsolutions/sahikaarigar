@@ -169,7 +169,21 @@ jobs:
           EXPO_PUBLIC_POSTHOG_KEY: phc_sv8Dzcdm29moWxn96AC9gys7MeTA2FyHyygAyXMjGh2F
           EXPO_PUBLIC_POSTHOG_HOST: https://eu.i.posthog.com
           EXPO_PUBLIC_SENTRY_DSN: https://7157c8fedfbd0b5e2729aab0424e81f0@o4512298339270656.ingest.de.sentry.io/4512298371514448
+          EXPO_PUBLIC_MAPPLS_CLIENT_ID: ${{ secrets.MAPPLS_CLIENT_ID }}
+          EXPO_PUBLIC_MAPPLS_CLIENT_SECRET: ${{ secrets.MAPPLS_CLIENT_SECRET }}
+          EXPO_PUBLIC_MAPPLS_ACCESS_TOKEN: ${{ secrets.MAPPLS_ACCESS_TOKEN }}
+          EXPO_PUBLIC_MAPPLS_DEBUG: "1"
         run: |
+          if [ -z "$EXPO_PUBLIC_MAPPLS_ACCESS_TOKEN" ] && \
+             { [ -z "$EXPO_PUBLIC_MAPPLS_CLIENT_ID" ] || [ -z "$EXPO_PUBLIC_MAPPLS_CLIENT_SECRET" ]; }; then
+            echo "::error::Mappls credentials are missing. Add MAPPLS_ACCESS_TOKEN or both MAPPLS_CLIENT_ID and MAPPLS_CLIENT_SECRET as GitHub Actions secrets."
+            exit 1
+          fi
+          if [ -n "$EXPO_PUBLIC_MAPPLS_ACCESS_TOKEN" ]; then
+            echo "Mappls auth: static access token"
+          else
+            echo "Mappls auth: OAuth client credentials"
+          fi
           chmod +x ./gradlew
           ./gradlew assembleRelease --no-daemon
 

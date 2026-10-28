@@ -163,8 +163,20 @@ const ADMIN_PANEL_ORIGINS = (process.env.ADMIN_PANEL_ORIGINS || '')
 // The Firebase-hosted admin panel. Always allowed, even if WEBSITE_DOMAIN is
 // missing from the environment, so the admin API never fails CORS in prod.
 const PRODUCTION_ORIGIN = 'https://sahi-kaarigar.web.app';
+// The Vercel-hosted ADMIN PANEL — the primary production deployment of the
+// panel (https://sahikaarigar.vercel.app). It must always be in the allow-list,
+// otherwise the browser blocks every /admin/* request from this origin with a
+// CORS error ("No 'Access-Control-Allow-Origin' header is present") and the
+// admin panel can neither load nor auto-refresh.
+const VERCEL_ADMIN_ORIGIN = 'https://sahikaarigar.vercel.app';
 const ALLOWED_ORIGINS = [
-  ...new Set([PRODUCTION_ORIGIN, WEBSITE_DOMAIN, ...ADMIN_PANEL_ORIGINS, ...EXTRA_ORIGINS]),
+  ...new Set([
+    PRODUCTION_ORIGIN,
+    VERCEL_ADMIN_ORIGIN,
+    WEBSITE_DOMAIN,
+    ...ADMIN_PANEL_ORIGINS,
+    ...EXTRA_ORIGINS,
+  ]),
 ];
 const LOCALHOST_RE = /^https?:\/\/(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?$/;
 

@@ -152,7 +152,7 @@ jobs:
           MYAPP_UPLOAD_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: node scripts/inject-signing.js
 
-      - name: Build release AAB (gradle)
+      - name: Build release APK (gradle)
         working-directory: ${{ env.APP_DIR }}/android
         env:
           MYAPP_UPLOAD_STORE_FILE: ${{ runner.temp }}/keystore.jks
@@ -171,22 +171,22 @@ jobs:
           EXPO_PUBLIC_SENTRY_DSN: https://7157c8fedfbd0b5e2729aab0424e81f0@o4512298339270656.ingest.de.sentry.io/4512298371514448
         run: |
           chmod +x ./gradlew
-          ./gradlew bundleRelease --no-daemon
+          ./gradlew assembleRelease --no-daemon
 
-      - name: Verify AAB (version, manifest, signature)
+      - name: Verify APK (version, manifest, signature)
         working-directory: ${{ env.APP_DIR }}
         run: |
-          AAB=android/app/build/outputs/bundle/release/app-release.aab
-          test -f "$AAB"
-          unzip -l "$AAB" | grep -q 'base/manifest/AndroidManifest.xml'
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          test -f "$APK"
+          unzip -l "$APK" | grep -q 'AndroidManifest.xml'
           node -e "const a=require('./app.json'); const v=a.expo.version; const c=a.expo.android.versionCode; if(v!=='1.0.7'||c!==15){console.error('Unexpected version',v,c);process.exit(1)}; console.log('Version',v,'versionCode',c)"
-          jarsigner -verify "$AAB" > /dev/null
-          echo "AAB verification passed: version 1.0.7 (versionCode 15), signed."
+          jarsigner -verify "$APK" > /dev/null
+          echo "APK verification passed: version 1.0.7 (versionCode 15), signed."
 
-      - name: Upload AAB artifact
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: SahiKaarigar-AAB
-          path: ${{ env.APP_DIR }}/android/app/build/outputs/bundle/release/app-release.aab
+          name: SahiKaarigar-APK
+          path: ${{ env.APP_DIR }}/android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 7

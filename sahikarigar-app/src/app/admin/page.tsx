@@ -6,6 +6,7 @@ import {
   Activity,
   AlertTriangle,
   ArrowUpRight,
+  BellRing,
   Briefcase,
   ChevronRight,
   ClipboardList,
@@ -16,6 +17,7 @@ import {
 import {
   getAdminStats,
   listAdminWorkers,
+  sendAdminProfileReminders,
   displayName,
   type ApiAdminStats,
   type ApiAdminWorker,
@@ -118,6 +120,37 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  // "Send profile reminder" bulk action (pushes to workers whose profile is
+  // still incomplete — no approval / no Aadhaar).
+  const [reminderBusy, setReminderBusy] = useState(false);
+  const [reminderResult, setReminderResult] = useState<{ ok: boolean; text: string } | null>(
+    null,
+  );
+
+  const sendReminders = useCallback(async () => {
+    setReminderBusy(true);
+    setReminderResult(null);
+    try {
+      const result = await sendAdminProfileReminders();
+      const parts = [`${result.sent} worker${result.sent === 1 ? '' : 's'} ko notification mila`];
+      if (result.skipped) parts.push(`${result.skipped} skip (device registered nahi)`);
+      if (result.failed) parts.push(`${result.failed} failed`);
+      setReminderResult({
+        ok: true,
+        text: `${result.incompleteProfiles ?? 0} incomplete profiles scan kiye — ${parts.join(', ')}.`,
+      });
+    } catch (failure) {
+      setReminderResult({
+        ok: false,
+        text:
+          failure instanceof Error
+            ? failure.message
+            : 'Reminders send nahi hue. Dobara try karo.',
+      });
+    } finally {
+      setReminderBusy(false);
+    }
+  }, []);
 
   const loadAll = useCallback(
     async ({ silent = false }: { silent?: boolean } = {}) => {
@@ -295,6 +328,15 @@ export default function AdminDashboardPage() {
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
+            onClick={() => void sendReminders()}
+            disabled={reminderBusy || loading}
+            title="Push a 'complete your profile' notification to every worker missing Aadhaar or approval"
+            className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-5 py-2.5 text-[14px] font-semibold text-[#111827] hover:bg-gray-50 disabled:opacity-60"
+          >
+            <BellRing size={16} /> {reminderBusy ? 'Sending…' : 'Send reminders'}
+          </button>
+          <button
+            type="button"
             onClick={() => void loadAll()}
             disabled={loading}
             className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-5 py-2.5 text-[14px] font-semibold text-[#111827] hover:bg-gray-50 disabled:opacity-60"
@@ -303,6 +345,30 @@ export default function AdminDashboardPage() {
           </button>
         </div>
       </div>
+
+      {reminderResult && (
+        <div
+          role="status"
+          className={`flex items-start justify-between gap-3 rounded-2xl border p-4 ${
+            reminderResult.ok
+              ? 'border-emerald-200 bg-emerald-50/60 text-emerald-900'
+              : 'border-amber-200 bg-amber-50/60 text-amber-900'
+          }`}
+        >
+          <p className="flex items-center gap-2 text-[13px] font-semibold">
+            <BellRing size={16} className={reminderResult.ok ? 'text-emerald-600' : 'text-amber-600'} />
+            {reminderResult.text}
+          </p>
+          <button
+            type="button"
+            aria-label="Dismiss"
+            onClick={() => setReminderResult(null)}
+            className={`shrink-0 ${reminderResult.ok ? 'text-emerald-700 hover:text-emerald-900' : 'text-amber-700 hover:text-amber-900'}`}
+          >
+            <X size={15} />
+          </button>
+        </div>
+      )}
 
       {error && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4 md:p-5" role="alert">

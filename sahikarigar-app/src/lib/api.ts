@@ -528,6 +528,39 @@ export function setWorkerApproval(
   });
 }
 
+/**
+ * Result of a profile-reminder push, shared by the bulk dashboard action and
+ * the single-worker action in the detail modal. Backend always returns
+ * `sent`/`failed` counts; `skipped` says why nothing was pushed
+ * (`'no_device'`, `'complete'`) or is the number skipped in the bulk run.
+ */
+export interface ApiProfileReminderResult {
+  sent: number;
+  failed: number;
+  skipped: number | string | null;
+  /** Bulk only: profiles matching the "incomplete" filter. */
+  incompleteProfiles?: number;
+  /** Bulk only: profiles that actually had a usable push token. */
+  withPushToken?: number;
+  /** Single-worker only: the scanned profile (null = not found). */
+  profile?: { id: string; profileComplete?: boolean } | null;
+}
+
+/** Nudge every worker whose profile is incomplete (not approved / no Aadhaar). */
+export function sendAdminProfileReminders(limit = 500): Promise<ApiProfileReminderResult> {
+  return adminApiFetch('/admin/send-profile-reminders', {
+    method: 'POST',
+    body: JSON.stringify({ limit }),
+  });
+}
+
+/** Nudge ONE worker to complete their profile (worker detail modal). */
+export function sendAdminWorkerReminder(id: string): Promise<ApiProfileReminderResult> {
+  return adminApiFetch(`/admin/workers/${encodeURIComponent(id)}/send-reminder`, {
+    method: 'POST',
+  });
+}
+
 export interface ApiAdminStats {
   totalUsers: number;
   totalHires: number;

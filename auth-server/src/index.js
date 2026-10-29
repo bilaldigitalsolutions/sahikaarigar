@@ -73,6 +73,7 @@ import {
   isValidPushToken,
   notifyHireUpdate,
   sendProfileCompletionReminders,
+  sendProfileReminderToWorker,
 } from './push.js';
 
 const PORT = Number(process.env.PORT || 4000);
@@ -921,6 +922,24 @@ app.get('/admin/workers/:id', async (req, res, next) => {
       return;
     }
     res.json({ ok: true, worker });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Targeted "Send profile reminder" for ONE worker (worker detail modal). Sends
+// to just this worker's device when their profile is still incomplete and has
+// a registered device; reports `skipped` otherwise.
+app.post('/admin/workers/:id/send-reminder', async (req, res, next) => {
+  try {
+    const admin = await requireAdmin(req, res);
+    if (!admin) return;
+    const result = await sendProfileReminderToWorker(req.params.id);
+    if (result.profile === null) {
+      res.status(404).json({ ok: false, code: 'NOT_FOUND', message: 'Worker profile nahi mila.' });
+      return;
+    }
+    res.json({ ok: true, ...result });
   } catch (error) {
     next(error);
   }

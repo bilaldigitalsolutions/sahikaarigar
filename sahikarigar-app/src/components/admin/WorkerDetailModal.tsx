@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import {
   AlertTriangle,
+  BellRing,
   Briefcase,
   CalendarDays,
   CheckCircle2,
@@ -20,6 +21,7 @@ import {
 } from 'lucide-react';
 import {
   getAdminWorker,
+  sendAdminWorkerReminder,
   setWorkerApproval,
   displayName,
   type ApiAdminWorker,
@@ -92,6 +94,10 @@ export function WorkerDetailModal({ workerId, onClose, onUpdated }: WorkerDetail
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  // "Send reminder" (single worker nudge) — button only exists while the
+  // worker's Aadhaar is still missing.
+  const [reminderBusy, setReminderBusy] = useState(false);
+  const [reminderResult, setReminderResult] = useState<string | null>(null);
   // Which destructive action is awaiting confirmation — Approve/Reject must
   // never fire on a single accidental click. `null` = no dialog open.
   const [confirming, setConfirming] = useState<null | 'approve' | 'reject'>(null);
@@ -157,7 +163,37 @@ export function WorkerDetailModal({ workerId, onClose, onUpdated }: WorkerDetail
     else if (confirming === 'reject') void decide(false);
   };
 
+  // Nudge THIS worker to finish their profile. Best-effort: the backend skips
+  // workers with no registered device (or a fully complete profile) and
+  // reports why, so the admin gets a visible explanation either way.
+  const sendReminder = async () => {
+    setActionError(null);
+    setReminderResult(null);
+    setReminderBusy(true);
+    try {
+      const result = await sendAdminWorkerReminder(workerId);
+      if (result.profile?.profileComplete) {
+        setReminderResult('Profile already verified — reminder needed nahi.');
+      } else if (result.sent > 0) {
+        setReminderResult(
+          `Reminder bhej diya gaya${result.failed ? ` (${result.failed} failed)` : ''}.`,
+        );
+      } else {
+        setReminderResult('Worker ke paas koi registered device nahi — notification nahi bhej paye.');
+      }
+    } catch (failure) {
+      setReminderResult(
+        failure instanceof Error ? failure.message : 'Reminder send nahi hua. Dobara try karo.',
+      );
+    } finally {
+      setReminderBusy(false);
+    }
+  };
+
   const name = displayName(worker?.user?.name);
+  // The "Send reminder" button only makes sense while the profile is actually
+  // incomplete — a missing Aadhaar number is that signal.
+  const aadhaarMissing = Boolean(worker) && !worker?.aadhaarNumber;
   const aadhaarFull = formatAadhaar(worker?.aadhaarNumber);
   const aadhaarMasked = maskAadhaar(worker?.aadhaarNumber);
   const category =
@@ -388,6 +424,18 @@ export function WorkerDetailModal({ workerId, onClose, onUpdated }: WorkerDetail
                 </div>
               )}
 
+              {reminderResult && (
+                <div
+                  className="rounded-2xl border border-emerald-200 bg-emerald-50/60 px-4 py-3 text-[13px] font-medium text-emerald-900"
+                  role="status"
+                >
+                  <p className="flex items-start gap-2">
+                    <BellRing size={15} className="mt-0.5 shrink-0 text-emerald-600" />
+                    {reminderResult}
+                  </p>
+                </div>
+              )}
+
               {rejecting ? (
                 <div className="rounded-2xl border border-red-200 bg-red-50/40 p-4">
                   <label
@@ -433,6 +481,17 @@ export function WorkerDetailModal({ workerId, onClose, onUpdated }: WorkerDetail
                 </div>
               ) : (
                 <div className="flex flex-wrap items-center justify-end gap-2 border-t border-gray-100 pt-4">
+                  {aadhaarMissing && (
+                    <button
+                      type="button"
+                      onClick={() => void sendReminder()}
+                      disabled={busy || reminderBusy}
+                      title="Push a 'complete your profile' notification to this worker"
+                      className="mr-auto inline-flex items-center gap-1.5 rounded-full border border-gray-200 px-4 py-2 text-[13px] font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      <BellRing size={14} /> {reminderBusy ? 'Sending…' : 'Send reminder'}
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => {

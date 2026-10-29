@@ -236,3 +236,55 @@ export async function sendProfileCompletionReminders({ limit = 500 } = {}) {
     skipped,
   };
 }
+
+/**
+ * Remind ONE worker to finish their profile. Used by
+ * POST /admin/workers/:id/send-reminder (the "Send reminder" button in the
+ * admin's worker detail modal) so the admin can nudge exactly the worker they
+ * are reviewing, not every incomplete profile at once.
+ *
+ * Nothing is pushed when the profile is already complete (approved AND Aadhaar
+ * on file) or the worker has no registered device — the reason is returned as
+ * `skipped` so the admin can see why, instead of an empty success.
+ *
+ * @param {string} profileId worker_profiles.id
+ * @returns {Promise<{ profile: object|null, profileComplete?: boolean, sent: number,
+ *                     failed: number, skipped: string|null }>}
+ */
+export async function sendProfileReminderToWorker(profileId) {
+  const { data, error } = await db
+    .from('worker_profiles')
+    .select(
+      'id, user_id, is_approved, aadhaar_number, ' +
+        'user:users!user_id(id, name, push_token)',
+    )
+    .eq('id', profileId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!data) return { profile: null };
+
+  const profileComplete = Boolean((data.is_approved ?? false) && data.aadhaar_number);
+  const token = data.user?.push_token ?? null;
+
+  if (profileComplete || !isValidPushToken(token)) {
+    return {
+      profile: data,
+      profileComplete,
+      sent: 0,
+      failed: 0,
+      skipped: profileComplete ? 'complete' : 'no_device',
+    };
+  }
+
+  const { sent, failed } = await sendExpoPushMany([
+    {
+      to: token,
+      title: 'SahiKaarigar',
+      body: PROFILE_REMINDER_BODY,
+      data: { type: 'profile_reminder', workerProfileId: data.id },
+    },
+  ]);
+
+  return { profile: data, profileComplete, sent, failed, skipped: null };
+}

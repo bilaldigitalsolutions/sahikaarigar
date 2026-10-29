@@ -1,5 +1,19 @@
 /** @type {import('next').NextConfig} */
-const isStaticExport = true;
+/**
+ * Static export is OPT-IN via `STATIC_EXPORT=1`:
+ *   • `npm run build:static` sets it (scripts/build-static.mjs) and produces
+ *     the `out/` folder that Firebase Hosting serves on the FREE Spark plan —
+ *     no Cloud Functions, so no Blaze plan is required.
+ *   • A plain `next build` (what Vercel runs for sahikaarigar.vercel.app)
+ *     does NOT set it, so the panel deploys as a normal Next.js app WITH the
+ *     Route Handlers in src/app/api — required for the same-origin admin
+ *     proxy (/api/admin/...) that keeps the admin session cookie first-party.
+ *
+ * In static-export mode `pageExtensions` deliberately omits `ts`, which makes
+ * Next ignore the `route.ts` files in src/app/api (Route Handlers are not
+ * supported by `output: "export"`).
+ */
+const isStaticExport = process.env.STATIC_EXPORT === '1';
 
 const supabaseHost = process.env.NEXT_PUBLIC_SUPABASE_URL
   ? process.env.NEXT_PUBLIC_SUPABASE_URL.replace(/^https?:\/\//, '')

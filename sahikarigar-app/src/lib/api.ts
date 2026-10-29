@@ -37,10 +37,14 @@ export interface AdminSession {
 }
 
 /**
- * The admin session lives in an HttpOnly cookie set by the auth server, so it
- * is never exposed to JavaScript — an XSS can no longer steal a full admin
- * session. `adminApiFetch` therefore sends no `Authorization` header; the
- * browser attaches the cookie automatically via `credentials: 'include'`.
+ * All admin calls go through the SAME-ORIGIN proxy at /api/admin/… (Next route
+ * handler → auth-server). The proxy exists because the auth server is a
+ * different SITE than the panel, and browsers no longer keep cross-site
+ * `sk_admin_session` cookies — login "succeeded" yet `GET /admin/session`
+ * came back 401 with no Cookie header at all. Via the proxy the session
+ * cookie is stored first-party on the panel's own origin (still HttpOnly, so
+ * JavaScript can never read it), which is why `adminApiFetch` sends no
+ * `Authorization` header — `credentials: 'include'` attaches the cookie.
  *
  * Only the (non-secret) admin email is kept in localStorage, purely so the
  * shell can show the logged-in admin's name without an extra round-trip.
@@ -128,10 +132,10 @@ interface AdminFetchInit extends RequestInit {
   timeoutMs?: number;
 }
 
+/** Same-origin base for every admin call — see adminApiFetch and /api/admin. */
+const ADMIN_API_PREFIX = '/api';
+
 async function adminApiFetch<T>(path: string, init?: AdminFetchInit): Promise<T> {
-  if (!AUTH_API_URL) {
-    throw new Error('Auth server configure nahi hai (NEXT_PUBLIC_AUTH_API_URL).');
-  }
   const { timeoutMs = ADMIN_REQUEST_TIMEOUT_MS, signal: callerSignal, ...rest } = init ?? {};
 
   const headers = new Headers(rest.headers);
@@ -149,9 +153,10 @@ async function adminApiFetch<T>(path: string, init?: AdminFetchInit): Promise<T>
 
   let response: Response;
   try {
-    response = await fetch(`${AUTH_API_URL}${path}`, {
+    response = await fetch(`${ADMIN_API_PREFIX}${path}`, {
       ...rest,
-      // Required so the browser sends/receives the HttpOnly admin cookie.
+      // Same-origin: the proxy has already rewritten the session cookie so it
+      // is first-party for this site, and the browser attaches it here.
       credentials: 'include',
       headers,
       signal: controller.signal,

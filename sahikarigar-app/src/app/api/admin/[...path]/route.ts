@@ -96,7 +96,11 @@ async function forward(request: Request, context: RouteContext): Promise<Respons
 
   let backendResponse: Response;
   try {
-    backendResponse = await fetch(`${BACKEND_URL}/${(path ?? []).join('/')}${search}`, {
+    // NOTE: the catch-all segments are the backend path MINUS the `/admin`
+    // prefix (frontend `/api/admin/stats` → segments ['stats']). The backend's
+    // own `/admin` prefix must be re-added here, otherwise every call 404s
+    // against a non-existent `/stats`, `/session`, … backend route.
+    backendResponse = await fetch(`${BACKEND_URL}/admin/${(path ?? []).join('/')}${search}`, {
       method: request.method,
       headers,
       body: request.method === 'GET' || request.method === 'HEAD'

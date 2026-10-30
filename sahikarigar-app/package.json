@@ -14,11 +14,7 @@
     "db:verify": "node scripts/verify-db.mjs",
     "db:seed": "node scripts/seed-demo.mjs",
     "db:smoke": "node scripts/smoke-test.mjs",
-    "build:static": "node scripts/build-static.mjs",
-    "auth:check": "node scripts/check-phone-auth.mjs",
-    "deploy": "npm run build:static && firebase deploy --only hosting",
-    "deploy:preview": "npm run build:static && firebase hosting:channel:deploy preview --expires 7d",
-    "emulate": "firebase emulators:start --only hosting"
+    "auth:check": "node scripts/check-phone-auth.mjs"
   },
   "dependencies": {
     "@sentry/browser": "^11.8.0",

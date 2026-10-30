@@ -4,7 +4,8 @@
 
 A mobile-first web application connecting local workers (electricians, plumbers, painters, etc.) with employers in Hyderabad, India.
 
-**🌐 Live:** https://sahi-kaarigar.web.app
+**🌐 Live:** https://sahikaarigar.vercel.app
+**🛠️ Admin Panel:** https://sahikaarigar.vercel.app/admin/
 
 ## 🚀 Features
 
@@ -97,31 +98,37 @@ npm run test:coverage # With coverage
 
 ## 📦 Deploy
 
-Live on Firebase Hosting (free Spark plan) as a **static site**:
+Deployed on **Vercel** (auto-deploys on every push to `main`):
+
+| Piece | URL |
+| --- | --- |
+| Web app + Admin panel | https://sahikaarigar.vercel.app |
+| Admin panel | https://sahikaarigar.vercel.app/admin/ |
+| Auth server (Render) | https://sahikaarigar-auth.onrender.com — see `RENDER_DEPLOY.md` |
+
+Local build check (Next.js server build — the admin session proxy in
+`src/app/api/admin/[...path]/route.ts` requires a server):
 
 ```powershell
-npm run deploy        # static build (out/) + firebase deploy --only hosting
+npm run build
 ```
 
-Full details: **`FIREBASE_DEPLOY.md`**
-
-Other builds:
-
-```powershell
-npm run build:static  # static site -> out/   (Firebase Hosting, free)
-npm run build         # server build -> .next (Vercel / Cloud Run, needs a server)
-```
+> The old static Firebase Hosting deployment (`sahi-kaarigar.web.app`) has been
+> retired. Do not deploy it again — Route Handlers (`src/app/api/**/route.ts`)
+> cannot be deployed as static files, and the admin proxy requires them.
 
 ## 🔧 API Endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/auth/verify` | Verify Firebase token (server mode only) |
-| GET | `/api/workers` | Search workers (server mode only) |
-| POST | `supabase/functions/auth` | **Login + registration (used by the live site)** |
+| POST | `/api/auth/verify` | Verify Firebase token |
+| GET | `/api/workers` | Search workers |
+| POST | `supabase/functions/auth` | Login + registration (Supabase Edge Function) |
+| ALL | `/api/admin/…` | Same-origin proxy for the admin panel session (first-party cookie) |
 
-> The live site is static on Firebase Hosting, so it uses the Supabase Edge
-> Function for auth instead of the Next.js API routes. See `FIREBASE_DEPLOY.md`.
+> The Vercel deployment runs in server mode, so these routes are live.
+> Setting `output: 'export'` (the old Firebase static approach) silently
+> removes them.
 
 ## 🎨 Design System
 

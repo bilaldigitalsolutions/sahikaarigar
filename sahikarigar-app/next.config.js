@@ -1,19 +1,4 @@
 /** @type {import('next').NextConfig} */
-/**
- * Static export is OPT-IN via `STATIC_EXPORT=1`:
- *   • `npm run build:static` sets it (scripts/build-static.mjs) and produces
- *     the `out/` folder that Firebase Hosting serves on the FREE Spark plan —
- *     no Cloud Functions, so no Blaze plan is required.
- *   • A plain `next build` (what Vercel runs for sahikaarigar.vercel.app)
- *     does NOT set it, so the panel deploys as a normal Next.js app WITH the
- *     Route Handlers in src/app/api — required for the same-origin admin
- *     proxy (/api/admin/...) that keeps the admin session cookie first-party.
- *
- * In static-export mode `pageExtensions` deliberately omits `ts`, which makes
- * Next ignore the `route.ts` files in src/app/api (Route Handlers are not
- * supported by `output: "export"`).
- */
-const isStaticExport = process.env.STATIC_EXPORT === '1';
 
 const supabaseHost = process.env.NEXT_PUBLIC_SUPABASE_URL
   ? process.env.NEXT_PUBLIC_SUPABASE_URL.replace(/^https?:\/\//, '')
@@ -25,31 +10,24 @@ const imageDomains = [
 ];
 
 /**
- * Static export mode (`npm run build:static`) produces the `out/` folder that
- * Firebase Hosting serves on the FREE Spark plan — no Cloud Functions, so no
- * Blaze plan is required.
+ * SERVER MODE ONLY. This app is deployed on Vercel and MUST keep its Route
+ * Handlers: the admin panel's same-origin session proxy lives in
+ * src/app/api/admin/[...path]/route.ts and requires a server.
  *
- * `pageExtensions` deliberately omits `ts`, which makes Next ignore the
- * `route.ts` files in src/app/api (Route Handlers are not supported by
- * `output: "export"`). Those files stay in the repo for when this app is
- * deployed somewhere with a server (Vercel, Cloud Run, ...).
+ * Do NOT add `output: 'export'` here — it would silently drop every
+ * src/app/api/**\/route.ts file and break the admin panel session
+ * (the old Firebase static deploy did exactly that, and is now retired).
  */
-const staticExportConfig = {
-  output: 'export',
-  trailingSlash: true,
-  pageExtensions: ['tsx', 'jsx', 'js', 'mdx'],
-  images: {
-    unoptimized: true,
-    domains: imageDomains,
-  },
-};
+const nextConfig = {
+  // Enable React Strict Mode
+  reactStrictMode: true,
 
-const serverConfig = {
   images: {
     domains: imageDomains,
     formats: ['image/avif', 'image/webp'],
   },
-  // Security headers (mirrored in firebase.json for the static deploy)
+
+  // Security headers
   async headers() {
     return [
       {
@@ -62,14 +40,6 @@ const serverConfig = {
       },
     ];
   },
-};
-
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-  // Enable React Strict Mode
-  reactStrictMode: true,
-
-  ...(isStaticExport ? staticExportConfig : serverConfig),
 };
 
 module.exports = nextConfig;

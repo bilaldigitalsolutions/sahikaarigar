@@ -16,7 +16,7 @@ import {
   promptForNotificationPermissionOnce,
   useHireRequestNotificationRoute,
 } from '@/lib/notifications';
-import { initObservability, posthog, POSTHOG_HOST, reportError, setAnalyticsUserId, setObservabilityUser, trackEvent } from '@/lib/observability';
+import { initObservability, posthog, reportError, setAnalyticsUserId, setObservabilityUser, trackEvent } from '@/lib/observability';
 import { PostHogProvider } from 'posthog-react-native';
 import { colors, fontSize, fontWeight, spacing } from '@/theme';
 
@@ -76,6 +76,10 @@ function RootNavigator() {
 
   // Tag crash reports + PostHog with the signed-in account (id + role only, never PII).
   useEffect(() => {
+    // Wait for session restoration before identifying/resetting analytics. Resetting
+    // during the initial null-user render would rotate the anonymous ID while the
+    // SDK is capturing Application Installed / Application Opened.
+    if (initializing) return;
     try {
       setObservabilityUser(user ? { id: user.id, role: user.role } : null);
       if (user) {
@@ -88,7 +92,7 @@ function RootNavigator() {
     } catch (e) {
       reportError(e, { where: 'RootNavigator.setObservabilityUser' });
     }
-  }, [user, setAnalyticsUserId]);
+  }, [initializing, user, setAnalyticsUserId]);
 
   // Screen funnel: fire once per navigation. `pathname` changes on every route
   // push/replace/back, and the route pattern is used as `screen_name` so no
@@ -173,7 +177,7 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <PostHogProvider client={posthog} options={{ host: POSTHOG_HOST }}>
+        <PostHogProvider client={posthog}>
           <AuthProvider>
             <ModeProvider>
               <StatusBar style="dark" />

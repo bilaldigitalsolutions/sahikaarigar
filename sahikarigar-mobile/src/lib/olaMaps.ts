@@ -63,8 +63,10 @@ interface OlaPrediction {
 
 interface OlaAutocompleteResponse {
   predictions?: OlaPrediction[];
+  suggestions?: OlaPrediction[];
+  results?: OlaPrediction[];
   status?: string;
-  error_message?: string;
+  message?: string;
 }
 
 interface OlaGeocodeResult {
@@ -154,7 +156,9 @@ function parseAutosuggestResponse(data: OlaAutocompleteResponse): OlaMapsPlace[]
   const seen = new Set<string>();
   const out: OlaMapsPlace[] = [];
 
-  for (const item of data.predictions ?? []) {
+  const items = data.predictions ?? data.suggestions ?? data.results ?? [];
+
+  for (const item of items) {
     const description =
       item.description?.trim() ||
       [item.structured_formatting?.main_text, item.structured_formatting?.secondary_text]
@@ -260,10 +264,10 @@ export async function olaMapsAutosuggest(
     const data = (await res.json()) as OlaAutocompleteResponse;
     debugLog('autosuggest raw response', data);
 
-    if (data.error_message) {
+    if (data.message) {
       warnLog('autosuggest API error', {
         status: data.status,
-        errorMessage: data.error_message,
+        errorMessage: data.message,
       });
       return [];
     }
@@ -271,7 +275,7 @@ export async function olaMapsAutosuggest(
     const parsed = parseAutosuggestResponse(data);
     debugLog('autosuggest parsed', {
       status: data.status,
-      predictionsCount: data.predictions?.length ?? 0,
+      predictionsCount: data.predictions?.length ?? data.suggestions?.length ?? data.results?.length ?? 0,
       count: parsed.length,
       results: parsed,
     });

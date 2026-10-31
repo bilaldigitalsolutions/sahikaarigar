@@ -182,9 +182,9 @@ jobs:
           APK=android/app/build/outputs/apk/release/app-release.apk
           test -f "$APK"
           unzip -l "$APK" | grep -q 'AndroidManifest.xml'
-          node -e "const a=require('./app.json'); const v=a.expo.version; const c=a.expo.android.versionCode; if(v!=='1.0.12'||c!==20){console.error('Unexpected version',v,c);process.exit(1)}; console.log('Version',v,'versionCode',c)"
+          node -e "const a=require('./app.json'); const v=a.expo.version; const c=a.expo.android.versionCode; if(v!=='1.0.13'||c!==21){console.error('Unexpected version',v,c);process.exit(1)}; console.log('Version',v,'versionCode',c)"
           jarsigner -verify "$APK" > /dev/null
-          echo "APK verification passed: version 1.0.12 (versionCode 20), signed."
+          echo "APK verification passed: version 1.0.13 (versionCode 21), signed."
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4

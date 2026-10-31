@@ -16,7 +16,7 @@ import {
 
 import { HYDERABAD_AREAS } from '@/constants';
 import { GOOGLE_MAPS_API_KEY, OLA_MAPS_API_KEY } from '@/lib/config';
-import { olaMapsAutosuggest, olaMapsEnabled, olaMapsGeocode, getLastOlaRawResponse } from '@/lib/olaMaps';
+import { olaMapsAutosuggest, olaMapsEnabled, olaMapsGeocode } from '@/lib/olaMaps';
 import { photonAutosuggest } from '@/lib/photon';
 import { colors, fontSize, fontWeight, radius, spacing } from '@/theme';
 
@@ -89,8 +89,6 @@ export function LocationPicker({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deviceBias, setDeviceBias] = useState<{ lat?: number; lng?: number } | undefined>(undefined);
-  /** Temporary debug overlay: raw Ola Maps response + parsed count. */
-  const [olaDebug, setOlaDebug] = useState<{ raw: any; count: number }>({ raw: null, count: 0 });
   /** Always-current copy of the query — guards async callbacks against stale writes. */
   const queryRef = useRef(query);
   queryRef.current = query;
@@ -167,7 +165,6 @@ export function LocationPicker({
             const olaResults = await olaMapsAutosuggest(q, deviceBias, controller.signal);
             remote.push(...olaResults);
             locationDebug('Ola Maps results', { count: olaResults.length });
-            setOlaDebug({ raw: getLastOlaRawResponse(), count: olaResults.length });
           } else if (googleEnabled) {
             const url =
               'https://maps.googleapis.com/maps/api/place/autocomplete/json' +
@@ -364,28 +361,6 @@ export function LocationPicker({
                 ) : null}
               </View>
 
-              {LOCATION_DEBUG ? (
-                <View style={styles.debugBanner}>
-                  <Text style={styles.debugText}>
-                    Ola Maps: {olaMapsEnabled ? 'Enabled' : 'Disabled'}
-                  </Text>
-                  <Text style={styles.debugText}>
-                    API Key Length: {OLA_MAPS_API_KEY.length}
-                  </Text>
-                </View>
-              ) : null}
-
-              {LOCATION_DEBUG && query.trim().length > 0 ? (
-                <View style={styles.debugBanner}>
-                  <Text style={styles.debugText}>
-                    Ola raw: {olaDebug.raw ? JSON.stringify(olaDebug.raw).slice(0, 200) : 'No response received'}
-                  </Text>
-                  <Text style={styles.debugText}>
-                    Ola parsed count: {olaDebug.count}
-                  </Text>
-                </View>
-              ) : null}
-
               {loading && query.trim().length > 0 && localResults.length === 0 ? (
                 <View style={styles.loadingBox}>
                   <ActivityIndicator size="small" color={colors.primaryDark} />
@@ -433,8 +408,6 @@ export function LocationPicker({
                   </Pressable>
                 ) : null}
 
-                {/* TEMP DEBUG: confirm results length at render time */}
-                {console.log('[LocationPicker] render results:', results.length)}
                 {results.map((item) => (
                   <Pressable
                     key={item.placeId ?? item.description}

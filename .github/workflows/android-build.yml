@@ -152,7 +152,7 @@ jobs:
           MYAPP_UPLOAD_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: node scripts/inject-signing.js
 
-      - name: Build release APK (gradle)
+      - name: Build release APK + AAB (gradle)
         working-directory: ${{ env.APP_DIR }}/android
         env:
           MYAPP_UPLOAD_STORE_FILE: ${{ runner.temp }}/keystore.jks
@@ -174,21 +174,33 @@ jobs:
           EXPO_PUBLIC_OLA_MAPS_DEBUG: "1"
         run: |
           chmod +x ./gradlew
-          ./gradlew assembleRelease --no-daemon
+          ./gradlew assembleRelease bundleRelease --no-daemon
 
-      - name: Verify APK (manifest, signature)
+      - name: Verify APK + AAB (manifest, signature)
         working-directory: ${{ env.APP_DIR }}
         run: |
           APK=android/app/build/outputs/apk/release/app-release.apk
+          AAB=android/app/build/outputs/bundle/release/app-release.aab
           test -f "$APK"
+          test -f "$AAB"
           unzip -l "$APK" | grep -q 'AndroidManifest.xml'
+          unzip -l "$AAB" | grep -q 'base/manifest/AndroidManifest.xml'
           jarsigner -verify "$APK" > /dev/null
-          echo "APK verification passed: APK exists, manifest present, signed."
+          jarsigner -verify "$AAB" > /dev/null
+          echo "Verification passed: APK + AAB exist, manifests present, both signed."
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: SahiKaarigar-APK
           path: ${{ env.APP_DIR }}/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SahiKaarigar-AAB
+          path: ${{ env.APP_DIR }}/android/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
           retention-days: 7

@@ -169,13 +169,8 @@ jobs:
           EXPO_PUBLIC_POSTHOG_KEY: phc_sv8Dzcdm29moWxn96AC9gys7MeTA2FyHyygAyXMjGh2F
           EXPO_PUBLIC_POSTHOG_HOST: https://eu.i.posthog.com
           EXPO_PUBLIC_SENTRY_DSN: https://7157c8fedfbd0b5e2729aab0424e81f0@o4512298339270656.ingest.de.sentry.io/4512298371514448
-          EXPO_PUBLIC_MAPPLS_CLIENT_ID: ${{ secrets.MAPPLS_CLIENT_ID }}
-          EXPO_PUBLIC_MAPPLS_CLIENT_SECRET: ${{ secrets.MAPPLS_CLIENT_SECRET }}
-          EXPO_PUBLIC_MAPPLS_ACCESS_TOKEN: ${{ secrets.MAPPLS_ACCESS_TOKEN }}
-          EXPO_PUBLIC_MAPPLS_DEBUG: "1"
+          EXPO_PUBLIC_OLA_MAPS_API_KEY: ${{ secrets.OLA_MAPS_API_KEY }}
         run: |
-          # Mappls credential guard temporarily disabled until MAPPLS_* secrets are configured.
-          # Restore the guard from git history before a production release.
           chmod +x ./gradlew
           ./gradlew assembleRelease --no-daemon
 
@@ -185,9 +180,9 @@ jobs:
           APK=android/app/build/outputs/apk/release/app-release.apk
           test -f "$APK"
           unzip -l "$APK" | grep -q 'AndroidManifest.xml'
-          node -e "const a=require('./app.json'); const v=a.expo.version; const c=a.expo.android.versionCode; if(v!=='1.0.9'||c!==17){console.error('Unexpected version',v,c);process.exit(1)}; console.log('Version',v,'versionCode',c)"
+          node -e "const a=require('./app.json'); const v=a.expo.version; const c=a.expo.android.versionCode; if(v!=='1.0.10'||c!==18){console.error('Unexpected version',v,c);process.exit(1)}; console.log('Version',v,'versionCode',c)"
           jarsigner -verify "$APK" > /dev/null
-          echo "APK verification passed: version 1.0.9 (versionCode 17), signed."
+          echo "APK verification passed: version 1.0.10 (versionCode 18), signed."
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4

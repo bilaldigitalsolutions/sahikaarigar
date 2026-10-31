@@ -1,8 +1,8 @@
 // =============================================================================
 // Photon (Komoot) geocoder — a KEYLESS autocomplete fallback
 // =============================================================================
-// The area picker prefers Mappls / Google when a key is configured. When no key
-// is available (or the configured provider returns nothing) we fall back to
+// The area picker prefers Ola Maps / Google when a key is configured. When no
+// key is available (or the configured provider returns nothing) we fall back to
 // Photon: a free, CORS-enabled OpenStreetMap geocoder that needs no API key, so
 // area suggestions work out of the box — including in the browser.
 //

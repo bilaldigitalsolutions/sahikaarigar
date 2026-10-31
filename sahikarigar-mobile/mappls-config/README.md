@@ -34,16 +34,15 @@ npx expo run:android          # or an EAS development build
 
 These files only power the **native Mappls Maps SDK** (`mappls-map-react-native`),
 which is used by the **Map screen** (`src/app/map.tsx`). The area **search** picker
-uses the Mappls **REST APIs** (Autosuggest + Geocode) in `src/lib/mappls.ts`, which
-authenticate with an **access token string** — get it from the console →
-**Credentials** tab:
+now uses **Ola Maps** REST APIs (Autosuggest + Geocode) in `src/lib/olaMaps.ts`.
+Configure that provider with:
 
 ```env
-EXPO_PUBLIC_MAPPLS_ACCESS_TOKEN=<paste the token here>
-# or, to let the app fetch/refresh it automatically:
-EXPO_PUBLIC_MAPPLS_CLIENT_ID=<client id>
-EXPO_PUBLIC_MAPPLS_CLIENT_SECRET=<client secret>
+EXPO_PUBLIC_OLA_MAPS_API_KEY=<Ola Maps API key>
 ```
+
+`src/lib/mappls.ts` is retained as a legacy REST implementation but is no longer
+imported by `LocationPicker.tsx`.
 
 ## Where does the map work?
 

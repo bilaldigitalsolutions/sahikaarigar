@@ -15,14 +15,24 @@ export const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 export const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
 
 /**
- * Google Places API key — powers the area / location picker. When empty the
- * picker falls back to the built-in list of Hyderabad areas.
+ * Google Places API key — optional secondary area / location provider. Used
+ * when Ola Maps is not configured or returned no results.
  */
 export const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? '';
 
 /**
- * Mappls (MapmyIndia) credentials — the preferred area / location provider for
- * India. Provide EITHER a static access token, OR a client id + client secret
+ * Ola Maps API key — primary area / location provider. The key is sent as the
+ * `api_key` query parameter by `lib/olaMaps.ts`. Because EXPO_PUBLIC_* values
+ * are embedded in the app bundle, restrict the key in the Ola Maps console.
+ */
+const olaMapsEnv = (value: string | undefined) => (value ?? '').trim();
+
+export const OLA_MAPS_API_KEY = olaMapsEnv(process.env.EXPO_PUBLIC_OLA_MAPS_API_KEY);
+
+/**
+ * Mappls (MapmyIndia) REST credentials — legacy fallback. LocationPicker now
+ * uses Ola Maps, but `lib/mappls.ts` is retained for reference / manual use.
+ * Provide EITHER a static access token, OR a client id + client secret
  * (the app then fetches a token automatically). See `lib/mappls.ts`.
  *
  *   EXPO_PUBLIC_MAPPLS_ACCESS_TOKEN   – copied from the Mappls console

@@ -16,7 +16,7 @@ import {
 
 import { HYDERABAD_AREAS } from '@/constants';
 import { GOOGLE_MAPS_API_KEY } from '@/lib/config';
-import { mapplsAutosuggest, mapplsEnabled, mapplsGeocode } from '@/lib/mappls';
+import { olaMapsAutosuggest, olaMapsEnabled, olaMapsGeocode } from '@/lib/olaMaps';
 import { photonAutosuggest } from '@/lib/photon';
 import { colors, fontSize, fontWeight, radius, spacing } from '@/theme';
 
@@ -41,7 +41,7 @@ interface DetailsResponse {
 }
 
 /** A row shown in the picker list. */
-type PickerItem = PlaceResult & { placeId?: string; eLoc?: string };
+type PickerItem = PlaceResult & { placeId?: string };
 
 export interface LocationPickerProps {
   placeholder: string;
@@ -61,9 +61,10 @@ const FALLBACK_HINT = 'Showing saved Hyderabad areas (Live search offline)';
  * Area / location picker.
  *
  * Provider priority:
- *   1. Mappls (MapmyIndia) — when Mappls credentials are configured (best for India)
+ *   1. Ola Maps           — when EXPO_PUBLIC_OLA_MAPS_API_KEY is set (best for India)
  *   2. Google Places      — when EXPO_PUBLIC_GOOGLE_MAPS_API_KEY is set
- *   3. Built-in list of Hyderabad areas + free-text entry (always available)
+ *   3. Photon             — keyless OpenStreetMap fallback
+ *   4. Built-in list of Hyderabad areas + free-text entry (always available)
  */
 export function LocationPicker({
   placeholder,
@@ -143,8 +144,8 @@ export function LocationPicker({
       (async () => {
         const remote: PickerItem[] = [];
         try {
-          if (mapplsEnabled) {
-            remote.push(...(await mapplsAutosuggest(q, deviceBias, controller.signal)));
+          if (olaMapsEnabled) {
+            remote.push(...(await olaMapsAutosuggest(q, deviceBias, controller.signal)));
           } else if (googleEnabled) {
             const url =
               'https://maps.googleapis.com/maps/api/place/autocomplete/json' +
@@ -206,16 +207,16 @@ export function LocationPicker({
     let place: PlaceResult = { description: item.description, lat: item.lat, lng: item.lng };
 
     if (place.lat == null && place.lng == null) {
-      if (mapplsEnabled) {
-        // Mappls may return coordinates, but many accounts get "RESTRICTED".
-        // Resolve them with geocode only when the row has no usable lat/lng.
-        // 3-second timeout so a slow geocode can't hang the picker.
+      if (olaMapsEnabled) {
+        // Autocomplete normally includes geometry.location, but free-text rows
+        // and occasional responses do not. Geocode only when coordinates are
+        // missing; 3-second timeout so a slow request can't hang the picker.
         const geoController = new AbortController();
         const geoTimeout = setTimeout(() => geoController.abort(), 3000);
         try {
           place = {
             ...place,
-            ...(await mapplsGeocode(item.description, geoController.signal)),
+            ...(await olaMapsGeocode(item.description, geoController.signal)),
           };
         } catch {
           // Geocode failed/timed out — keep the autocomplete description, lat/lng stay null.
@@ -376,7 +377,7 @@ export function LocationPicker({
 
                 {results.map((item) => (
                   <Pressable
-                    key={item.eLoc ?? item.placeId ?? item.description}
+                    key={item.placeId ?? item.description}
                     style={styles.option}
                     onPress={() => choose(item)}
                   >

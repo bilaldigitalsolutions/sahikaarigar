@@ -3,7 +3,7 @@
     "name": "Sahi Kaarigar",
     "slug": "sahi-kaarigar",
     "owner": "mohammadbilalmd",
-    "version": "1.0.13",
+    "version": "1.0.14",
     "orientation": "portrait",
     "icon": "./assets/images/app-icon.png",
     "scheme": "sahikarigar",
@@ -15,7 +15,7 @@
     },
     "android": {
       "package": "com.sahikarigar.app",
-      "versionCode": 21,
+      "versionCode": 22,
       "adaptiveIcon": {
         "backgroundColor": "#16A34A",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

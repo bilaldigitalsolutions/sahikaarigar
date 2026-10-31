@@ -67,6 +67,7 @@ interface OlaAutocompleteResponse {
   results?: OlaPrediction[];
   status?: string;
   message?: string;
+  error_message?: string;
 }
 
 interface OlaGeocodeResult {
@@ -262,12 +263,14 @@ export async function olaMapsAutosuggest(
     }
 
     const data = (await res.json()) as OlaAutocompleteResponse;
+    // Always log the raw response so we can diagnose missing results in release builds.
+    console.log(`${LOG_PREFIX} autosuggest raw response`, data);
     debugLog('autosuggest raw response', data);
 
-    if (data.message) {
+    if (data.message || data.error_message) {
       warnLog('autosuggest API error', {
         status: data.status,
-        errorMessage: data.message,
+        errorMessage: data.message || data.error_message,
       });
       return [];
     }

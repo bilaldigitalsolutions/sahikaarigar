@@ -170,6 +170,8 @@ jobs:
           EXPO_PUBLIC_POSTHOG_HOST: https://eu.i.posthog.com
           EXPO_PUBLIC_SENTRY_DSN: https://7157c8fedfbd0b5e2729aab0424e81f0@o4512298339270656.ingest.de.sentry.io/4512298371514448
           EXPO_PUBLIC_OLA_MAPS_API_KEY: ${{ secrets.OLA_MAPS_API_KEY }}
+          # Temporary diagnostic flag — remove before a production release.
+          EXPO_PUBLIC_OLA_MAPS_DEBUG: "1"
         run: |
           chmod +x ./gradlew
           ./gradlew assembleRelease --no-daemon
@@ -180,9 +182,9 @@ jobs:
           APK=android/app/build/outputs/apk/release/app-release.apk
           test -f "$APK"
           unzip -l "$APK" | grep -q 'AndroidManifest.xml'
-          node -e "const a=require('./app.json'); const v=a.expo.version; const c=a.expo.android.versionCode; if(v!=='1.0.10'||c!==18){console.error('Unexpected version',v,c);process.exit(1)}; console.log('Version',v,'versionCode',c)"
+          node -e "const a=require('./app.json'); const v=a.expo.version; const c=a.expo.android.versionCode; if(v!=='1.0.11'||c!==19){console.error('Unexpected version',v,c);process.exit(1)}; console.log('Version',v,'versionCode',c)"
           jarsigner -verify "$APK" > /dev/null
-          echo "APK verification passed: version 1.0.10 (versionCode 18), signed."
+          echo "APK verification passed: version 1.0.11 (versionCode 19), signed."
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4

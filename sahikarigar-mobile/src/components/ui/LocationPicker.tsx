@@ -57,6 +57,16 @@ const ERROR_MESSAGE = 'Location could not be loaded. Please check your internet 
  *  local results remain — this is a graceful fallback, NOT an error. */
 const FALLBACK_HINT = 'Showing saved Hyderabad areas (Live search offline)';
 
+const LOCATION_DEBUG =
+  (typeof __DEV__ !== 'undefined' && __DEV__) ||
+  process.env.EXPO_PUBLIC_OLA_MAPS_DEBUG === '1';
+
+function locationDebug(message: string, data?: unknown): void {
+  if (!LOCATION_DEBUG) return;
+  if (data === undefined) console.log(`[LocationPicker] ${message}`);
+  else console.log(`[LocationPicker] ${message}`, data);
+}
+
 /**
  * Area / location picker.
  *
@@ -122,6 +132,13 @@ export function LocationPicker({
     const q = query.trim();
     const hasQuery = q.length > 0;
 
+    locationDebug('search start', {
+      query: q,
+      olaMapsEnabled,
+      googleEnabled,
+      localCount: localResults.length,
+    });
+
     // Show local results IMMEDIATELY — no waiting for the remote API.
     // The user always has something to pick from, even with zero internet.
     setResults(localResults);
@@ -145,7 +162,9 @@ export function LocationPicker({
         const remote: PickerItem[] = [];
         try {
           if (olaMapsEnabled) {
-            remote.push(...(await olaMapsAutosuggest(q, deviceBias, controller.signal)));
+            const olaResults = await olaMapsAutosuggest(q, deviceBias, controller.signal);
+            remote.push(...olaResults);
+            locationDebug('Ola Maps results', { count: olaResults.length });
           } else if (googleEnabled) {
             const url =
               'https://maps.googleapis.com/maps/api/place/autocomplete/json' +
@@ -156,13 +175,27 @@ export function LocationPicker({
               description: p.description,
               placeId: p.place_id,
             })));
+            locationDebug('Google Places results', { count: remote.length });
           }
 
           if (remote.length === 0) {
-            remote.push(...(await photonAutosuggest(q, deviceBias, controller.signal)));
+            locationDebug('trying Photon fallback', {
+              olaMapsEnabled,
+              googleEnabled,
+            });
+            const photonResults = await photonAutosuggest(q, deviceBias, controller.signal);
+            remote.push(...photonResults);
+            locationDebug('Photon fallback results', { count: photonResults.length });
           }
-        } catch {
+
+          locationDebug('remote search complete', {
+            olaMapsEnabled,
+            googleEnabled,
+            remoteCount: remote.length,
+          });
+        } catch (error) {
           // Slow/failing provider is silent — local list already visible.
+          locationDebug('remote search failed', { error: String(error) });
         }
 
         if (!active) return;

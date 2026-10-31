@@ -194,6 +194,15 @@ export async function olaMapsAutosuggest(
   const q = query.trim();
   if (!q) return [];
 
+  const keyPresent = OLA_MAPS_API_KEY.length > 0;
+
+  debugLog('autosuggest start', {
+    query: q,
+    olaMapsEnabled,
+    keyPresent,
+    keyLength: OLA_MAPS_API_KEY.length,
+  });
+
   if (!olaMapsEnabled) {
     debugLog('autosuggest skipped: no Ola Maps API key');
     return [];
@@ -216,6 +225,8 @@ export async function olaMapsAutosuggest(
   debugLog('autosuggest request', {
     url: redactUrl(url),
     headers,
+    keyPresent,
+    keyLength: OLA_MAPS_API_KEY.length,
   });
 
   try {
@@ -223,6 +234,7 @@ export async function olaMapsAutosuggest(
 
     debugLog('autosuggest response', {
       status: res.status,
+      statusText: res.statusText,
       ok: res.ok,
       durationMs: Date.now() - startedAt,
       contentType: res.headers.get('content-type'),
@@ -257,7 +269,12 @@ export async function olaMapsAutosuggest(
     }
 
     const parsed = parseAutosuggestResponse(data);
-    debugLog('autosuggest parsed', { count: parsed.length, results: parsed });
+    debugLog('autosuggest parsed', {
+      status: data.status,
+      predictionsCount: data.predictions?.length ?? 0,
+      count: parsed.length,
+      results: parsed,
+    });
     return parsed;
   } catch (error) {
     if (signal?.aborted || isAbortError(error)) {
@@ -369,6 +386,7 @@ export async function olaMapsGeocode(
 if (DEBUG) {
   console.log(`${LOG_PREFIX} config`, {
     enabled: olaMapsEnabled,
+    keyLength: OLA_MAPS_API_KEY.length,
     autocompleteUrl: AUTOCOMPLETE_URL,
     geocodeUrl: GEOCODE_URL,
   });

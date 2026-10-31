@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 
 import { HYDERABAD_AREAS } from '@/constants';
-import { GOOGLE_MAPS_API_KEY } from '@/lib/config';
+import { GOOGLE_MAPS_API_KEY, OLA_MAPS_API_KEY } from '@/lib/config';
 import { olaMapsAutosuggest, olaMapsEnabled, olaMapsGeocode } from '@/lib/olaMaps';
 import { photonAutosuggest } from '@/lib/photon';
 import { colors, fontSize, fontWeight, radius, spacing } from '@/theme';
@@ -361,6 +361,17 @@ export function LocationPicker({
                 ) : null}
               </View>
 
+              {LOCATION_DEBUG ? (
+                <View style={styles.debugBanner}>
+                  <Text style={styles.debugText}>
+                    Ola Maps: {olaMapsEnabled ? 'Enabled' : 'Disabled'}
+                  </Text>
+                  <Text style={styles.debugText}>
+                    API Key Length: {OLA_MAPS_API_KEY.length}
+                  </Text>
+                </View>
+              ) : null}
+
               {loading && query.trim().length > 0 && localResults.length === 0 ? (
                 <View style={styles.loadingBox}>
                   <ActivityIndicator size="small" color={colors.primaryDark} />
@@ -482,6 +493,20 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
   },
   searchInput: { flex: 1, fontSize: fontSize.small, color: colors.textPrimary, paddingVertical: 0 },
+  debugBanner: {
+    gap: 2,
+    marginTop: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.button,
+    backgroundColor: colors.background,
+  },
+  debugText: {
+    fontSize: fontSize.caption - 1,
+    color: colors.textSecondary,
+  },
   loadingBox: {
     flexDirection: 'row',
     alignItems: 'center',

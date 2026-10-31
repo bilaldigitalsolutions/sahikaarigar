@@ -91,6 +91,14 @@ interface OlaGeocodeResponse {
 /** True when an Ola Maps API key is configured. */
 export const olaMapsEnabled = OLA_MAPS_API_KEY.length > 0;
 
+/** Last raw Ola Maps autocomplete response (temporary debug). */
+let lastOlaRawResponse: any = null;
+
+/** Returns the last raw Ola Maps autocomplete response, or null. */
+export function getLastOlaRawResponse(): any {
+  return lastOlaRawResponse;
+}
+
 function debugLog(message: string, data?: unknown): void {
   if (!DEBUG) return;
   if (data === undefined) console.log(`${LOG_PREFIX} ${message}`);
@@ -263,6 +271,7 @@ export async function olaMapsAutosuggest(
     }
 
     const data = (await res.json()) as OlaAutocompleteResponse;
+    lastOlaRawResponse = data;
     // Always log the raw response so we can diagnose missing results in release builds.
     console.log(`${LOG_PREFIX} autosuggest raw response`, data);
     debugLog('autosuggest raw response', data);

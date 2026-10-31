@@ -433,6 +433,8 @@ export function LocationPicker({
                   </Pressable>
                 ) : null}
 
+                {/* TEMP DEBUG: confirm results length at render time */}
+                {console.log('[LocationPicker] render results:', results.length)}
                 {results.map((item) => (
                   <Pressable
                     key={item.placeId ?? item.description}
@@ -486,6 +488,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: radius.card,
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xl,
+    minHeight: 400,
     maxHeight: '75%',
   },
   sheetHeader: {
@@ -560,8 +563,8 @@ const styles = StyleSheet.create({
     fontWeight: fontWeight.medium,
     color: colors.primaryDark,
   },
-  list: { marginTop: spacing.sm, flex: 1, flexShrink: 1 },
-  listContent: { paddingBottom: spacing.xs, flexGrow: 1 },
+  list: { marginTop: spacing.sm, maxHeight: 300, flexShrink: 1 },
+  listContent: { paddingBottom: spacing.xs },
   option: {
     flexDirection: 'row',
     alignItems: 'center',

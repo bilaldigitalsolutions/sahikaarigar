@@ -28,7 +28,10 @@ export default function CreateHireScreen() {
   }
 
   const [description, setDescription] = useState('');
-  const [location, setLocation] = useState('');
+  /** Customer's home area — auto-filled from onboarding, read-only on this screen. */
+  const [homeLocation, setHomeLocation] = useState(user?.locationArea ?? '');
+  /** Work location — editable, defaults to home area. */
+  const [workLocation, setWorkLocation] = useState(user?.locationArea ?? '');
   const [rate, setRate] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,7 +84,8 @@ export default function CreateHireScreen() {
       const { hire } = await createHire({
         workerId,
         description: description.trim(),
-        location: location.trim(),
+        location: workLocation.trim(),
+        homeLocation: homeLocation.trim(),
         proposedRate: Number(rate),
         name: user?.name,
       });
@@ -100,7 +104,7 @@ export default function CreateHireScreen() {
       setError('Describe the work in at least 10 characters.');
       return;
     }
-    if (location.trim().length < 3) {
+    if (workLocation.trim().length < 3) {
       setError('Enter the work location.');
       return;
     }
@@ -148,12 +152,26 @@ export default function CreateHireScreen() {
         />
 
         <View style={styles.locationWrap}>
-          <Text style={styles.label}>Location / Area</Text>
+          <Text style={styles.label}>Aapki Location</Text>
+          <Text style={styles.sub}>
+            Customer's home area — set during onboarding.
+          </Text>
+          <Input
+            label="Home area"
+            value={homeLocation}
+            editable={false}
+            style={styles.inputReadOnly}
+            containerStyle={styles.mt}
+          />
+        </View>
+
+        <View style={styles.locationWrap}>
+          <Text style={styles.label}>Kaam ki Location</Text>
           <LocationPicker
-            placeholder="Search your area — e.g. Madhapur, LB Nagar"
-            value={location}
+            placeholder="Search work area — e.g. Madhapur, LB Nagar"
+            value={workLocation}
             onSelect={(place: PlaceResult) => {
-              setLocation(place.description);
+              setWorkLocation(place.description);
               if (error) setError(null);
             }}
             icon="location-outline"
@@ -196,5 +214,9 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   locationWrap: { marginBottom: spacing.lg },
+  inputReadOnly: {
+    backgroundColor: colors.background,
+    color: colors.textSecondary,
+  },
   errorText: { color: colors.danger, fontSize: fontSize.caption, marginBottom: spacing.md },
 });

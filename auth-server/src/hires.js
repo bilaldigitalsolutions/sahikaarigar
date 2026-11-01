@@ -22,7 +22,7 @@ import { db } from './users.js';
 import { getWorkerBadge, getWorkerProfileIdForUser } from './workers.js';
 
 export const HIRE_SELECT =
-  'id, employer_id, worker_id, description, location, proposed_rate, status, ' +
+  'id, employer_id, worker_id, description, location, home_location, proposed_rate, status, ' +
   'scheduled_date, scheduled_time, completed_at, phone_revealed, created_at, updated_at, ' +
   'en_route_at, arrived_at, arrived_time, started_at, worker_lat, worker_lng, ' +
   'distance_km, arrived_on_time, ' +
@@ -259,6 +259,7 @@ export function mapHire(row) {
     workerId: row.worker_id,
     description: row.description,
     location: row.location,
+    homeLocation: row.home_location ?? null,
     proposedRate: row.proposed_rate,
     status: row.status,
     scheduledDate: row.scheduled_date ?? null,
@@ -301,6 +302,7 @@ export async function createHireRequest({
   workerId,
   description,
   location,
+  homeLocation,
   proposedRate,
   scheduledDate,
 }) {
@@ -309,6 +311,8 @@ export async function createHireRequest({
 
   const place = String(location || '').trim();
   if (place.length < 3) throw new Error('Kaam ki jagah (location) likho');
+
+  const customerHome = String(homeLocation || '').trim();
 
   const rate = Number(proposedRate);
   if (!Number.isFinite(rate) || rate <= 0) throw new Error('Rate sahi daalo');
@@ -365,6 +369,7 @@ export async function createHireRequest({
       worker_id: workerId,
       description: text,
       location: place,
+      home_location: customerHome || null,
       proposed_rate: Math.round(rate),
       scheduled_date: scheduledDate ? scheduledIso : null,
       scheduled_time: scheduledIso,

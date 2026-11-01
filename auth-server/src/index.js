@@ -471,6 +471,7 @@ app.post('/hires', async (req, res, next) => {
       workerId: req.body?.workerId,
       description: req.body?.description,
       location: req.body?.location,
+      homeLocation: req.body?.homeLocation,
       proposedRate: req.body?.proposedRate,
       scheduledDate: req.body?.scheduledDate,
     });

@@ -277,6 +277,7 @@ export function createLocalHire(input: {
   workerId: string;
   description: string;
   location: string;
+  homeLocation?: string;
   proposedRate: number;
   name?: string;
 }): ApiHire {
@@ -289,6 +290,7 @@ export function createLocalHire(input: {
     workerId: input.workerId,
     description: input.description,
     location: input.location,
+    homeLocation: input.homeLocation ?? null,
     proposedRate: input.proposedRate,
     status: 'pending',
     scheduledDate: null,

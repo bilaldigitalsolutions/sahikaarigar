@@ -227,6 +227,7 @@ export interface ApiHire {
   workerId: string;
   description: string;
   location: string;
+  homeLocation?: string | null;
   proposedRate: number;
   status: HireStatus;
   scheduledDate?: string | null;
@@ -409,6 +410,7 @@ export async function createHire(payload: {
   workerId: string;
   description: string;
   location: string;
+  homeLocation?: string;
   proposedRate: number;
   name?: string;
 }): Promise<{ hire: ApiHire }> {

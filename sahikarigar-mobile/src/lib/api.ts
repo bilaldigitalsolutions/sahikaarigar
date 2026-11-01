@@ -27,79 +27,32 @@ import {
 import { mapUser } from './mappers';
 
 // -----------------------------------------------------------------------------
-// SSL Pinning — prevents MITM attacks on the auth-server.
+// Network — fetch with timeout wrapper.
 // -----------------------------------------------------------------------------
-// The certificate hash below is a PLACEHOLDER. Replace it with the real
-// SHA-256 pin of sahikaarigar-auth.onrender.com before shipping to production.
-//
-// How to get the real hash (run in your terminal):
-//
-//   echo | openssl s_client -connect sahikaarigar-auth.onrender.com:443 \
-//     2>/dev/null | openssl x509 -pubkey -noout \
-//   | openssl pkey -pubin -outform der \
-//   | openssl dgst -sha256 -binary | base64
-//
-// Then update the hash below:
-//   sha256:<base64-output-from-the-command-above>
-//
-// You can verify the current pin in Chrome: open the site → click the lock icon
-// → "Connection is secure" → "Certificate is valid" → look at the SHA-256
-// fingerprint. Convert the hex fingerprint to base64 and prefix with "sha256:".
-const AUTH_HOST = 'sahikaarigar-auth.onrender.com';
-// SSL pinning is temporarily disabled — the render certificate hash caused a
-// native crash on Android (RNSslPinningModule.fetch throws Throwable).
-// Re-enable once a valid pin is confirmed:
-//   echo | openssl s_client -connect sahikaarigar-auth.onrender.com:443 \
-//     2>/dev/null | openssl x509 -pubkey -noout \
-//   | openssl pkey -pubin -outform der \
-//   | openssl dgst -sha256 -binary | base64
-const AUTH_CERT_HASH = 'sha256:PLACEHOLDER_BASE64_HASH_OF_RENDER_CERT';
+// SSL pinning is NOT used: the react-native-ssl-pinning library crashes on
+// Android (RNSslPinningModule.fetch throws Throwable) when the certificate
+// pin doesn't match. Plain fetch with HTTPS provides transport encryption;
+// pinning can be re-added later with a more reliable library.
+const REQUEST_TIMEOUT_MS = 15_000;
 
-type SslPinningFetch = (
-  url: string,
-  options?: RequestInit,
-  rules?: Array<{ host: string; pins: Array<{ hash: string }> }>,
-) => Promise<Response>;
-
-let sslPinningFetch: SslPinningFetch | null = null;
-
-try {
-  // react-native-ssl-pinning may not be linked in all builds (Expo modules /
-  // new architecture). If it isn't available we fall back to plain fetch.
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const SslPinning: { fetch?: SslPinningFetch } = require(
-    'react-native-ssl-pinning',
-  );
-  if (SslPinning.fetch) {
-    sslPinningFetch = SslPinning.fetch;
-  }
-} catch {
-  // Module not installed or not linked — plain fetch will be used.
-}
-
-/** Fetch with SSL pinning. Falls back to plain fetch if the pinning module
- *  isn't available or if the pin check fails due to a placeholder hash. */
-async function fetchWithSslPinning(
+/** Fetch with a hard timeout. Aborts the request if it takes too long,
+ *  preventing the app from hanging on slow or unresponsive servers. */
+async function fetchWithTimeout(
   url: string,
   init?: RequestInit,
 ): Promise<Response> {
-  if (sslPinningFetch && AUTH_CERT_HASH !== 'sha256:PLACEHOLDER_BASE64_HASH_OF_RENDER_CERT') {
-    try {
-      return await sslPinningFetch(url, init, [
-        { host: AUTH_HOST, pins: [{ hash: AUTH_CERT_HASH }] },
-      ]);
-    } catch (pinningError) {
-      // Pinning failed (e.g. cert rotated) — fall back to plain fetch so the
-      // app doesn't hard-break. Log to Sentry for investigation.
-      reportError(
-        pinningError instanceof Error
-          ? pinningError
-          : new Error('SSL pinning fetch failed'),
-        { where: 'apiFetch', path: url, stage: 'ssl_pinning_fallback' },
-      );
-    }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  try {
+    return await fetch(url, {
+      ...init,
+      headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
   }
-  return fetch(url, init);
 }
 
 /**
@@ -112,48 +65,35 @@ export class NetworkError extends Error {}
 /** Hard cap per request. Render's free tier sleeps, so the first hit after
  *  idle can stall for a minute+ — fail fast with a friendly retry message
  *  instead of leaving the user on a spinner forever. */
-const REQUEST_TIMEOUT_MS = 15_000;
-
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   initAuth();
   const base = requireAuthApiUrl();
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-
-  let response: Response;
   try {
-    response = await fetchWithSslPinning(`${base}${path}`, {
+    const response = await fetchWithTimeout(`${base}${path}`, {
       ...init,
       headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
-      signal: controller.signal,
     });
-  } catch {
-    // A cold Render instance can hold the connection past our 15s cap — that
-    // is a timeout (signal aborted), not an offline device. Say so clearly.
-    const timedOut = controller.signal.aborted;
-    const message = timedOut
-      ? 'Server is waking up. Please try again in 10 seconds.'
-      : 'Could not reach the server. Check your connection and try again.';
-    // Only an explicit demo build (EXPO_PUBLIC_DEMO_MODE=1) may swallow an
-    // unreachable server. In a normal build the plain Error propagates, so every
-    // caller shows the real failure instead of silently using sample data.
-    throw DEMO_MODE ? new NetworkError(message) : new Error(message);
-  } finally {
-    clearTimeout(timer);
-  }
 
-  const data = (await response.json().catch(() => null)) as
-    | ({ ok?: boolean; message?: string } & Record<string, unknown>)
-    | null;
+    const data = (await response.json().catch(() => null)) as
+      | ({ ok?: boolean; message?: string } & Record<string, unknown>)
+      | null;
 
-  if (!response.ok || !data?.ok) {
-    const err = new Error((data?.message as string) || 'Request failed. Please try again.');
-    // API failures go to Sentry with path + status — never PII, never bodies.
-    reportError(err, { where: 'apiFetch', path, status: response.status });
-    throw err;
+    if (!response.ok || !data?.ok) {
+      const err = new Error((data?.message as string) || 'Request failed. Please try again.');
+      reportError(err, { where: 'apiFetch', path, status: response.status });
+      throw err;
+    }
+    return data as unknown as T;
+  } catch (e) {
+    // fetchWithTimeout aborts on timeout after REQUEST_TIMEOUT_MS.
+    // A network error (offline, DNS, dropped connection) also reaches here.
+    throw new Error(
+      e instanceof Error && e.name === 'AbortError'
+        ? 'Server is waking up. Please try again in 10 seconds.'
+        : 'Could not reach the server. Check your connection and try again.',
+    );
   }
-  return data as unknown as T;
 }
 
 // -----------------------------------------------------------------------------

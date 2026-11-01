@@ -27,66 +27,17 @@ import {
 import { mapUser } from './mappers';
 
 // -----------------------------------------------------------------------------
-// Network — fetch with timeout + SSL pinning fallback.
+// Network — fetch with timeout wrapper.
 // -----------------------------------------------------------------------------
-// SSL pinning is attempted first. If the native pinning library crashes or
-// rejects the certificate, we fall back to plain HTTPS fetch — transport
-// encryption still applies, and the app never crashes.
-// Certificate pin for sahikaarigar-auth.onrender.com (Render).
-const AUTH_HOST = 'sahikaarigar-auth.onrender.com';
-const AUTH_CERT_HASH = 'sha256:8emdj/UunmeUi04Y/vHZOTQzb9ejwG4voRHTMdNnBPk=';
-
-type SslPinningFetch = (
-  url: string,
-  options?: RequestInit,
-  rules?: Array<{ host: string; pins: Array<{ hash: string }> }>,
-) => Promise<Response>;
-
-let sslPinningFetch: SslPinningFetch | null = null;
-
-// Load the native pinning module. If it is not linked or fails to load,
-// pinning is simply skipped and plain fetch is used.
-try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const SslPinning: { fetch?: SslPinningFetch } = require('react-native-ssl-pinning');
-  if (SslPinning.fetch) {
-    sslPinningFetch = SslPinning.fetch;
-  }
-} catch {
-  // Module not installed — pinning unavailable, plain fetch will be used.
-  sslPinningFetch = null;
-}
-
-/** Attempt SSL-pinned fetch first; fall back to plain fetch on ANY failure.
- *  The native pinning library can throw on certificate mismatch — we catch
- *  that and never let it propagate to crash the app. */
-async function fetchWithSslPinning(
-  url: string,
-  init?: RequestInit,
-): Promise<Response> {
-  if (sslPinningFetch && AUTH_CERT_HASH !== 'sha256:PLACEHOLDER_BASE64_HASH_OF_RENDER_CERT') {
-    try {
-      return await sslPinningFetch(url, init, [
-        { host: AUTH_HOST, pins: [{ hash: AUTH_CERT_HASH }] },
-      ]);
-    } catch (pinningError) {
-      // Pinning failed (cert mismatch, native crash, etc.) — fall back to
-      // plain HTTPS fetch. Transport encryption still applies.
-      reportError(
-        pinningError instanceof Error
-          ? pinningError
-          : new Error('SSL pinning fetch failed'),
-        { where: 'apiFetch', path: url, stage: 'ssl_pinning_fallback' },
-      );
-    }
-  }
-  return fetch(url, init);
-}
-
+// SSL pinning is NOT used. The react-native-ssl-pinning library crashes on
+// Android (native RNSslPinningModule.fetch throws Throwable) when the
+// certificate pin doesn't match. No JavaScript try/catch can prevent a native
+// crash. Plain fetch with HTTPS provides full transport encryption.
+// Pinning can be re-added later with a more reliable library if needed.
 const REQUEST_TIMEOUT_MS = 15_000;
 
-/** Fetch with SSL pinning (falling back to plain fetch) and a hard timeout.
- *  Aborts the request if it takes too long, preventing hangs. */
+/** Fetch with a hard timeout. Aborts the request if it takes too long,
+ *  preventing the app from hanging on slow or unresponsive servers. */
 async function fetchWithTimeout(
   url: string,
   init?: RequestInit,
@@ -95,7 +46,7 @@ async function fetchWithTimeout(
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
-    return await fetchWithSslPinning(url, {
+    return await fetch(url, {
       ...init,
       headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
       signal: controller.signal,

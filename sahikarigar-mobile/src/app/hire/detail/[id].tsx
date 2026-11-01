@@ -490,7 +490,17 @@ function BookingBody({
             )}
           </View>
         ) : null}
-        {workStarted ? (
+        {completed ? (
+          <View style={[styles.otpCard, styles.otpCardDone]}>
+            <Ionicons name="checkmark-circle" size={16} color="#16A34A" />
+            <Text style={[styles.otpLabel, styles.otpLabelDone]}>
+              Kaam poora ho gaya!
+            </Text>
+            <Text style={styles.otpHint}>
+              Customer se confirmation lein aur feedback dein.
+            </Text>
+          </View>
+        ) : workStarted ? (
           <View style={[styles.otpCard, styles.otpCardDone]}>
             <Ionicons name="checkmark-circle" size={16} color="#16A34A" />
             <Text style={[styles.otpLabel, styles.otpLabelDone]}>
@@ -589,9 +599,9 @@ function BookingBody({
               screens and left uneven margins. */}
           <View style={styles.callWrap}>
             <Pressable
-              style={[styles.callBtn, !accepted && styles.disabled]}
+              style={[styles.callBtn, (!accepted || workStarted) && styles.disabled]}
               onPress={onCall}
-              disabled={!accepted}
+              disabled={!accepted || workStarted}
             >
               <Ionicons name="call" size={17} color={colors.primaryDark} />
               <Text style={styles.callText}>{isWorkerViewer ? 'Call Customer' : 'Call Worker'}</Text>
@@ -682,25 +692,19 @@ function BookingBody({
                 <Pressable style={styles.primaryAction} onPress={onFeedback}>
                   <Text style={styles.primaryActionText}>Give Feedback</Text>
                 </Pressable>
-                <Pressable
-                  style={styles.outlineAction}
-                  onPress={() => router.replace('/(tabs)')}
-                >
-                  <Text style={styles.outlineActionText}>Home</Text>
-                </Pressable>
                 <Pressable style={styles.outlineAction} onPress={onHelp}>
                   <Text style={styles.outlineActionText}>Help</Text>
                 </Pressable>
               </>
             ) : (
               <>
-                {arrived ? (
+                {workStarted && !completed ? (
                   <Pressable
                     style={[styles.primaryAction, busy && styles.disabled]}
                     onPress={() => onAction('complete')}
                     disabled={busy}
                   >
-                    <Text style={styles.primaryActionText}>Mark Complete</Text>
+                    <Text style={styles.primaryActionText}>Work Completed</Text>
                   </Pressable>
                 ) : null}
                 <Pressable

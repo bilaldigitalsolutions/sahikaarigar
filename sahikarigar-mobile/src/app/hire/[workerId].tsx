@@ -2,7 +2,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, Keyboard, KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
 
-import { Button, Input, LocationPicker, RateInput, Screen, type PlaceResult } from '@/components';
+import { Button, Input, LocationPicker, Screen, type PlaceResult } from '@/components';
 import { VALIDATION } from '@/constants';
 import { useAuth } from '@/contexts/AuthContext';
 import { createHire, getWorker } from '@/lib/api';
@@ -32,7 +32,8 @@ export default function CreateHireScreen() {
   const [homeLocation, setHomeLocation] = useState(user?.locationArea ?? '');
   /** Work location — editable, defaults to home area. */
   const [workLocation, setWorkLocation] = useState(user?.locationArea ?? '');
-  const [rate, setRate] = useState('');
+  /** Worker's hourly rate — pre-filled, read-only, set by the worker. */
+  const [workerRate, setWorkerRate] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Keyboard overlap guard: when the software keyboard shows, push the scroll
@@ -53,6 +54,31 @@ export default function CreateHireScreen() {
     return () => {
       show.remove();
       hide.remove();
+    };
+  }, [workerId]);
+
+  // Keep homeLocation in sync with the user's onboarding area in case it loads
+  // asynchronously after the screen mounts.
+  useEffect(() => {
+    setHomeLocation(user?.locationArea ?? '');
+  }, [user?.locationArea]);
+
+  // Fetch worker data on mount to get their hourly rate for the booking form.
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const { worker } = await getWorker(workerId);
+        if (active) {
+          setWorkerRate(worker.hourlyRate);
+        }
+      } catch {
+        // Best-effort: if we can't fetch the worker, the rate field will be empty
+        // and the server will validate the proposedRate.
+      }
+    })();
+    return () => {
+      active = false;
     };
   }, [workerId]);
 
@@ -86,7 +112,7 @@ export default function CreateHireScreen() {
         description: description.trim(),
         location: (workLocation ?? '').trim(),
         homeLocation: (homeLocation ?? '').trim(),
-        proposedRate: Number(rate),
+        proposedRate: workerRate ?? 0,
         name: user?.name,
       });
       if (!hire || !hire.id) throw new Error('Invalid hire response: missing hire id');
@@ -107,15 +133,6 @@ export default function CreateHireScreen() {
     }
     if (workLocation.trim().length < 3) {
       setError('Enter the work location.');
-      return;
-    }
-    const proposedRate = Number(rate);
-    if (
-      !Number.isFinite(proposedRate) ||
-      proposedRate < VALIDATION.MIN_RATE ||
-      proposedRate > VALIDATION.MAX_RATE
-    ) {
-      setError(`Enter a rate between ₹${VALIDATION.MIN_RATE} and ₹${VALIDATION.MAX_RATE}.`);
       return;
     }
     await send();
@@ -179,16 +196,12 @@ export default function CreateHireScreen() {
           />
         </View>
 
-        <RateInput
-          label="Your rate (₹ per hour)"
-          placeholder="e.g. 300"
-          value={rate}
-          onChangeText={(text) => {
-            setRate(text);
-            if (error) setError(null);
-          }}
-          hint={`${VALIDATION.MIN_RATE} to ${VALIDATION.MAX_RATE}`}
-        />
+        <View style={styles.rateRow}>
+          <Text style={styles.rateLabel}>Rate</Text>
+          <Text style={styles.rateValue}>
+            ₹{workerRate ?? 0}/hr (set by worker)
+          </Text>
+        </View>
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
@@ -218,6 +231,25 @@ const styles = StyleSheet.create({
   inputReadOnly: {
     backgroundColor: colors.background,
     color: colors.textSecondary,
+  },
+  rateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.background,
+    borderRadius: radius.button,
+  },
+  rateLabel: {
+    fontSize: fontSize.small,
+    fontWeight: fontWeight.medium,
+    color: colors.textSecondary,
+  },
+  rateValue: {
+    fontSize: fontSize.body,
+    fontWeight: fontWeight.bold,
+    color: colors.primaryDark,
   },
   errorText: { color: colors.danger, fontSize: fontSize.caption, marginBottom: spacing.md },
 });

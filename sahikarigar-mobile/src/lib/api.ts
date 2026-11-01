@@ -46,8 +46,8 @@ import { mapUser } from './mappers';
 // → "Connection is secure" → "Certificate is valid" → look at the SHA-256
 // fingerprint. Convert the hex fingerprint to base64 and prefix with "sha256:".
 const AUTH_HOST = 'sahikaarigar-auth.onrender.com';
-// Placeholder — REPLACE with the real hash from the openssl command above.
-const AUTH_CERT_HASH = 'sha256:PLACEHOLDER_BASE64_HASH_OF_RENDER_CERT';
+// Real SHA-256 pin of sahikaarigar-auth.onrender.com (Render certificate).
+const AUTH_CERT_HASH = 'sha256:8emdj/UunmeUi04Y/vHZOTQzb9ejwG4voRHTMdNnBPk=';
 
 type SslPinningFetch = (
   url: string,

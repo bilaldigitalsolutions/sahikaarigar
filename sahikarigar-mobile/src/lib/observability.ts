@@ -40,9 +40,19 @@ export const posthog = new PostHog(POSTHOG_KEY, { host: POSTHOG_HOST });
 /** Signed-in user id used as the analytics `distinct_id` (id + role only). */
 let analyticsUserId: string | null = null;
 
-/** Sets the current analytics user id — the value sent as `distinct_id`. */
+/** Sets the current analytics user id — the value sent as `distinct_id`.
+ *  Calls posthog.identify() so that subsequent capture() calls are attributed
+ *  to this user. Must be called before trackEvent() for the user to show up
+ *  in PostHog dashboards. */
 export function setAnalyticsUserId(userId: string | null): void {
   analyticsUserId = userId;
+  if (userId && POSTHOG_KEY) {
+    try {
+      posthog.identify(userId);
+    } catch {
+      // Identify failures are silent — events still fire, just unattributed.
+    }
+  }
 }
 
 type SentryLike = {

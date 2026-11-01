@@ -429,7 +429,7 @@ export async function setReportStatus(reportId, status) {
 }
 
 const ADMIN_HIRE_SELECT =
-  'id, employer_id, worker_id, description, location, proposed_rate, status, scheduled_date, ' +
+  'id, employer_id, worker_id, description, location, home_location, proposed_rate, status, scheduled_date, ' +
   'completed_at, created_at, updated_at, employer:users(id, name, phone), ' +
   'worker:worker_profiles(id, user:users!user_id(id, name, phone))';
 const HIRE_STATUSES = ['pending', 'accepted', 'rejected', 'completed', 'cancelled', 'en_route', 'arrived', 'in_progress'];
@@ -509,6 +509,7 @@ export async function listAdminHires(status, page = 1, limit = 50) {
         workerId: row.worker_id,
         description: row.description,
         location: row.location,
+        homeLocation: row.home_location ?? null,
         proposedRate: row.proposed_rate,
         status: row.status,
         scheduledDate: row.scheduled_date,

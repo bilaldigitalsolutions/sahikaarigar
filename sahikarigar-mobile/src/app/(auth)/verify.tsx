@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Button, Input, Screen } from '@/components';
 import { useAuth } from '@/contexts/AuthContext';
@@ -16,10 +16,16 @@ export default function VerifyScreen() {
   const { confirmOtp, resend, busy, pendingPhone, devOtp } = useAuth();
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
+  /** Explicit consent to data processing (DPDP requirement). */
+  const [consentGiven, setConsentGiven] = useState(false);
 
   const onVerify = async () => {
     if (code.trim().length !== 6) {
       setError('Enter the 6-digit OTP.');
+      return;
+    }
+    if (!consentGiven) {
+      setError('Please agree to the terms and privacy policy to continue.');
       return;
     }
     setError(null);
@@ -128,7 +134,30 @@ export default function VerifyScreen() {
           </Text>
         )}
 
-        <Button label="Verify" onPress={onVerify} loading={busy} size="lg" />
+        {/* DPDP consent — explicit agreement required before OTP verification. */}
+        <View style={styles.consentRow}>
+          <Pressable
+            style={[styles.consentBox, consentGiven && styles.consentBoxChecked]}
+            onPress={() => setConsentGiven(!consentGiven)}
+          />
+          <Text style={styles.consentText} numberOfLines={3}>
+            By verifying, you agree to our{' '}
+            <Pressable style={styles.consentLink} onPress={() => Linking.openURL('https://sahi-kaarigar.web.app/privacy')}>
+              Privacy Policy
+            </Pressable>{' '}
+            and consent to us collecting, storing, and using your phone number,
+            name, and location for service delivery. Aadhaar is encrypted and
+            never shared with third parties.
+          </Text>
+        </View>
+
+        <Button
+          label="Verify"
+          onPress={onVerify}
+          loading={busy}
+          size="lg"
+          disabled={!consentGiven}
+        />
         <Button label="Resend OTP" onPress={onResend} variant="ghost" disabled={busy} />
         <Button label="Change number" onPress={() => router.back()} variant="ghost" disabled={busy} />
       </KeyboardAvoidingView>
@@ -173,5 +202,38 @@ const styles = StyleSheet.create({
     fontSize: fontSize.caption,
     color: colors.textSecondary,
     marginBottom: spacing.lg,
+  },
+  consentRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  consentBox: {
+    width: 22,
+    height: 22,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  consentBoxChecked: {
+    backgroundColor: colors.primaryDark,
+    borderColor: colors.primaryDark,
+  },
+  consentText: {
+    flex: 1,
+    fontSize: fontSize.caption - 1,
+    color: colors.textSecondary,
+    lineHeight: spacing.lg,
+  },
+  consentLink: {
+    color: colors.primaryDark,
+    fontWeight: fontWeight.semibold,
+    textDecorationLine: 'underline',
   },
 });

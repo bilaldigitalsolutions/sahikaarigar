@@ -51,8 +51,10 @@ export default function HireDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /** Guard against state updates after the component unmounts. */
+  const isMountedRef = useRef(false);
 
-  // Fetch the booking — runs on mount, on every screen focus, AND every 10s
+  // Fetch the booking — runs on mount, on every screen focus, AND every 3s
   // while the screen stays open. The live poll is what lets the employer see
   // the kaarigar's status change (accepted → on the way → arrived) without
   // leaving the screen, so the Start Work OTP appears the moment the worker
@@ -62,16 +64,26 @@ export default function HireDetailScreen() {
       if (!silent) setLoading(true);
       try {
         const result = await getHire(id);
+        if (!isMountedRef.current) return;
         setHire(result.hire);
         setError(null);
       } catch (e) {
+        if (!isMountedRef.current) return;
         setError(e instanceof Error ? e.message : 'Could not load the booking.');
       } finally {
-        if (!silent) setLoading(false);
+        if (!silent && isMountedRef.current) setLoading(false);
       }
     },
     [id],
   );
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    void fetchHire();
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -82,7 +94,7 @@ export default function HireDetailScreen() {
   useEffect(() => {
     const timer = setInterval(() => {
       void fetchHire(true);
-    }, 5_000);
+    }, 3_000);
     return () => clearInterval(timer);
   }, [fetchHire]);
 

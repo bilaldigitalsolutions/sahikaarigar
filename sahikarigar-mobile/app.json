@@ -3,9 +3,10 @@
     "name": "Sahi Kaarigar",
     "slug": "sahi-kaarigar",
     "owner": "mohammadbilalmd",
-    "version": "1.0.18",
+    "version": "1.0.19",
     "orientation": "portrait",
     "icon": "./assets/images/app-icon.png",
+    "backgroundColor": "#16A34A",
     "scheme": "sahikarigar",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
@@ -15,11 +16,11 @@
     },
     "android": {
       "package": "com.sahikarigar.app",
-      "versionCode": 26,
+      "versionCode": 27,
       "adaptiveIcon": {
         "backgroundColor": "#16A34A",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "foregroundImage": "./assets/images/app-icon.png",
+        "monochromeImage": "./assets/images/app-icon.png"
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [

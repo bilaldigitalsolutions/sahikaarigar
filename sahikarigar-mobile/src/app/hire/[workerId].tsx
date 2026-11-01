@@ -67,7 +67,7 @@ export default function CreateHireScreen() {
       // became busy between search results and form submission.
       try {
         const { worker } = await getWorker(workerId);
-        if (worker.availability !== 'available') {
+        if (!worker || worker.availability !== 'available') {
           Alert.alert(
             'Kaarigar available nahi hai',
             'Ye kaarigar abhi available nahi hai. Kripya kisi aur kaarigar ko try karein.',
@@ -84,11 +84,12 @@ export default function CreateHireScreen() {
       const { hire } = await createHire({
         workerId,
         description: description.trim(),
-        location: workLocation.trim(),
-        homeLocation: homeLocation.trim(),
+        location: (workLocation ?? '').trim(),
+        homeLocation: (homeLocation ?? '').trim(),
         proposedRate: Number(rate),
         name: user?.name,
       });
+      if (!hire || !hire.id) throw new Error('Invalid hire response: missing hire id');
       router.replace({ pathname: '/hire/detail/[id]', params: { id: hire.id } });
     } catch (e) {
       // Form data (description, location, rate) is intentionally NOT cleared

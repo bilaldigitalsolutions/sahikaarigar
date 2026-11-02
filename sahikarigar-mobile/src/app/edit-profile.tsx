@@ -62,6 +62,7 @@ export default function EditProfileScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
   /** Skill ids stored in the DB that are not part of the known SKILLS list. */
   const [extraSkills, setExtraSkills] = useState<string[]>([]);
   /** True when an Aadhaar is already on file → field is read-only/locked. */
@@ -202,14 +203,18 @@ export default function EditProfileScreen() {
       });
       await refreshUser();
       await loadProfile();
-      Alert.alert('Profile updated!', 'Aapki details save ho gayi hain.', [
-        { text: 'OK', onPress: () => router.replace('/(tabs)') },
-      ]);
+      setShowSuccess(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save your profile.');
     } finally {
       setBusy(false);
     }
+  };
+
+  /** Close the success popup and return to Home. */
+  const dismissSuccess = () => {
+    setShowSuccess(false);
+    router.replace('/(tabs)');
   };
 
   if (!user) return null;
@@ -287,6 +292,24 @@ export default function EditProfileScreen() {
 
             <Text style={styles.support}>Need help? Contact support • {SUPPORT_PHONE}</Text>
           </ScrollView>
+
+          {/* Modern success popup — shown after profile is saved. */}
+          {showSuccess && (
+            <View style={styles.successOverlay}>
+              <View style={styles.successCard}>
+                <View style={styles.successIcon}>
+                  <Ionicons name="checkmark-circle" size={48} color="#16A34A" />
+                </View>
+                <Text style={styles.successTitle}>Profile Saved!</Text>
+                <Text style={styles.successMessage}>
+                  Aapki details save ho gayi hain.
+                </Text>
+                <Pressable style={styles.successBtn} onPress={dismissSuccess}>
+                  <Text style={styles.successBtnText}>OK</Text>
+                </Pressable>
+              </View>
+            </View>
+          )}
         </KeyboardAvoidingView>
       </Screen>
     );
@@ -427,5 +450,52 @@ const styles = StyleSheet.create({
     fontSize: fontSize.caption,
     color: colors.textSecondary,
     textAlign: 'center',
+  },
+  // Success popup styles
+  successOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  successCard: {
+    alignItems: 'center',
+    padding: spacing.xl,
+    borderRadius: radius.card,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    maxWidth: '85%',
+  },
+  successIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#ECFDF5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
+  successTitle: {
+    fontSize: fontSize.title,
+    fontWeight: fontWeight.bold,
+    color: colors.textPrimary,
+    marginBottom: spacing.xs,
+  },
+  successMessage: {
+    fontSize: fontSize.small,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: spacing.lg,
+  },
+  successBtn: {
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    borderRadius: radius.button,
+    backgroundColor: colors.primaryDark,
+  },
+  successBtnText: {
+    color: colors.white,
+    fontWeight: fontWeight.semibold,
   },
 });

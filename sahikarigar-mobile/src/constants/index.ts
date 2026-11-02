@@ -18,6 +18,8 @@ export const SKILLS = [
   { id: 'mechanic', label: 'Mechanic', icon: '🔩' },
   { id: 'gardener', label: 'Gardener', icon: '🌱' },
   { id: 'cook', label: 'Cook', icon: '🍳' },
+  { id: 'flooring', label: 'Flooring', icon: '🪵' },
+  { id: 'others', label: 'Others', icon: '🛠️' },
 ] as const;
 
 export type SkillId = (typeof SKILLS)[number]['id'];
@@ -135,6 +137,8 @@ export const SKILL_IONICONS: Record<string, string> = {
   mechanic: 'settings-outline',
   gardener: 'leaf-outline',
   cook: 'restaurant-outline',
+  flooring: 'floor-outline',
+  others: 'construct-outline',
 };
 
 /** Ionicons name for a skill id (falls back to a wrench). */

@@ -414,6 +414,21 @@ function BookingBody({
                 : 'Your booking is confirmed. We’ll keep you updated.'}
         </Text>
 
+        {/* EMPLOYER ACTION BANNER — the kaarigar is on the way. */}
+        {!isWorkerViewer && hire.status === 'en_route' ? (
+          <View style={styles.enRouteBanner}>
+            <Ionicons name="car" size={20} color={colors.white} />
+            <View style={styles.enRouteTextWrap}>
+              <Text style={styles.enRouteTitle}>Kaarigar raste mein hai!</Text>
+              <Text style={styles.enRouteSub}>
+                {hire.worker?.serviceAreas?.[0]
+                  ? `${hire.worker.serviceAreas[0]} se aa raha hai.`
+                  : 'Aapke paas aa raha hai.'}
+              </Text>
+            </View>
+          </View>
+        ) : null}
+
         {/* EMPLOYER ACTION BANNER — the kaarigar has arrived and the OTP is
             waiting to be shared. This is the one moment that needs the
             customer's attention, so it is impossible to miss. */}
@@ -873,13 +888,36 @@ const styles = StyleSheet.create({
     borderRadius: radius.card,
     backgroundColor: colors.primaryDark,
   },
-  arrivedTextWrap: { flex: 1 },
+  // En route banner — kaarigar is on the way.
+  enRouteBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    alignSelf: 'stretch',
+    marginTop: spacing.md,
+    padding: spacing.md,
+    borderRadius: radius.card,
+    backgroundColor: colors.primaryDark,
+  },
+  enRouteTextWrap: { flex: 1 },
   arrivedTitle: {
     fontSize: fontSize.body,
     fontWeight: fontWeight.bold,
     color: colors.white,
   },
   arrivedSub: {
+    fontSize: fontSize.caption,
+    color: colors.white,
+    opacity: 0.9,
+    marginTop: 2,
+    lineHeight: 17,
+  },
+  enRouteTitle: {
+    fontSize: fontSize.body,
+    fontWeight: fontWeight.bold,
+    color: colors.white,
+  },
+  enRouteSub: {
     fontSize: fontSize.caption,
     color: colors.white,
     opacity: 0.9,

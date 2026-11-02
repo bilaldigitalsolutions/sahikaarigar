@@ -470,6 +470,17 @@ export function WorkerProfileForm({
         hint={`Hourly rate — ₹${VALIDATION.MIN_RATE} se ₹${VALIDATION.MAX_RATE} tak.`}
         containerStyle={styles.mt}
       />
+      <View style={styles.rateHintRow}>
+        <Ionicons name="bulb-outline" size={16} color={colors.primaryDark} />
+        <Text style={styles.rateHintText}>
+          💡 Tip: Charges kam rakhein (₹50-₹200/hr) toh aapko zyada leads milenge. Zyada rate = kam customers.
+        </Text>
+      </View>
+      <View style={styles.rateHintRow}>
+        <Text style={styles.rateHintText}>
+          Hyderabad mein average rate ₹150-₹250/hr hai. Is range mein rakhne se aapko zyada kaam milega.
+        </Text>
+      </View>
 
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
     </View>
@@ -575,5 +586,42 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.danger,
+  },
+  rateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.background,
+    borderRadius: radius.button,
+  },
+  rateLabel: {
+    fontSize: fontSize.small,
+    fontWeight: fontWeight.medium,
+    color: colors.textSecondary,
+  },
+  rateValue: {
+    fontSize: fontSize.body,
+    fontWeight: fontWeight.bold,
+    color: colors.primaryDark,
+  },
+  rateHintRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: '#ECFDF5',
+    borderRadius: radius.button,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+  },
+  rateHintText: {
+    fontSize: fontSize.caption - 1,
+    color: colors.textSecondary,
+    flex: 1,
+    lineHeight: 18,
   },
 });

@@ -143,9 +143,9 @@ export default function VerifyScreen() {
           />
           <Text style={styles.consentText} numberOfLines={3}>
             By verifying, you agree to our{' '}
-            <Pressable style={styles.consentLink} onPress={() => Linking.openURL('https://sahi-kaarigar.web.app/privacy')}>
+            <Text style={styles.consentLink} onPress={() => Linking.openURL('https://sahi-kaarigar.web.app/privacy')}>
               Privacy Policy
-            </Pressable>{' '}
+            </Text>{' '}
             and consent to us collecting, storing, and using your phone number,
             name, and location for service delivery. Aadhaar is encrypted and
             never shared with third parties.

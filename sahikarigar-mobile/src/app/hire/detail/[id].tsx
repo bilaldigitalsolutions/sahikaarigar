@@ -154,7 +154,7 @@ export default function HireDetailScreen() {
 
   return (
     <>
-      <Screen padded={false} edges={['bottom']} header={<Header center={<BrandLogo size={28} />} showBack={false} right={<Pressable onPress={onHelp} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('common.help')}><Ionicons name="help-circle-outline" size={24} color={colors.primaryDark} /></Pressable>}}>
+      <Screen padded={false} edges={['bottom']} header={<Header center={<BrandLogo size={28} />} showBack={false} right={<Pressable onPress={onHelp} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('common.help')}><Ionicons name="help-circle-outline" size={24} color={colors.primaryDark} /></Pressable>} />}>
         {loading ? (
           <View style={styles.center}>
             <ActivityIndicator color={colors.primaryDark} />
@@ -223,6 +223,7 @@ function BookingBody({
   router: ReturnType<typeof useRouter>;
   onHelp: () => void;
 }) {
+  const { t } = useTranslation();
   const completed = hire.status === 'completed';
   const [startOtp, setStartOtp] = useState<string | null>(null);
   const [otpError, setOtpError] = useState<string | null>(null);
@@ -821,6 +822,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryDark,
   },
   enRouteTextWrap: { flex: 1 },
+  arrivedTextWrap: { flex: 1 },
   arrivedTitle: {
     fontSize: fontSize.body,
     fontWeight: fontWeight.bold,

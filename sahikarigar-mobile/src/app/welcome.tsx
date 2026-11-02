@@ -137,10 +137,10 @@ export default function WelcomeScreen() {
 
         {/* Trust badges */}
         <View style={styles.trustRow}>
-          {TRUST.map((t) => (
-            <View key={t.label} style={styles.trustItem}>
-              <Ionicons name={t.icon} size={15} color={colors.primaryDark} />
-              <Text style={styles.trustText}>{t('common.' + t.label)}</Text>
+          {TRUST.map((item) => (
+            <View key={item.label} style={styles.trustItem}>
+              <Ionicons name={item.icon} size={15} color={colors.primaryDark} />
+              <Text style={styles.trustText}>{t('common.' + item.label)}</Text>
             </View>
           ))}
         </View>

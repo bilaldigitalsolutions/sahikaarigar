@@ -8,7 +8,7 @@ import { VALIDATION } from '@/constants';
 import { useAuth } from '@/contexts/AuthContext';
 import { createHire, getWorker } from '@/lib/api';
 import { trackEvent } from '@/lib/observability';
-import { colors, fontSize, fontWeight, spacing } from '@/theme';
+import { colors, fontSize, fontWeight, radius, spacing } from '@/theme';
 
 /** Phone numbers (India) are 10 digits; a rate field is max 5 digits. */
 
@@ -153,12 +153,11 @@ export default function CreateHireScreen() {
     >
       <Screen scroll contentStyle={{ paddingBottom: spacing.lg + keyboardHeight }}>
         <Text style={styles.heading}>{t('hireDetail.screenTitle')}</Text>
-        <Text style={styles.sub}>
-          {t('hireDetail.sub')}
+        <Text style={styles.sub}>{t('hireDetail.sub')}</Text>
 
         <Input
           label={t('hire.workNeeded')}
-            placeholder={t('hire.workPlaceholder')}
+          placeholder={t('hire.workPlaceholder')}
           value={description}
           onChangeText={(text) => {
             setDescription(text);

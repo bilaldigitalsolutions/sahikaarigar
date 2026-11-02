@@ -8,7 +8,9 @@ import { useTranslation } from 'react-i18next';
  * Usage:
  *   <LanguageText>{t('home.welcome')}</Text>
  */
-export function LanguageText(props: TextProps) {
+export type LanguageTextProps = TextProps;
+
+export function LanguageText(props: LanguageTextProps) {
   const { i18n } = useTranslation();
   const isTelugu = i18n.language === 'te';
 

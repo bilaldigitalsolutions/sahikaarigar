@@ -155,6 +155,7 @@ export interface ApiHireWorker {
   id: string;
   userId: string;
   skills: string[];
+  serviceAreas?: string[];
   hourlyRate: number;
   ratingAverage: number;
   ratingCount: number;

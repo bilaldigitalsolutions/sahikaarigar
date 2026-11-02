@@ -33,10 +33,6 @@ export default function TabsLayout() {
     };
   }, []);
 
-  if (!fontsLoaded) return null;
-
-  // Wait for the stored role before picking a tab set (avoids a flash).
-  if (!ready) return null;
   const loadActionCount = useCallback(async () => {
     if (!user || role !== 'employer') {
       setActionCount(0);
@@ -61,6 +57,8 @@ export default function TabsLayout() {
     }, 15000);
     return () => clearInterval(timer);
   }, [user, role, loadActionCount]);
+
+  if (!fontsLoaded) return null;
 
   // Wait for the stored role before picking a tab set (avoids a flash).
   if (!ready) return null;

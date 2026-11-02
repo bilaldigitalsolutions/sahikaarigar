@@ -31,7 +31,7 @@ export function WorkerCard({ worker, onPress }: WorkerCardProps) {
             ) : null}
           </View>
           <Text style={styles.skills} numberOfLines={1}>
-            {worker.skills.map(skillLabel).join(' • ') || 'Kaarigar'}
+            {(worker.skills ?? []).map(skillLabel).join(' • ') || 'Kaarigar'}
           </Text>
           <Rating value={worker.ratingAverage} count={worker.ratingCount} />
         </View>

@@ -65,7 +65,7 @@ export default function HireDetailScreen() {
       try {
         const result = await getHire(id);
         if (!isMountedRef.current) return;
-        setHire(result.hire);
+        if (result.hire) setHire(result.hire);
         setError(null);
       } catch (e) {
         if (!isMountedRef.current) return;
@@ -103,7 +103,7 @@ export default function HireDetailScreen() {
   const onCall = () => {
     // Whose number to dial depends on which side of the booking you are on: the
     // customer calls the kaarigar, the kaarigar calls the customer.
-    const workerViewer = hire?.worker?.userId != null && hire.worker.userId === user?.id;
+    const workerViewer = hire?.worker?.userId != null && hire?.worker?.userId === user?.id;
     const phone = workerViewer ? hire?.employer?.phone : hire?.worker?.user?.phone;
     if (!phone) {
       Alert.alert('Number hidden', 'The number is revealed once the worker accepts the booking.');
@@ -325,6 +325,7 @@ function BookingBody({
   /** Worker: verify the OTP shared by the customer and start the job.
    *  Errors surface inline — `onAction` rethrows when an `otp` is passed. */
   const verifyStartOtp = async () => {
+    if (!hire) return;
     setOtpEntryError(null);
     try {
       await onAction('start', otpEntry.trim());

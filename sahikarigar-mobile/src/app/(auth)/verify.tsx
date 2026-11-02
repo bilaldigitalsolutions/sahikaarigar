@@ -34,6 +34,7 @@ export default function VerifyScreen() {
       // when the worker_profiles row exists (upsertWorkerProfile flips it), so
       // routing can trust it instead of guessing client-side.
       const me = await confirmOtp(code.trim());
+      if (!me?.id) throw new Error('User not found');
       // Signup lifecycle event — through the SINGLE shared PostHog client, with
       // the freshly issued user id as the analytics distinct_id.
       setAnalyticsUserId(me.id);
@@ -59,7 +60,7 @@ export default function VerifyScreen() {
         return;
       }
 
-      if (role === 'worker') {
+      if (me.role === 'worker') {
         // Smart worker routing: profile exists → straight to the dashboard
         // (it renders "Verification Pending" until an admin approves, then the
         // live stats). No profile yet → the registration form first.

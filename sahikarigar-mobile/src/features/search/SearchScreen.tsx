@@ -47,7 +47,7 @@ const ALL_SKILLS = '__all__';
 function matchesArea(worker: ApiWorker, area: string): boolean {
   const needle = area.toLowerCase();
   const candidates = [
-    ...worker.serviceAreas.map((id) => areaLabel(id)),
+    ...(worker.serviceAreas ?? []).map((id) => areaLabel(id)),
     worker.user?.locationArea ? areaLabel(worker.user.locationArea) : '',
   ]
     .filter(Boolean)
@@ -107,12 +107,12 @@ export function SearchScreen() {
     setRefreshing(true);
     try {
       const result = await searchWorkers({ skill: skill ?? undefined, limit: 50 });
-      setWorkers(result.workers);
+      setWorkers(result.workers ?? []);
       setError(null);
       trackEvent('search_performed', {
         skill: skill ?? undefined,
         query_text: queryRef.current.trim(),
-        resultCount: result.workers.length,
+        resultCount: (result.workers ?? []).length,
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load workers.');
@@ -437,7 +437,7 @@ function WorkerRow({
           {name}
         </Text>
         <Text style={styles.resultSkill} numberOfLines={1}>
-          {worker.skills.map(skillLabel).join(' • ') || 'Kaarigar'}
+          {(worker.skills ?? []).map(skillLabel).join(' • ') || 'Kaarigar'}
         </Text>
         <Text style={styles.resultMeta} numberOfLines={1}>
           ★ {worker.ratingAverage.toFixed(1)} ({worker.ratingCount})

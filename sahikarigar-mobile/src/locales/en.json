@@ -158,6 +158,7 @@
     "cancel": "Cancel",
     "workerAvailable": "Kaarigar available nahi hai",
     "workerNotAvailable": "Ye kaarigar abhi available nahi hai. Kripya kisi aur kaarigar ko try karein.",
+    "workerNotAvailableMsg": "This worker is not available right now. Please try another worker."
     "invalidDescription": "Describe the work in at least 10 characters.",
     "invalidLocation": "Enter the work location.",
     "invalidRate": "Enter a rate between ₹50 and ₹10000.",

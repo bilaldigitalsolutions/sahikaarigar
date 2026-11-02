@@ -56,24 +56,17 @@ function RootNavigator() {
   // Route pattern without dynamic ids, e.g. "worker/[id]" or "(tabs)/index".
   const screenName = segments.join('/') || 'index';
 
-  // Vector icons (Ionicons) and Telugu font must be loaded via Font.loadAsync BEFORE any screen
-  // renders, otherwise icons show as 'X' boxes and Telugu text shows as tofu boxes.
+  // Vector icons (Ionicons) must be loaded via Font.loadAsync BEFORE any screen
+  // renders, otherwise icons show as 'X' boxes.
   const [fontsLoaded, setFontsLoaded] = useState(false);
 
   useEffect(() => {
     let active = true;
     (async () => {
       try {
-        await Promise.all([
-          Font.loadAsync(Ionicons.font),
-          Font.loadAsync({
-            'NotoSansTelugu-Regular': require('../assets/fonts/NotoSansTelugu-Regular.ttf'),
-            'NotoSansTelugu-Bold': require('../assets/fonts/NotoSansTelugu-Bold.ttf'),
-          }),
-        ]);
+        await Font.loadAsync(Ionicons.font);
         if (active) setFontsLoaded(true);
-      } catch (e) {
-        // Even if font load fails, unblock the UI so tabs show text labels
+      } catch {
         if (active) setFontsLoaded(true);
       }
     })();

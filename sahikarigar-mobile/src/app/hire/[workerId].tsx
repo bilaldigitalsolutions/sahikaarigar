@@ -9,7 +9,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { createHire, getWorker } from '@/lib/api';
 import { trackEvent } from '@/lib/observability';
 import { colors, fontSize, fontWeight, spacing } from '@/theme';
-import { useTranslation } from 'react-i18next';
 
 /** Phone numbers (India) are 10 digits; a rate field is max 5 digits. */
 

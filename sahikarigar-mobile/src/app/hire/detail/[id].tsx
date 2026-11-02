@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Alert,
@@ -32,7 +33,6 @@ function fmtTime(iso?: string | null): string {
     : `${d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}, ${time}`;
 }
 
-/** Demo-mode shortcuts that stand in for the worker's app. */
 const DEMO_ACTIONS: { action: HireAction; label: string }[] = [
   { action: 'accept', label: 'Accept' },
   { action: 'en_route', label: 'On the way' },
@@ -43,6 +43,7 @@ const DEMO_ACTIONS: { action: HireAction; label: string }[] = [
 
 export default function HireDetailScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { user, isDemo } = useAuth();
   const params = useLocalSearchParams<{ id: string }>();
   const id = String(params.id);
@@ -51,14 +52,8 @@ export default function HireDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  /** Guard against state updates after the component unmounts. */
   const isMountedRef = useRef(false);
 
-  // Fetch the booking — runs on mount, on every screen focus, AND every 3s
-  // while the screen stays open. The live poll is what lets the employer see
-  // the kaarigar's status change (accepted → on the way → arrived) without
-  // leaving the screen, so the Start Work OTP appears the moment the worker
-  // marks "Arrived". A silent refresh never flashes the loading spinner.
   const fetchHire = useCallback(
     async (silent = false) => {
       if (!silent) setLoading(true);
@@ -69,7 +64,7 @@ export default function HireDetailScreen() {
         setError(null);
       } catch (e) {
         if (!isMountedRef.current) return;
-        setError(e instanceof Error ? e.message : 'Could not load the booking.');
+        setError(e instanceof Error ? e.message : t('common.error'));
       } finally {
         if (!silent && isMountedRef.current) setLoading(false);
       }
@@ -98,15 +93,13 @@ export default function HireDetailScreen() {
     return () => clearInterval(timer);
   }, [fetchHire]);
 
-  const onHelp = () => Alert.alert('Madad chahiye?', `Support: ${SUPPORT_PHONE}`);
+  const onHelp = () => Alert.alert(t('common.help'), `Support: ${SUPPORT_PHONE}`);
 
   const onCall = () => {
-    // Whose number to dial depends on which side of the booking you are on: the
-    // customer calls the kaarigar, the kaarigar calls the customer.
     const workerViewer = hire?.worker?.userId != null && hire?.worker?.userId === user?.id;
     const phone = workerViewer ? hire?.employer?.phone : hire?.worker?.user?.phone;
     if (!phone) {
-      Alert.alert('Number hidden', 'The number is revealed once the worker accepts the booking.');
+      Alert.alert(t('hireDetail.numberHidden'), t('hireDetail.numberRevealed'));
       return;
     }
     Linking.openURL(`tel:${phone}`).catch(() => {});
@@ -114,10 +107,10 @@ export default function HireDetailScreen() {
 
   const onCancel = () => {
     if (!hire) return;
-    Alert.alert('Cancel this booking?', 'This booking will be cancelled.', [
-      { text: 'No', style: 'cancel' },
+    Alert.alert(t('hireDetail.cancelBooking'), t('hireDetail.cancelBookingSub'), [
+      { text: t('common.no'), style: 'cancel' },
       {
-        text: 'Yes, cancel',
+        text: t('common.yes'),
         style: 'destructive',
         onPress: async () => {
           setBusy(true);
@@ -125,7 +118,7 @@ export default function HireDetailScreen() {
             const { hire: updated } = await hireAction(hire.id, 'cancel');
             setHire(updated);
           } catch (e) {
-            Alert.alert('Could not cancel', e instanceof Error ? e.message : 'Please try again.');
+            Alert.alert(t('hireDetail.couldNotCancel'), e instanceof Error ? e.message : t('common.error'));
           } finally {
             setBusy(false);
           }
@@ -134,33 +127,25 @@ export default function HireDetailScreen() {
     ]);
   };
 
-  /** Advance the booking (accept / en_route / arrived / start / complete / cancel). */
   const runAction = async (action: HireAction, otp?: string) => {
     if (!hire) return;
     setBusy(true);
     try {
-      // On the way / arrived — attach live GPS so the customer's tracking
-      // card shows where the kaarigar is. Best-effort; action still works
-      // when permission is denied.
       const coords =
         action === 'en_route' || action === 'arrived' ? await getDeviceCoords() : null;
-      // Demo: the demo employer "shares" the OTP automatically so the
-      // simulated Start Work verifies without typing anything.
       const otpToSend = otp ?? (action === 'start' && isDemo ? hire?.startOtp ?? undefined : undefined);
       const { hire: updated } = await hireAction(hire.id, action, coords ?? undefined, otpToSend);
       setHire(updated);
     } catch (e) {
-      // The inline OTP entry passes a code and wants to show the error next
-      // to its own field — let it bubble. Everything else surfaces an Alert.
       if (otp != null) throw e;
-      Alert.alert('Could not update', e instanceof Error ? e.message : 'Please try again.');
+      Alert.alert(t('hireDetail.couldNotUpdate'), e instanceof Error ? e.message : t('common.error'));
     } finally {
       setBusy(false);
     }
   };
 
   const workerUser = hire?.worker?.user ?? null;
-  const workerName = workerUser?.name ?? 'Kaarigar';
+  const workerName = workerUser?.name ?? t('common.worker');
 
   const distance =
     user?.lat != null && user?.lng != null && hire?.workerLat != null && hire?.workerLng != null
@@ -168,58 +153,44 @@ export default function HireDetailScreen() {
       : null;
 
   return (
-    <Screen
-      padded={false}
-      edges={['bottom']}
-      header={
-        <Header
-          center={<BrandLogo size={28} />}
-          showBack={false}
-          right={
-            <Pressable onPress={onHelp} hitSlop={10}>
-              <Ionicons name="help-circle-outline" size={24} color={colors.primaryDark} />
-            </Pressable>
-          }
-        />
-      }
-    >
-      {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={colors.primaryDark} />
-        </View>
-      ) : !hire ? (
-        <View style={styles.center}>
-          <Ionicons name="alert-circle-outline" size={48} color={colors.muted} />
-          <Text style={styles.errorText}>Booking not found.</Text>
-        </View>
-      ) : (
-        <>
-          {error ? (
-            <View style={styles.errorBanner}>
-              <Ionicons name="alert-circle-outline" size={18} color={colors.danger} />
-              <Text style={styles.errorBannerText}>{error}</Text>
-            </View>
-          ) : null}
-          <BookingBody
-            hire={hire}
-            workerName={workerName}
-            workerAvatar={workerUser?.avatar}
-            distance={distance}
-            busy={busy}
-            isDemo={isDemo}
-            isWorkerViewer={hire?.worker?.userId != null && hire.worker.userId === user?.id}
-            onCall={onCall}
-            onCancel={onCancel}
-            onAction={runAction}
-            onFeedback={() =>
-              router.push({ pathname: '/hire/feedback/[id]', params: { id: hire.id } })
-            }
-            router={router}
-            onHelp={onHelp}
-          />
-        </>
-      )}
-    </Screen>
+    <>
+      <Screen padded={false} edges={['bottom']} header={<Header center={<BrandLogo size={28} />} showBack={false} right={<Pressable onPress={onHelp} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('common.help')}><Ionicons name="help-circle-outline" size={24} color={colors.primaryDark} /></Pressable>}}>
+        {loading ? (
+          <View style={styles.center}>
+            <ActivityIndicator color={colors.primaryDark} />
+          </View>
+        ) : !hire ? (
+          <View style={styles.center}>
+            <Ionicons name="alert-circle-outline" size={48} color={colors.muted} />
+            <Text style={styles.errorText}>{t('common.error')}</Text>
+          </View>
+        ) : (
+          <>
+            {error ? (
+              <View style={styles.errorBanner}>
+                <Ionicons name="alert-circle-outline" size={18} color={colors.danger} />
+                <Text style={styles.errorBannerText}>{error}</Text>
+              </View>
+            ) : null}
+            <BookingBody
+              hire={hire}
+              workerName={workerName}
+              workerAvatar={workerUser?.avatar}
+              distance={distance}
+              busy={busy}
+              isDemo={isDemo}
+              isWorkerViewer={hire?.worker?.userId != null && hire.worker.userId === user?.id}
+              onCall={onCall}
+              onCancel={onCancel}
+              onAction={runAction}
+              onFeedback={() => router.push({ pathname: '/hire/feedback/[id]', params: { id: hire.id } })}
+              router={router}
+              onHelp={onHelp}
+            />
+          </>
+        )}
+      </Screen>
+    </>
   );
 }
 
@@ -244,12 +215,9 @@ function BookingBody({
   distance: number | null;
   busy: boolean;
   isDemo: boolean;
-  /** True when the signed-in user IS the kaarigar for this booking. */
   isWorkerViewer: boolean;
   onCall: () => void;
   onCancel: () => void;
-  /** Runs a hire action; it rethrows (instead of alerting) when an `otp` is
-   *  given, so the inline OTP entry can show the error next to the field. */
   onAction: (action: HireAction, otp?: string) => Promise<void>;
   onFeedback: () => void;
   router: ReturnType<typeof useRouter>;
@@ -263,13 +231,9 @@ function BookingBody({
   const [otpEntryError, setOtpEntryError] = useState<string | null>(null);
 
   const otpPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  /** Ref to call fetchStartOtp from fetchHire (defined in the parent component). */
   const fetchStartOtpRef = useRef<(() => void) | null>(null);
-  /** The employer taps "Show OTP to Worker" to reveal the code. Auto-revealed
-   *  the moment it arrives so the code is never missed. */
   const [otpRevealed, setOtpRevealed] = useState(false);
 
-  // Fetch the start-work OTP once. Used both on first render and by the poller.
   const fetchStartOtp = useCallback(async () => {
     if (isWorkerViewer) return;
     let active = true;
@@ -278,30 +242,17 @@ function BookingBody({
       if (active) {
         setStartOtp(otp);
         setOtpError(null);
-        // Reveal it right away — the employer's whole job here is to read it
-        // out to the worker.
         setOtpRevealed(true);
       }
     } catch (e) {
-      if (active) setOtpError(e instanceof Error ? e.message : 'OTP load nahi hua');
+      if (active) setOtpError(e instanceof Error ? e.message : t('hireDetail.otpLoadFailed'));
     }
     return () => {
       active = false;
     };
   }, [hire.id, hire.status, isWorkerViewer]);
-  // Expose fetchStartOtp via ref so the parent component can trigger it
-  // immediately when it observes status === 'arrived'.
   fetchStartOtpRef.current = fetchStartOtp;
 
-  // Poll every 5 seconds while the worker is 'arrived' and we still don't
-  // have the OTP. This guarantees the employer's screen never stays stuck on
-  // `----` if the first fetch races with the worker's status update.
-  //
-  // NOTE: the poll deliberately keeps running after a FAILED attempt. A
-  // transient error (Render cold start, dropped connection) used to set
-  // `otpError`, which stopped the interval permanently — the employer then
-  // never got the code until they left and re-entered the screen. The error
-  // text still shows meanwhile, and a successful retry clears it.
   useEffect(() => {
     fetchStartOtp();
 
@@ -322,8 +273,6 @@ function BookingBody({
     };
   }, [hire.status, startOtp, fetchStartOtp]);
 
-  /** Worker: verify the OTP shared by the customer and start the job.
-   *  Errors surface inline — `onAction` rethrows when an `otp` is passed. */
   const verifyStartOtp = async () => {
     if (!hire) return;
     setOtpEntryError(null);
@@ -332,70 +281,69 @@ function BookingBody({
       setOtpEntryVisible(false);
       setOtpEntry('');
     } catch (e) {
-      setOtpEntryError(e instanceof Error ? e.message : 'OTP galat hai — dobara try karo');
+      setOtpEntryError(e instanceof Error ? e.message : t('hireDetail.otpWrong'));
     }
   };
 
   const accepted = ['accepted', 'en_route', 'arrived', 'in_progress', 'completed'].includes(hire.status);
   const enRoute = ['en_route', 'arrived', 'in_progress', 'completed'].includes(hire.status);
   const arrived = ['arrived', 'in_progress', 'completed'].includes(hire.status);
-  /** OTP verified — the kaarigar is actually working now. */
   const workStarted = hire.status === 'in_progress' || completed;
   const cancelled = hire.status === 'cancelled' || hire.status === 'rejected';
 
   const steps: TimelineStep[] = [
-    { label: 'Booked', time: fmtTime(hire.createdAt), state: 'done' },
+    { label: t('common.booked'), time: fmtTime(hire.createdAt), state: 'done' },
     {
-      label: 'Worker Assigned',
-      time: accepted ? 'Confirmed' : 'Pending',
+      label: t('hireDetail.workerAssigned'),
+      time: accepted ? t('hireDetail.confirmed') : t('common.pending'),
       state: accepted ? (enRoute ? 'done' : 'active') : 'pending',
     },
     {
-      label: 'On the Way',
-      time: enRoute ? fmtTime(hire.enRouteAt) : 'Pending',
-      note: hire.status === 'en_route' ? 'Expected in 45 mins' : undefined,
+      label: t('hireDetail.onTheWay'),
+      time: enRoute ? fmtTime(hire.enRouteAt) : t('common.pending'),
+      note: hire.status === 'en_route' ? t('hireDetail.expectedIn45') : undefined,
       state: enRoute ? (arrived ? 'done' : 'active') : 'pending',
     },
     {
-      label: 'Work Started',
+      label: t('hireDetail.workStarted'),
       time: workStarted
         ? hire.startedAt
           ? fmtTime(hire.startedAt)
-          : 'Active'
+          : t('hireDetail.active')
         : hire.status === 'arrived'
-          ? 'Waiting for OTP'
-          : 'Pending',
-      note: hire.status === 'arrived' ? 'Customer ke screen ka OTP darj karain' : undefined,
+          ? t('hireDetail.waitingForOTP')
+          : t('common.pending'),
+      note: hire.status === 'arrived' ? t('hireDetail.customerOTP') : undefined,
       state: workStarted ? (completed ? 'done' : 'active') : 'pending',
     },
   ];
 
   const eta =
     hire.status === 'en_route'
-      ? 'Arriving in 45 mins'
+      ? t('hireDetail.arrivingIn45')
       : hire.status === 'arrived'
-        ? 'Worker has arrived'
+        ? t('hireDetail.workerHasArrived')
         : hire.status === 'in_progress'
-          ? 'Work in progress'
+          ? t('hireDetail.workInProgress')
           : hire.status === 'completed'
-            ? 'Work completed'
+            ? t('hireDetail.workCompleted')
             : hire.status === 'accepted'
-              ? 'Arriving soon'
+              ? t('hireDetail.arrivingSoon')
               : hire.status === 'pending'
-                ? 'Waiting for worker'
-                : 'Booking closed';
+                ? t('hireDetail.waitingForWorker')
+                : t('hireDetail.bookingClosed');
 
   const heading = cancelled
-    ? 'Booking Cancelled'
+    ? t('hireDetail.bookingCancelled')
     : completed
-      ? 'Work Completed!'
+      ? t('hireDetail.workCompletedTitle')
       : workStarted
-        ? 'Work in Progress'
+        ? t('hireDetail.workInProgressTitle')
         : hire.status === 'pending'
           ? isWorkerViewer
-            ? 'New Booking Request'
-            : 'Waiting for worker to accept your request'
-          : 'Booking Confirmed!';
+            ? t('hireDetail.newBookingRequest')
+            : t('hireDetail.waitingForWorker')
+          : t('hireDetail.bookingConfirmedTitle');
 
   return (
     <>
@@ -406,40 +354,34 @@ function BookingBody({
         <Text style={styles.title}>{heading}</Text>
         <Text style={styles.subtitle}>
           {cancelled
-            ? 'Ye booking cancel ho gayi hai.'
+            ? t('hireDetail.bookingCancelledSub')
             : hire.status === 'pending'
-              ? 'Request kaarigar ko bhej di gayi hai — accept karte hi aapko notification milega.'
+              ? t('hireDetail.requestSent')
               : completed
-                ? 'Work completed successfully. Please leave a review.'
-                : 'Your booking is confirmed. We’ll keep you updated.'}
+                ? t('hireDetail.workCompletedMsg')
+                : t('hireDetail.bookingConfirmedMsg')}
         </Text>
 
-        {/* EMPLOYER ACTION BANNER — the kaarigar is on the way. */}
-        {!isWorkerViewer && hire.status === 'en_route' ? (
+        {!isWorkerViewer && hire.status === 'arrived' ? (
           <View style={styles.enRouteBanner}>
-            <Ionicons name="car" size={20} color={colors.white} />
+            <Ionicons name="location" size={20} color={colors.white} />
             <View style={styles.enRouteTextWrap}>
-              <Text style={styles.enRouteTitle}>Kaarigar raste mein hai!</Text>
+              <Text style={styles.enRouteTitle}>{t('hireDetail.arrivedTitle')}</Text>
               <Text style={styles.enRouteSub}>
                 {hire.worker?.serviceAreas?.[0]
                   ? `${hire.worker.serviceAreas[0]} se aa raha hai.`
-                  : 'Aapke paas aa raha hai.'}
+                  : t('hireDetail.workerComing')}
               </Text>
             </View>
           </View>
         ) : null}
 
-        {/* EMPLOYER ACTION BANNER — the kaarigar has arrived and the OTP is
-            waiting to be shared. This is the one moment that needs the
-            customer's attention, so it is impossible to miss. */}
         {!isWorkerViewer && hire.status === 'arrived' ? (
           <View style={styles.arrivedBanner}>
             <Ionicons name="location" size={20} color={colors.white} />
             <View style={styles.arrivedTextWrap}>
-              <Text style={styles.arrivedTitle}>Kaarigar pahunch gaya hai!</Text>
-              <Text style={styles.arrivedSub}>
-                Neeche OTP dekhein aur worker ko de dijiye — wahi kaam shuru kar sakega.
-              </Text>
+              <Text style={styles.arrivedTitle}>{t('hireDetail.arrivedTitle')}</Text>
+              <Text style={styles.arrivedSub}>{t('hireDetail.arrivedSub')}</Text>
             </View>
           </View>
         ) : null}
@@ -448,7 +390,7 @@ function BookingBody({
           <View style={styles.workerCard}>
             <Avatar uri={workerAvatar} name={workerName} size={54} />
             <View style={styles.workerInfo}>
-              <Text style={styles.workerTag}>Worker assigned</Text>
+              <Text style={styles.workerTag}>{t('hireDetail.workerAssigned')}</Text>
               <Text style={styles.workerName}>{workerName}</Text>
               <View style={styles.workerMetaRow}>
                 <Ionicons name="time-outline" size={13} color={colors.primaryDark} />
@@ -464,16 +406,13 @@ function BookingBody({
           </View>
         ) : null}
 
-        <Text style={styles.sectionTitle}>Live Tracking</Text>
+        <Text style={styles.sectionTitle}>{t('hireDetail.liveTracking')}</Text>
         <Timeline steps={steps} />
 
-        {/* "Start work" OTP — shown to the EMPLOYER only, and only from the
-            moment the kaarigar has arrived. The code is revealed with a
-            prominent button so the customer can read it out to the worker. */}
         {!isWorkerViewer && hire.status === 'arrived' ? (
           <View style={styles.otpCard}>
             <Ionicons name="key" size={16} color={colors.primaryDark} />
-            <Text style={styles.otpLabel}>Start Work OTP</Text>
+            <Text style={styles.otpLabel}>{t('hireDetail.startWorkOTP')}</Text>
 
             {otpError ? (
               <Text style={styles.otpErrorText}>{otpError}</Text>
@@ -481,27 +420,27 @@ function BookingBody({
               <>
                 <Text style={styles.otpValue}>{startOtp}</Text>
                 <Text style={styles.otpHint}>
-                  Ye 4-digit code worker ko dijiye — wahi enter karke kaam shuru hoga.
+                  {t('hireDetail.otpHint')}
                 </Text>
                 <Pressable style={styles.otpHideBtn} onPress={() => setOtpRevealed(false)}>
                   <Ionicons name="eye-off-outline" size={14} color={colors.primaryDark} />
-                  <Text style={styles.otpHideText}>Hide OTP</Text>
+                  <Text style={styles.otpHideText}>{t('hireDetail.hideOTP')}</Text>
                 </Pressable>
               </>
             ) : startOtp ? (
               <>
                 <Pressable style={styles.otpShowBtn} onPress={() => setOtpRevealed(true)}>
                   <Ionicons name="key" size={18} color={colors.white} />
-                  <Text style={styles.otpShowText}>Show OTP to Worker</Text>
+                  <Text style={styles.otpShowText}>{t('hireDetail.showOTP')}</Text>
                 </Pressable>
                 <Text style={styles.otpHint}>
-                  OTP mil gaya hai — worker ko share karne ke liye upar wala button dabao.
+                  {t('hireDetail.otpShowHint')}
                 </Text>
               </>
             ) : (
               <View style={styles.otpLoadingRow}>
                 <ActivityIndicator size="small" color={colors.primaryDark} />
-                <Text style={styles.otpHint}>OTP load ho raha hai…</Text>
+                <Text style={styles.otpHint}>{t('hireDetail.otpLoading')}</Text>
               </View>
             )}
           </View>
@@ -510,20 +449,20 @@ function BookingBody({
           <View style={[styles.otpCard, styles.otpCardDone]}>
             <Ionicons name="checkmark-circle" size={16} color="#16A34A" />
             <Text style={[styles.otpLabel, styles.otpLabelDone]}>
-              Kaam poora ho gaya!
+              {t('hireDetail.workCompletedTitle')}
             </Text>
             <Text style={styles.otpHint}>
-              Customer se confirmation lein aur feedback dein.
+              {t('hireDetail.workCompletedSub')}
             </Text>
           </View>
         ) : workStarted ? (
           <View style={[styles.otpCard, styles.otpCardDone]}>
             <Ionicons name="checkmark-circle" size={16} color="#16A34A" />
             <Text style={[styles.otpLabel, styles.otpLabelDone]}>
-              OTP verified — kaam shuru ho gaya
+              {t('hireDetail.otpVerified')}
             </Text>
             <Text style={styles.otpHint}>
-              Kaarigar aapke diye OTP se kaam shuru kar chuka hai.
+              {t('hireDetail.otpVerifiedSub')}
             </Text>
           </View>
         ) : null}
@@ -531,31 +470,28 @@ function BookingBody({
         <View style={styles.feeCard}>
           <View style={styles.feeRow}>
             <View style={styles.feeCol}>
-              <Text style={styles.feeLabel}>Rate (per hour)</Text>
-              <Text style={styles.feeValue}>{formatCurrency(hire.proposedRate)}/hr</Text>
+              <Text style={styles.feeLabel}>{t('hireDetail.rateLabel')}</Text>
+              <Text style={styles.feeValue}>₹{hire.proposedRate}/hr</Text>
             </View>
             <View style={styles.feeDivider} />
             <View style={styles.feeCol}>
-              <Text style={styles.feeLabel}>Platform Fee</Text>
+              <Text style={styles.feeLabel}>{t('hireDetail.platformFee')}</Text>
               <Text style={styles.feeValue}>{formatCurrency(0)}</Text>
             </View>
           </View>
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Est. total (1 hr)</Text>
+            <Text style={styles.totalLabel}>{t('hireDetail.estimatedTotal')}</Text>
             <Text style={styles.totalValue}>{formatCurrency(hire.proposedRate)}</Text>
           </View>
           <Text style={styles.totalHint}>
-            Per-hour rate — badhta hai jyada kaam hone par. Pay after service • Cash / UPI
+            {t('hireDetail.perHourRate')}
           </Text>
         </View>
 
         {isDemo ? (
           <View style={styles.demoCard}>
-            <Text style={styles.demoTitle}>Demo mode — simulate the worker</Text>
-            <Text style={styles.demoSub}>
-              No backend is reachable right now, so use these buttons to walk the booking through
-              every stage.
-            </Text>
+            <Text style={styles.demoTitle}>{t('hireDetail.demoTitle')}</Text>
+            <Text style={styles.demoSub}>{t('hireDetail.demoSub')}</Text>
             <View style={styles.demoRow}>
               {DEMO_ACTIONS.map((item) => (
                 <Pressable
@@ -572,14 +508,10 @@ function BookingBody({
         ) : null}
       </ScrollView>
 
-      {/* Worker-entered OTP gate: "Start Work" only verifies with the code
-          the customer sees on their tracking screen. */}
       {isWorkerViewer && hire.status === 'arrived' && otpEntryVisible ? (
         <View style={styles.otpEntryCard}>
-          <Text style={styles.otpEntryTitle}>Enter OTP from customer</Text>
-          <Text style={styles.otpEntrySub}>
-            Customer ke screen par OTP check karain aur yahan darj karain.
-          </Text>
+          <Text style={styles.otpEntryTitle}>{t('hireDetail.enterOTP')}</Text>
+          <Text style={styles.otpEntrySub}>{t('hireDetail.enterOTPSub')}</Text>
           <View style={styles.otpEntryRow}>
             <TextInput
               style={styles.otpEntryInput}
@@ -595,14 +527,14 @@ function BookingBody({
               autoFocus
             />
             <Button
-              label="Verify & start"
+              label={t('hireDetail.verifyStart')}
               onPress={verifyStartOtp}
               loading={busy}
               disabled={otpEntry.trim().length !== 4}
             />
           </View>
           <Pressable onPress={() => setOtpEntryVisible(false)} hitSlop={8}>
-            <Text style={styles.otpEntryCancel}>Cancel</Text>
+            <Text style={styles.otpEntryCancel}>{t('common.cancel')}</Text>
           </Pressable>
           {otpEntryError ? <Text style={styles.otpEntryError}>{otpEntryError}</Text> : null}
         </View>
@@ -610,9 +542,6 @@ function BookingBody({
 
       <View style={styles.bottomBar}>
         <View style={styles.bottomCol}>
-          {/* Call button spans its own line so long hints never squeeze the
-              action buttons — the old single row cramped them on small
-              screens and left uneven margins. */}
           <View style={styles.callWrap}>
             <Pressable
               style={[styles.callBtn, (!accepted || workStarted) && styles.disabled]}
@@ -620,124 +549,114 @@ function BookingBody({
               disabled={!accepted || workStarted}
             >
               <Ionicons name="call" size={17} color={colors.primaryDark} />
-              <Text style={styles.callText}>{isWorkerViewer ? 'Call Customer' : 'Call Worker'}</Text>
+              <Text style={styles.callText}>{isWorkerViewer ? t('hireDetail.callCustomer') : t('hireDetail.callWorker')}</Text>
             </Pressable>
             {!accepted ? (
               <Text style={styles.callHint}>
                 {isWorkerViewer
-                  ? 'Number revealed once you accept the request'
-                  : 'Number revealed once worker accepts'}
+                  ? t('hireDetail.callWorkerDisabled')
+                  : t('hireDetail.callCustomerDisabled')}
               </Text>
             ) : null}
           </View>
           <View style={styles.actionsRow}>
             {isWorkerViewer ? (
-              // Kaarigar's own actions — mirrors what the auth-server allows:
-              // accept / reject (pending) → on the way → arrived → start (OTP) →
-              // the CUSTOMER completes the job. Sirf customer review deta hai
-              // (server rejects anyone else), so the kaarigar gets NO feedback
-              // button here — after completion only Help remains.
               completed ? null : hire.status === 'pending' ? (
-            <>
-              <Pressable
-                style={[styles.outlineAction, busy && styles.disabled]}
-                onPress={() => onAction('reject')}
-                disabled={busy}
-              >
-                <Text style={styles.outlineActionText}>Reject</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.primaryAction, busy && styles.disabled]}
-                onPress={() => onAction('accept')}
-                disabled={busy}
-              >
-                <Text style={styles.primaryActionText}>Accept</Text>
-              </Pressable>
-            </>
-          ) : hire.status === 'accepted' ? (
-            <>
-              {/* Kaarigar ka cancel — allowed only until the work has actually
-                  started (server rejects it after the OTP / start). */}
-              <Pressable
-                style={[styles.outlineAction, busy && styles.disabled]}
-                onPress={onCancel}
-                disabled={busy}
-              >
-                <Text style={styles.outlineActionText}>Cancel Job</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.primaryAction, busy && styles.disabled]}
-                onPress={() => onAction('en_route')}
-                disabled={busy}
-              >
-                <Text style={styles.primaryActionText}>On the way</Text>
-              </Pressable>
-            </>
-          ) : hire.status === 'en_route' ? (
-            <>
-              <Pressable
-                style={[styles.outlineAction, busy && styles.disabled]}
-                onPress={onCancel}
-                disabled={busy}
-              >
-                <Text style={styles.outlineActionText}>Cancel Job</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.primaryAction, busy && styles.disabled]}
-                onPress={() => onAction('arrived')}
-                disabled={busy}
-              >
-                <Text style={styles.primaryActionText}>Arrived</Text>
-              </Pressable>
-            </>
-          ) : hire.status === 'arrived' ? (
-            <Pressable
-              style={[styles.primaryAction, busy && styles.disabled]}
-              onPress={() => setOtpEntryVisible(true)}
-              disabled={busy}
-            >
-              <Text style={styles.primaryActionText}>Start Work</Text>
-            </Pressable>
-          ) : null
-        ) : (
-          // Customer's actions — cancel while the job is live (even mid-job,
-          // the kaarigar has already reached), feedback once done.
-          <>
-            {completed ? (
-              <>
-                <Pressable style={styles.primaryAction} onPress={onFeedback}>
-                  <Text style={styles.primaryActionText}>Give Feedback</Text>
-                </Pressable>
-                <Pressable style={styles.outlineAction} onPress={onHelp}>
-                  <Text style={styles.outlineActionText}>Help</Text>
-                </Pressable>
-              </>
-            ) : (
-              <>
-                {workStarted && !completed ? (
+                <>
                   <Pressable
-                    style={[styles.primaryAction, busy && styles.disabled]}
-                    onPress={() => onAction('complete')}
+                    style={[styles.outlineAction, busy && styles.disabled]}
+                    onPress={() => onAction('reject')}
                     disabled={busy}
                   >
-                    <Text style={styles.primaryActionText}>Work Completed</Text>
+                    <Text style={styles.outlineActionText}>{t('hireDetail.reject')}</Text>
                   </Pressable>
-                ) : null}
+                  <Pressable
+                    style={[styles.primaryAction, busy && styles.disabled]}
+                    onPress={() => onAction('accept')}
+                    disabled={busy}
+                  >
+                    <Text style={styles.primaryActionText}>{t('hireDetail.accept')}</Text>
+                  </Pressable>
+                </>
+              ) : hire.status === 'accepted' ? (
+                <>
+                  <Pressable
+                    style={[styles.outlineAction, busy && styles.disabled]}
+                    onPress={onCancel}
+                    disabled={busy}
+                  >
+                    <Text style={styles.outlineActionText}>{t('hireDetail.cancelJob')}</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.primaryAction, busy && styles.disabled]}
+                    onPress={() => onAction('en_route')}
+                    disabled={busy}
+                  >
+                    <Text style={styles.primaryActionText}>{t('hireDetail.onTheWay')}</Text>
+                  </Pressable>
+                </>
+              ) : hire.status === 'en_route' ? (
+                <>
+                  <Pressable
+                    style={[styles.outlineAction, busy && styles.disabled]}
+                    onPress={onCancel}
+                    disabled={busy}
+                  >
+                    <Text style={styles.outlineActionText}>{t('hireDetail.cancelJob')}</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.primaryAction, busy && styles.disabled]}
+                    onPress={() => onAction('arrived')}
+                    disabled={busy}
+                  >
+                    <Text style={styles.primaryActionText}>{t('hireDetail.arrived')}</Text>
+                  </Pressable>
+                </>
+              ) : hire.status === 'arrived' ? (
                 <Pressable
-                  style={[styles.outlineAction, busy && styles.disabled]}
-                  onPress={onCancel}
+                  style={[styles.primaryAction, busy && styles.disabled]}
+                  onPress={() => setOtpEntryVisible(true)}
                   disabled={busy}
                 >
-                  <Text style={styles.outlineActionText}>Cancel Job</Text>
+                  <Text style={styles.primaryActionText}>{t('hireDetail.startWork')}</Text>
                 </Pressable>
-                <Pressable style={styles.outlineAction} onPress={onHelp}>
-                  <Ionicons name="help-circle-outline" size={16} color={colors.textPrimary} />
-                  <Text style={styles.outlineActionText}>Help</Text>
-                </Pressable>
+              ) : null
+            ) : (
+              <>
+                {completed ? (
+                  <>
+                    <Pressable style={styles.primaryAction} onPress={onFeedback}>
+                      <Text style={styles.primaryActionText}>{t('hireDetail.giveFeedback')}</Text>
+                    </Pressable>
+                    <Pressable style={styles.outlineAction} onPress={onHelp}>
+                      <Text style={styles.outlineActionText}>{t('hireDetail.help')}</Text>
+                    </Pressable>
+                  </>
+                ) : (
+                  <>
+                    {workStarted && !completed ? (
+                      <Pressable
+                        style={[styles.primaryAction, busy && styles.disabled]}
+                        onPress={() => onAction('complete')}
+                        disabled={busy}
+                      >
+                        <Text style={styles.primaryActionText}>{t('hireDetail.workCompleted')}</Text>
+                      </Pressable>
+                    ) : null}
+                    <Pressable
+                      style={[styles.outlineAction, busy && styles.disabled]}
+                      onPress={onCancel}
+                      disabled={busy}
+                    >
+                      <Text style={styles.outlineActionText}>{t('hireDetail.cancelJob')}</Text>
+                    </Pressable>
+                    <Pressable style={styles.outlineAction} onPress={onHelp}>
+                      <Text style={styles.outlineActionText}>{t('hireDetail.help')}</Text>
+                    </Pressable>
+                  </>
+                )}
               </>
             )}
-          </>
-        )}
           </View>
         </View>
       </View>
@@ -755,7 +674,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  brandName: { fontSize: fontSize.title, fontWeight: fontWeight.bold, color: colors.primaryDark },
+  brandName: { fontSize: fontSize.title, fontWeight: fontWeight.bold, color: colors.textPrimary },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.xxl },
   errorText: { marginTop: spacing.md, fontSize: fontSize.small, color: colors.textSecondary },
   errorBanner: {
@@ -810,7 +729,12 @@ const styles = StyleSheet.create({
   },
   workerInfo: { flex: 1 },
   workerTag: { fontSize: fontSize.caption, fontWeight: fontWeight.semibold, color: colors.primaryDark },
-  workerName: { fontSize: fontSize.title, fontWeight: fontWeight.bold, color: colors.textPrimary, marginTop: 1 },
+  workerName: {
+    fontSize: fontSize.title,
+    fontWeight: fontWeight.bold,
+    color: colors.textPrimary,
+    marginTop: 1,
+  },
   workerMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 5, flexWrap: 'wrap' },
   workerMeta: {
     fontSize: fontSize.caption,
@@ -874,10 +798,8 @@ const styles = StyleSheet.create({
   },
   otpHideText: {
     fontSize: fontSize.caption,
-    fontWeight: fontWeight.medium,
     color: colors.primaryDark,
   },
-  // Employer action banner — the kaarigar has arrived.
   arrivedBanner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -888,7 +810,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.card,
     backgroundColor: colors.primaryDark,
   },
-  // En route banner — kaarigar is on the way.
   enRouteBanner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1070,5 +991,3 @@ const styles = StyleSheet.create({
   },
   demoBtnText: { fontSize: fontSize.caption - 1, fontWeight: fontWeight.semibold, color: colors.white },
 });
-
-

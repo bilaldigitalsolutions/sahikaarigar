@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Input, LocationPicker, Select, type PlaceResult } from '@/components/ui';
@@ -78,6 +79,7 @@ export function WorkerProfileForm({
   extraSkills = [],
   requireAadhaarPhoto = false,
 }: WorkerProfileFormProps) {
+  const { t } = useTranslation();
   const aadhaarDigits = (values.aadhaar ?? '').replace(/\D/g, '');
   const aadhaarCheck = validateAadhaar(aadhaarDigits);
   // Empty is NOT valid: Aadhaar is mandatory during worker registration.
@@ -257,8 +259,8 @@ export function WorkerProfileForm({
         </View>
         <Text style={styles.hint}>
           {values.skills.length > 0
-            ? `${values.skills.length} selected — ek se zyada skill chun sakte ho.`
-            : 'Ek se zyada skill chun sakte ho.'}
+            ? t('hireDetail.skillsSelected', { count: values.skills.length })
+            : t('hireDetail.selectMultiple')}
         </Text>
       </View>
 
@@ -473,12 +475,12 @@ export function WorkerProfileForm({
       <View style={styles.rateHintRow}>
         <Ionicons name="bulb-outline" size={16} color={colors.primaryDark} />
         <Text style={styles.rateHintText}>
-          💡 Tip: Charges kam rakhein (₹50-₹200/hr) toh aapko zyada leads milenge. Zyada rate = kam customers.
+          {t('hireDetail.rateTip')}
         </Text>
       </View>
       <View style={styles.rateHintRow}>
         <Text style={styles.rateHintText}>
-          Hyderabad mein average rate ₹150-₹250/hr hai. Is range mein rakhne se aapko zyada kaam milega.
+          {t('hireDetail.rateAvg')}
         </Text>
       </View>
 

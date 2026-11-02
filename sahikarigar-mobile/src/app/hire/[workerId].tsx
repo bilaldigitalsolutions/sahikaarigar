@@ -1,6 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, Keyboard, KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
 import { Button, Input, LocationPicker, Screen, type PlaceResult } from '@/components';
 import { VALIDATION } from '@/constants';
@@ -8,11 +9,13 @@ import { useAuth } from '@/contexts/AuthContext';
 import { createHire, getWorker } from '@/lib/api';
 import { trackEvent } from '@/lib/observability';
 import { colors, fontSize, fontWeight, spacing } from '@/theme';
+import { useTranslation } from 'react-i18next';
 
 /** Phone numbers (India) are 10 digits; a rate field is max 5 digits. */
 
 export default function CreateHireScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const params = useLocalSearchParams<{ workerId: string }>();
   const workerId = String(params.workerId);
   const { user, isDemo } = useAuth();
@@ -95,9 +98,9 @@ export default function CreateHireScreen() {
         const { worker } = await getWorker(workerId);
         if (!worker || worker.availability !== 'available') {
           Alert.alert(
-            'Kaarigar available nahi hai',
-            'Ye kaarigar abhi available nahi hai. Kripya kisi aur kaarigar ko try karein.',
-            [{ text: 'OK', style: 'cancel' }],
+            t('hire.workerNotAvailable'),
+            t('hire.workerNotAvailableMsg'),
+            [{ text: t('common.ok'), style: 'cancel' }],
           );
           setBusy(false);
           return;
@@ -115,12 +118,12 @@ export default function CreateHireScreen() {
         proposedRate: workerRate ?? 0,
         name: user?.name,
       });
-      if (!hire || !hire.id) throw new Error('Invalid hire response: missing hire id');
+      if (!hire || !hire.id) throw new Error(t('hire.invalidHireResponse'));
       router.replace({ pathname: '/hire/detail/[id]', params: { id: hire.id } });
     } catch (e) {
       // Form data (description, location, rate) is intentionally NOT cleared
       // so the user can fix and resubmit, or tap "View similar workers".
-      setError(e instanceof Error ? e.message : 'Could not send the request.');
+      setError(e instanceof Error ? e.message : t('common.error'));
     } finally {
       setBusy(false);
     }
@@ -128,11 +131,11 @@ export default function CreateHireScreen() {
 
   const onSubmit = async () => {
     if (description.trim().length < 10) {
-      setError('Describe the work in at least 10 characters.');
+      setError(t('hire.invalidDescription'));
       return;
     }
     if (workLocation.trim().length < 3) {
-      setError('Enter the work location.');
+      setError(t('hire.invalidLocation'));
       return;
     }
     await send();
@@ -150,13 +153,13 @@ export default function CreateHireScreen() {
       keyboardVerticalOffset={Platform.OS === 'ios' ? HEADER_HEIGHT : 0}
     >
       <Screen scroll contentStyle={{ paddingBottom: spacing.lg + keyboardHeight }}>
-        <Text style={styles.heading}>Booking details</Text>
+        <Text style={styles.heading}>{t('hireDetail.screenTitle')}</Text>
         <Text style={styles.sub}>
-          Send it to the worker — their number is revealed once they accept.</Text>
+          {t('hireDetail.sub')}
 
         <Input
-          label="What work is needed?"
-          placeholder="e.g. The kitchen pipe is leaking, about 2 hours of work."
+          label={t('hire.workNeeded')}
+            placeholder={t('hire.workPlaceholder')}
           value={description}
           onChangeText={(text) => {
             setDescription(text);
@@ -170,9 +173,9 @@ export default function CreateHireScreen() {
         />
 
         <View style={styles.locationWrap}>
-          <Text style={styles.label}>Aapki Location</Text>
+          <Text style={styles.label}>{t('hire.homeAreaLabel')}</Text>
           <Text style={styles.sub}>
-            Customer's home area — set during onboarding.
+            {t('hire.homeAreaSub')}
           </Text>
           <Input
             label="Home area"
@@ -184,9 +187,9 @@ export default function CreateHireScreen() {
         </View>
 
         <View style={styles.locationWrap}>
-          <Text style={styles.label}>Kaam ki Location</Text>
+          <Text style={styles.label}>{t('hire.workAreaLabel')}</Text>
           <LocationPicker
-            placeholder="Search work area — e.g. Madhapur, LB Nagar"
+            placeholder={t('hire.workAreaSub')}
             value={workLocation}
             onSelect={(place: PlaceResult) => {
               setWorkLocation(place.description);
@@ -197,7 +200,7 @@ export default function CreateHireScreen() {
         </View>
 
         <View style={styles.rateRow}>
-          <Text style={styles.rateLabel}>Rate</Text>
+          <Text style={styles.rateLabel}>{t('hireDetail.rateLabel')}</Text>
           <Text style={styles.rateValue}>
             ₹{workerRate ?? 0}/hr (set by worker)
           </Text>
@@ -205,8 +208,8 @@ export default function CreateHireScreen() {
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-        <Button label="Confirm booking" onPress={onSubmit} loading={busy} size="lg" />
-        <Button label="Cancel" variant="ghost" onPress={() => router.back()} disabled={busy} />
+        <Button label={t('hireDetail.confirmBooking')} onPress={onSubmit} loading={busy} size="lg" />
+          <Button label={t('common.cancel')} variant="ghost" onPress={() => router.back()} disabled={busy} />
       </Screen>
     </KeyboardAvoidingView>
   );

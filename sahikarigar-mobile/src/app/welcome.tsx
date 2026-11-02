@@ -36,7 +36,59 @@ const REVIEWS = [
   },
 ] as const;
 
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
+
+import { BrandLogo, Button, Card, LocationPicker, Rating, Screen, Select } from '@/components';
+import { SKILLS } from '@/constants';
+import { useAuth } from '@/contexts/AuthContext';
+import { colors, fontSize, fontWeight, radius, spacing } from '@/theme';
+
+const TRUST = [
+  { icon: 'shield-checkmark-outline', label: 'verifiedWorkers' },
+  { icon: 'leaf-outline', label: 'ecoFriendly' },
+  { icon: 'time-outline', label: 'onTime' },
+  { icon: 'lock-closed-outline', label: 'securePayment' },
+] as const;
+
+const HOW = [
+  {
+    step: '1',
+    title: 'searchWorkers',
+    desc: 'searchWorkersDesc',
+  },
+  {
+    step: '2',
+    title: 'viewProfile',
+    desc: 'viewProfileDesc',
+  },
+  {
+    step: '3',
+    title: 'hireNow',
+    desc: 'hireNowDesc',
+  },
+] as const;
+
+const REVIEWS = [
+  {
+    name: 'Rahul Verma',
+    area: 'Ameerpet',
+    rating: 5,
+    text: 'hireDetail.review1',
+  },
+  {
+    name: 'Sneha Reddy',
+    area: 'Kukatpally',
+    rating: 5,
+    text: 'hireDetail.review2',
+  },
+] as const;
+
 export default function WelcomeScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { user } = useAuth();
   const [service, setService] = useState<string | null>(null);
@@ -85,10 +137,10 @@ export default function WelcomeScreen() {
           style={styles.loginBtn}
           onPress={goLogin}
           accessibilityRole="button"
-          accessibilityLabel="Login"
+          accessibilityLabel={t('auth.login')}
         >
           <Ionicons name="log-in-outline" size={16} color={colors.white} />
-          <Text style={styles.loginText}>Login</Text>
+          <Text style={styles.loginText}>{t('auth.login')}</Text>
         </Pressable>
       </View>
 
@@ -96,30 +148,29 @@ export default function WelcomeScreen() {
       <View style={styles.hero}>
         <View style={styles.badgeRow}>
           <Ionicons name="leaf" size={13} color={colors.primaryDark} />
-          <Text style={styles.badgeText}>Trusted • Eco-Friendly • On-Demand</Text>
+          <Text style={styles.badgeText}>{t('common.trustedEcoFriendlyOnDemand')}</Text>
         </View>
-        <Text style={styles.h1}>Find Skilled Workers You Can Trust</Text>
+        <Text style={styles.h1}>{t('auth.welcome')}</Text>
         <Text style={styles.heroSub}>
-          Hire verified plumbers, electricians, carpenters & more — on-demand, eco-friendly services
-          for your home. Safe, reliable, and sustainable.
+          {t('auth.heroSub')}
         </Text>
 
         {/* Search card: 2 fields (services dropdown + area) */}
         <Card style={styles.searchCard}>
           <Select
-            placeholder="Select service"
+            placeholder={t('auth.searchService')}
             icon="construct-outline"
             value={service}
-            options={SKILLS.map((s) => ({ value: s.id, label: `${s.icon}  ${s.label}` }))}
+            options={SKILLS.map((s) => ({ value: s.id, label: `${s.icon}  ${t('common.' + s.label.replace(/\s/g, ''))}` }))}
             onChange={setService}
           />
           <LocationPicker
-            placeholder="Select area"
+            placeholder={t('auth.searchArea')}
             icon="location-outline"
             value={area}
             onSelect={(place) => setArea(place.description)}
           />
-          <Button label="Search" icon={<Ionicons name="search" size={18} color={colors.white} />} onPress={onSearch} />
+          <Button label={t('auth.searchButton')} icon={<Ionicons name="search" size={18} color={colors.white} />} onPress={onSearch} />
         </Card>
 
         {/* Trust badges */}
@@ -127,7 +178,7 @@ export default function WelcomeScreen() {
           {TRUST.map((t) => (
             <View key={t.label} style={styles.trustItem}>
               <Ionicons name={t.icon} size={15} color={colors.primaryDark} />
-              <Text style={styles.trustText}>{t.label}</Text>
+              <Text style={styles.trustText}>{t('common.' + t.label)}</Text>
             </View>
           ))}
         </View>
@@ -135,15 +186,15 @@ export default function WelcomeScreen() {
 
       {/* Browse by Category */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Browse by Category</Text>
-        <Text style={styles.sectionSub}>Choose from our most popular service categories</Text>
+        <Text style={styles.sectionTitle}>{t('common.services')}</Text>
+        <Text style={styles.sectionSub}>{t('home.sectionSub')}</Text>
         <View style={styles.categoryGrid}>
           {SKILLS.map((s) => (
             <Pressable key={s.id} style={styles.categoryCard} onPress={() => goBrowse(s.id)}>
               <Text style={styles.categoryIcon}>{s.icon}</Text>
               <View style={styles.categoryInfo}>
                 <Text style={styles.categoryLabel}>{s.label}</Text>
-                <Text style={styles.categorySub}>Verified workers</Text>
+                <Text style={styles.categorySub}>{t('common.workers')}</Text>
               </View>
             </Pressable>
           ))}
@@ -152,15 +203,15 @@ export default function WelcomeScreen() {
 
       {/* How It Works (only section with a gray background) */}
       <View style={styles.howSection}>
-        <Text style={styles.sectionTitle}>How It Works</Text>
+        <Text style={styles.sectionTitle}>{t('home.howItWorks')}</Text>
         <View style={styles.howRow}>
           {HOW.map((h) => (
             <View key={h.step} style={styles.howItem}>
               <View style={styles.howStep}>
                 <Text style={styles.howStepText}>{h.step}</Text>
               </View>
-              <Text style={styles.howTitle}>{h.title}</Text>
-              <Text style={styles.howDesc}>{h.desc}</Text>
+              <Text style={styles.howTitle}>{t('home.' + h.title)}</Text>
+              <Text style={styles.howDesc}>{t('home.' + h.desc)}</Text>
             </View>
           ))}
         </View>
@@ -168,11 +219,11 @@ export default function WelcomeScreen() {
 
       {/* Testimonials */}
       <View style={styles.section}>
-        <Text style={[styles.sectionTitle, styles.mt]}>Sample Reviews</Text>
+        <Text style={[styles.sectionTitle, styles.mt]}>{t('home.sampleReviews')}</Text>
         {REVIEWS.map((r) => (
           <Card key={r.name} style={styles.reviewCard}>
             <Rating value={r.rating} size={14} />
-            <Text style={styles.reviewText}>{r.text}</Text>
+            <Text style={styles.reviewText}>{t(r.text)}</Text>
             <Text style={styles.reviewAuthor}>
               — {r.name}, {r.area}
             </Text>
@@ -182,10 +233,10 @@ export default function WelcomeScreen() {
 
       {/* CTA */}
       <View style={styles.cta}>
-        <Text style={styles.ctaTitle}>Ready to get started?</Text>
-        <Text style={styles.ctaSub}>Something for workers and employers alike</Text>
-        <Button label="Kaarigar Registration" onPress={goRegister} style={styles.ctaBtn} />
-        <Button label="Hire a Worker" variant="secondary" onPress={() => goBrowse()} style={styles.ctaBtn} />
+        <Text style={styles.ctaTitle}>{t('home.readyToStart')}</Text>
+        <Text style={styles.ctaSub}>{t('home.ctaSub')}</Text>
+        <Button label={t('auth.registrationWorker')} onPress={goRegister} style={styles.ctaBtn} />
+        <Button label={t('auth.hireWorker')} variant="secondary" onPress={() => goBrowse()} style={styles.ctaBtn} />
       </View>
     </Screen>
   );

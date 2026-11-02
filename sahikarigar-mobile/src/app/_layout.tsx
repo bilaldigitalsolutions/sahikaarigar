@@ -8,6 +8,9 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Font from 'expo-font';
 import { Ionicons } from '@expo/vector-icons';
 
+// Initialize i18n
+import '@/lib/i18n';
+
 import { BrandLogo, TopNotificationBanner } from '@/components';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { ModeProvider } from '@/contexts/ModeContext';

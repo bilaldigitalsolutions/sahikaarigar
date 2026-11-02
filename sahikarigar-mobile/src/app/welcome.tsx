@@ -2,44 +2,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-
-import { BrandLogo, Button, Card, LocationPicker, Rating, Screen, Select } from '@/components';
-import { SKILLS } from '@/constants';
-import { useAuth } from '@/contexts/AuthContext';
-import { colors, fontSize, fontWeight, radius, spacing } from '@/theme';
-
-const TRUST = [
-  { icon: 'shield-checkmark-outline', label: 'Verified Workers' },
-  { icon: 'leaf-outline', label: 'Eco-Friendly' },
-  { icon: 'time-outline', label: 'On-Time' },
-  { icon: 'lock-closed-outline', label: 'Secure Payment' },
-] as const;
-
-const HOW = [
-  { step: '1', title: 'Search Workers', desc: 'Pick the skill and area you need' },
-  { step: '2', title: 'View Profile', desc: 'See the worker profile, ratings and experience' },
-  { step: '3', title: 'Hire Now', desc: 'Send a hire request in one tap' },
-] as const;
-
-const REVIEWS = [
-  {
-    name: 'Rahul Verma',
-    area: 'Ameerpet',
-    rating: 5,
-    text: 'The electrician arrived in 30 minutes and did a clean job. The rate was fair too.',
-  },
-  {
-    name: 'Sneha Reddy',
-    area: 'Kukatpally',
-    rating: 5,
-    text: 'The plumber fixed the leak right away. Being a verified worker, I felt completely safe.',
-  },
-] as const;
-
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { BrandLogo, Button, Card, LocationPicker, Rating, Screen, Select } from '@/components';

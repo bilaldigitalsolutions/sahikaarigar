@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Redirect, Tabs } from 'expo-router';
+import * as Font from 'expo-font';
 import { useCallback, useEffect, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -11,14 +12,31 @@ import { colors } from '@/theme';
 export default function TabsLayout() {
   const { user } = useAuth();
   const { role, ready } = useMode();
-  // Bottom safe-area inset (Android gesture bar / 3-button nav, iOS home
-  // indicator). Without it the tab bar sits UNDER the system bar and the
-  // icons + labels get clipped in half.
+  const [fontsLoaded, setFontsLoaded] = useState(false);
   const insets = useSafeAreaInsets();
-  // Badge count on the "My Hires" tab — how many bookings need the employer's
-  // attention right now (the kaarigar has arrived and the OTP is waiting).
   const [actionCount, setActionCount] = useState(0);
 
+  // Load Ionicons font so tab bar icons render correctly.
+  // Without this, icons show as empty squares on native builds.
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        await Font.loadAsync(Ionicons.font);
+        if (active) setFontsLoaded(true);
+      } catch {
+        if (active) setFontsLoaded(true); // Fall back — show tab bar even if font fails
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (!fontsLoaded) return null;
+
+  // Wait for the stored role before picking a tab set (avoids a flash).
+  if (!ready) return null;
   const loadActionCount = useCallback(async () => {
     if (!user || role !== 'employer') {
       setActionCount(0);

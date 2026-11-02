@@ -108,7 +108,14 @@
     "nearMe": "Near Me",
     "topRated": "Top Rated",
     "under300": "Under ₹300",
-    "availableNow": "Available Now"
+    "availableNow": "Available Now",
+    "howItWorks": "How it works",
+    "searchWorkersDesc": "Pick the skill and area you need",
+    "viewProfileDesc": "See the worker profile, ratings and experience",
+    "hireNowDesc": "Send a hire request in one tap",
+    "sampleReviews": "Sample Reviews",
+    "readyToStart": "Ready to get started?",
+    "ctaSub": "Something for workers and employers alike"
   },
   "auth": {
     "welcome": "Find Skilled Workers You Can Trust",
@@ -142,8 +149,9 @@
     "enterOtp": "Enter the 6-digit OTP",
     "consentText": "By verifying, you agree to our Privacy Policy and consent to us collecting, storing, and using your phone number, name, and location for service delivery. Aadhaar is encrypted and never shared with third parties.",
     "privacyPolicy": "Privacy Policy",
-    "termsConditions": "Terms & Conditions"
-  },
+    "termsConditions": "Terms & Conditions",
+    "registrationWorker": "Kaarigar Registration",
+    "hireWorker": "Hire a Worker"
   "hire": {
     "title": "Booking details",
     "sub": "Send it to the worker — their number is revealed once they accept.",
@@ -159,7 +167,6 @@
     "workerAvailable": "Kaarigar available nahi hai",
     "workerNotAvailable": "Ye kaarigar abhi available nahi hai. Kripya kisi aur kaarigar ko try karein.",
     "workerNotAvailableMsg": "This worker is not available right now. Please try another worker.",
-    "invalidHireResponse": "Invalid hire response: missing hire id",
     "invalidHireResponse": "Invalid hire response: missing hire id",
     "invalidDescription": "Describe the work in at least 10 characters.",
     "invalidLocation": "Enter the work location.",
@@ -242,7 +249,9 @@
     "ratePerHourShort": "/hr",
     "estimatedTotal": "Est. total (1 hr)",
     "platformFee": "Platform Fee",
-    "perHourRate": "Per-hour rate — badhta hai jyada kaam hone par. Pay after service • Cash / UPI"
+    "perHourRate": "Per-hour rate — badhta hai jyada kaam hone par. Pay after service • Cash / UPI",
+    "skillsSelected": "{{count}} selected — ek se zyada skill chun sakte ho.",
+    "selectMultiple": "Ek se zyada skill chun sakte ho."
   },
   "feedback": {
     "title": "Feedback",

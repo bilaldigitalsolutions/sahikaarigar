@@ -31,4 +31,4 @@ i18n.use(initReactI18next).init({
 });
 
 export default i18n;
-export { getDeviceLanguage, SUPPORTED_LANGUAGES };
+export { getDeviceLanguage, SUPPORTED_LANGUAGES, i18n };

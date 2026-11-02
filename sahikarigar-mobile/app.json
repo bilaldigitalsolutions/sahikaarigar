@@ -37,6 +37,10 @@
       "resizeMode": "contain",
       "backgroundColor": "#16A34A"
     },
+    "fonts": [
+      "./assets/fonts/NotoSansTelugu-Regular.ttf",
+      "./assets/fonts/NotoSansTelugu-Bold.ttf"
+    ],
     "plugins": [
       "expo-router",
       "./plugins/withMappls",

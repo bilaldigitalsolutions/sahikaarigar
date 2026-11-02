@@ -10,6 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 // Initialize i18n
 import '@/lib/i18n';
+import { useTranslation } from 'react-i18next';
 
 import { BrandLogo, TopNotificationBanner } from '@/components';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
@@ -55,17 +56,21 @@ function RootNavigator() {
   // Route pattern without dynamic ids, e.g. "worker/[id]" or "(tabs)/index".
   const screenName = segments.join('/') || 'index';
 
-  // Vector icons (Ionicons) must be loaded via Font.loadAsync BEFORE any screen
-  // renders, otherwise tab bar icons and header back chevrons show as 'X' boxes.
-  // useFonts hook can be unreliable in Expo Router root layout; manual loadAsync
-  // with SplashScreen gate is the proven pattern.
+  // Vector icons (Ionicons) and Telugu font must be loaded via Font.loadAsync BEFORE any screen
+  // renders, otherwise icons show as 'X' boxes and Telugu text shows as tofu boxes.
   const [fontsLoaded, setFontsLoaded] = useState(false);
 
   useEffect(() => {
     let active = true;
     (async () => {
       try {
-        await Font.loadAsync(Ionicons.font);
+        await Promise.all([
+          Font.loadAsync(Ionicons.font),
+          Font.loadAsync({
+            'NotoSansTelugu-Regular': require('../assets/fonts/NotoSansTelugu-Regular.ttf'),
+            'NotoSansTelugu-Bold': require('../assets/fonts/NotoSansTelugu-Bold.ttf'),
+          }),
+        ]);
         if (active) setFontsLoaded(true);
       } catch (e) {
         // Even if font load fails, unblock the UI so tabs show text labels

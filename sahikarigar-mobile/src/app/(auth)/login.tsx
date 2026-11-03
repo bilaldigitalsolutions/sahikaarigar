@@ -26,6 +26,8 @@ export default function LoginScreen() {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [error, setError] = useState<string | null>(null);
+  /** Explicit consent to data processing (DPDP requirement). */
+  const [consentGiven, setConsentGiven] = useState(false);
 
   /** Where to land after OTP — a deep link (e.g. a hire page) wins. */
   const next = params.next ? String(params.next) : undefined;
@@ -115,28 +117,38 @@ export default function LoginScreen() {
             containerStyle={styles.mt}
           />
 
-          {/*
-           * DPDP consent notice. There is deliberately NO pre-ticked checkbox:
-           * tapping "Continue" is the affirmative action that records consent.
-           */}
-          <Text style={styles.consent}>
-            By continuing, you agree to our{' '}
-            <Text
-              style={styles.consentLink}
-              onPress={() => Linking.openURL(PRIVACY_POLICY_URL).catch(() => {})}
-              accessibilityRole="link"
-            >
-              Privacy Policy
-            </Text>{' '}
-            and consent to the collection of your phone number and location for the purpose of booking home services.
-          </Text>
+          {/* DPDP consent — explicit agreement required before continuing. */}
+          <View style={styles.consentRow}>
+            <Pressable
+              style={[styles.consentBox, consentGiven && styles.consentBoxChecked]}
+              onPress={() => setConsentGiven(!consentGiven)}
+            />
+            <Text style={styles.consentText} numberOfLines={3}>
+              I agree to the{' '}
+              <Text
+                style={styles.consentLink}
+                onPress={() => Linking.openURL(PRIVACY_POLICY_URL).catch(() => {})}
+                accessibilityRole="link"
+              >
+                Terms & Conditions
+              </Text>{' '}
+              and{' '}
+              <Text
+                style={styles.consentLink}
+                onPress={() => Linking.openURL(PRIVACY_POLICY_URL).catch(() => {})}
+                accessibilityRole="link"
+              >
+                Privacy Policy
+              </Text>
+            </Text>
+          </View>
 
           <Button
             label="Continue"
             onPress={onSubmit}
             loading={busy}
             size="lg"
-            disabled={!phoneReady}
+            disabled={!phoneReady || !consentGiven}
             style={styles.mt}
           />
         </View>
@@ -158,17 +170,37 @@ const styles = StyleSheet.create({
   },
   form: { marginTop: spacing.lg },
   mt: { marginTop: spacing.md },
-  consent: {
-    marginTop: spacing.lg,
-    textAlign: 'center',
-    fontSize: fontSize.caption,
+  consentRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  consentBox: {
+    width: 22,
+    height: 22,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  consentBoxChecked: {
+    backgroundColor: colors.primaryDark,
+    borderColor: colors.primaryDark,
+  },
+  consentText: {
+    flex: 1,
+    fontSize: fontSize.caption - 1,
     color: colors.textSecondary,
-    lineHeight: 20,
+    lineHeight: spacing.lg,
   },
   consentLink: {
-    fontSize: fontSize.caption,
-    fontWeight: fontWeight.semibold,
     color: colors.primaryDark,
+    fontWeight: fontWeight.semibold,
     textDecorationLine: 'underline',
   },
 });

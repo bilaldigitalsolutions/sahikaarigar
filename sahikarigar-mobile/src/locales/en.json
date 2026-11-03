@@ -210,6 +210,8 @@
   "hireDetail": {
     "title": "Booking details",
     "sub": "Send it to the worker — their number is revealed once they accept.",
+    "review1": "Fixed the kitchen leak in 30 minutes. Very professional and clean work.",
+    "review2": "On time, fair price and explained everything clearly. Recommended.",
     "sendToWorker": "Send it to the worker — their number is revealed once they accept.",
     "workerAssigned": "Worker assigned",
     "worker": "Worker",

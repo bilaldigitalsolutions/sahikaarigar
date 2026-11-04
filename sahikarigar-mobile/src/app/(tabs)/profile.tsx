@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Alert, Linking, Pressable, StyleSheet, Text, View, Modal } from 'react-native';
 
 import { Avatar, Badge, Button, Card, Screen } from '@/components';
@@ -10,7 +10,7 @@ import { getWorkerProfile } from '@/lib/api';
 import { colors, fontSize, fontWeight, radius, shadows, spacing } from '@/theme';
 import { formatPhone } from '@/utils';
 import { deleteUserAccount } from '@/lib/api';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 const ROLE_LABEL: Record<string, string> = {
   worker: 'Kaarigar',
@@ -47,19 +47,39 @@ export default function ProfileScreen() {
   // Fetch the worker's profile from the backend to get isApproved /
   // verificationStatus. The AuthContext `user` object only has `isVerified`
   // (from the users table); the admin approval flag lives on worker_profiles.
-  const loadWorkerProfile = async () => {
+  const loadWorkerProfile = useCallback(async () => {
     if (!user) return;
     try {
       const profile = await getWorkerProfile();
+      console.log(
+        '[Profile] worker profile fetched — isApproved:',
+        profile?.isApproved,
+        '| verificationStatus:',
+        profile?.verificationStatus,
+      );
       setWorkerProfile(profile);
-    } catch {
+    } catch (e) {
+      console.error('[Profile] getWorkerProfile failed:', e);
       setWorkerProfile(null);
     }
-  };
-
-  useEffect(() => {
-    loadWorkerProfile();
   }, [user]);
+
+  // The loader is called through a ref so the focus effect stays referentially
+  // stable — otherwise re-creating the callback on every `user` change would
+  // make useFocusEffect re-run and loop: refreshUser -> setUser -> refetch.
+  const loadWorkerProfileRef = useRef(loadWorkerProfile);
+  loadWorkerProfileRef.current = loadWorkerProfile;
+
+  // Re-fetch on EVERY focus of the Profile tab. This is the fix for
+  // "Verification: Pending" sticking after the admin approves: the approval
+  // only changes server-side data, so the app must re-read it on focus
+  // instead of relying on the `user` object cached at app start.
+  useFocusEffect(
+    useCallback(() => {
+      void loadWorkerProfileRef.current();
+      void refreshUser().catch(() => {});
+    }, []),
+  );
 
   const refreshProfile = async () => {
     setRefreshing(true);

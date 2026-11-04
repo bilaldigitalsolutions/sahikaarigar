@@ -62,20 +62,32 @@ function RootNavigator() {
 
   useEffect(() => {
     let active = true;
+    // Hard 3 s timeout: a broken native font pipeline must never brick the app
+    // on the loading screen. In-app <Ionicons> components auto-load per mount
+    // (build/createIconSet.js componentDidMount), so this gate is only a
+    // best-effort pre-load, not a hard requirement.
+    const timeout = setTimeout(() => {
+      if (active) {
+        console.warn('[Font] Ionicons load timed out after 3s — continuing anyway.');
+        setFontsLoaded(true);
+      }
+    }, 3000);
     (async () => {
       try {
         await Font.loadAsync(Ionicons.font);
-        if (active) setFontsLoaded(true);
+        if (active) {
+          console.log('[Font] Ionicons loadAsync resolved. isLoaded =', Font.isLoaded('ionicons'));
+        }
       } catch (e) {
-        // Font load failure is not silent — log it so we can diagnose empty
-        // tab icons. Do NOT set fontsLoaded=true on failure, or the tab bar
-        // will render without the icon font and show empty squares.
         console.error('[Font] Failed to load Ionicons:', e);
-        if (active) setFontsLoaded(false);
+      } finally {
+        clearTimeout(timeout);
+        if (active) setFontsLoaded(true); // always proceed — never block on the font
       }
     })();
     return () => {
       active = false;
+      clearTimeout(timeout);
     };
   }, []);
 

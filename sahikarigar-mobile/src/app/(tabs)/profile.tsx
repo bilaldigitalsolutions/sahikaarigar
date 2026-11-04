@@ -6,6 +6,7 @@ import { Avatar, Badge, Button, Card, Screen } from '@/components';
 import { LEGAL_URLS, areaLabel } from '@/constants';
 import { useAuth } from '@/contexts/AuthContext';
 import { getLocation } from '@/lib/storage';
+import { getWorkerProfile } from '@/lib/api';
 import { colors, fontSize, fontWeight, radius, shadows, spacing } from '@/theme';
 import { formatPhone } from '@/utils';
 import { deleteUserAccount } from '@/lib/api';
@@ -19,9 +20,11 @@ const ROLE_LABEL: Record<string, string> = {
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { user, signOut } = useAuth();
+  const { user, signOut, refreshUser } = useAuth();
   const [savedArea, setSavedArea] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
+  const [workerProfile, setWorkerProfile] = useState<any | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   const onHelpSheetOpen = (): void => {
     setShowHelp(true);
@@ -40,6 +43,35 @@ export default function ProfileScreen() {
       active = false;
     };
   }, []);
+
+  // Fetch the worker's profile from the backend to get isApproved /
+  // verificationStatus. The AuthContext `user` object only has `isVerified`
+  // (from the users table); the admin approval flag lives on worker_profiles.
+  const loadWorkerProfile = async () => {
+    if (!user) return;
+    try {
+      const profile = await getWorkerProfile();
+      setWorkerProfile(profile);
+    } catch {
+      setWorkerProfile(null);
+    }
+  };
+
+  useEffect(() => {
+    loadWorkerProfile();
+  }, [user]);
+
+  const refreshProfile = async () => {
+    setRefreshing(true);
+    try {
+      await refreshUser();
+      await loadWorkerProfile();
+    } catch {
+      // ignore — profile may not exist for employers
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   // Guest employers can open Profile from the tab bar — show a login prompt
   // instead of crashing on `user.*` below.
@@ -104,7 +136,21 @@ export default function ProfileScreen() {
 
   return (
     <Screen scroll>
-      <Text style={styles.heading}>Profile</Text>
+      <View style={styles.headerRow}>
+        <Text style={styles.heading}>Profile</Text>
+        <Pressable
+          onPress={refreshProfile}
+          disabled={refreshing}
+          hitSlop={10}
+          accessibilityLabel="Refresh profile"
+        >
+          <Ionicons
+            name={refreshing ? 'loader-outline' : 'refresh-outline'}
+            size={22}
+            color={colors.primaryDark}
+          />
+        </Pressable>
+      </View>
 
       {needsName ? (
         <Card style={styles.card}>
@@ -151,7 +197,15 @@ export default function ProfileScreen() {
         <InfoRow
           icon="shield-checkmark"
           label="Verification"
-          value={user.isVerified ? 'Verified' : 'Pending'}
+          value={
+            workerProfile?.isApproved
+              ? 'Approved'
+              : workerProfile?.verificationStatus
+                ? String(workerProfile.verificationStatus)
+                : user.isVerified
+                  ? 'Verified'
+                  : 'Pending'
+          }
         />
         <InfoRow icon="star" label="Trust Score" value={String(user.trustScore ?? 0)} />
       </Card>
@@ -370,6 +424,12 @@ const styles = StyleSheet.create({
     fontSize: fontSize.h2,
     fontWeight: fontWeight.bold,
     color: colors.textPrimary,
+    marginBottom: spacing.lg,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: spacing.lg,
   },
   card: { marginBottom: spacing.lg },

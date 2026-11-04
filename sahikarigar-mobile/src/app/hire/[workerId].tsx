@@ -8,6 +8,7 @@ import { VALIDATION } from '@/constants';
 import { useAuth } from '@/contexts/AuthContext';
 import { createHire, getWorker } from '@/lib/api';
 import { trackEvent } from '@/lib/observability';
+import { getLocation } from '@/lib/storage';
 import { colors, fontSize, fontWeight, radius, spacing } from '@/theme';
 
 /** Phone numbers (India) are 10 digits; a rate field is max 5 digits. */
@@ -64,6 +65,21 @@ export default function CreateHireScreen() {
   useEffect(() => {
     setHomeLocation(user?.locationArea ?? '');
   }, [user?.locationArea]);
+
+  // Fallback: if the backend has no locationArea for the user, read from
+  // AsyncStorage (saved during onboarding) so the home area field is not empty.
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      if (!homeLocation && user?.locationArea == null) {
+        const stored = await getLocation();
+        if (active && stored) setHomeLocation(stored);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Fetch worker data on mount to get their hourly rate for the booking form.
   useEffect(() => {

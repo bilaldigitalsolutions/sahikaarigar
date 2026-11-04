@@ -24,8 +24,12 @@ export default function TabsLayout() {
       try {
         await Font.loadAsync(Ionicons.font);
         if (active) setFontsLoaded(true);
-      } catch {
-        if (active) setFontsLoaded(true); // Fall back — show tab bar even if font fails
+      } catch (e) {
+        // Font load failure is not silent — log it so we can diagnose empty
+        // tab icons. Do NOT set fontsLoaded=true on failure, or the tab bar
+        // will render without the icon font and show empty squares.
+        console.error('[Font] Failed to load Ionicons:', e);
+        if (active) setFontsLoaded(false);
       }
     })();
     return () => {

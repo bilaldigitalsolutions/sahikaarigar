@@ -9,6 +9,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Linking, StyleSheet, Text, View } from 'react-native';
 import { BrandLogo, Button, Card, Screen } from '@/components';
 import { setLocation } from '@/lib/storage';
+import { updateProfile } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 import { colors, fontSize, fontWeight, radius, spacing } from '@/theme';
 
 /** Fallback area when GPS is unavailable or permission is denied. */
@@ -81,7 +83,9 @@ function describePlace(place: Location.LocationGeocodedAddress | undefined) {
 
 export default function LocationStep() {
   const router = useRouter();
+  const { refreshUser } = useAuth();
   const [state, setState] = useState<LocationState>({ kind: 'locating' });
+  const [syncing, setSyncing] = useState(false);
 
   // Incremented on every retry/unmount so a late GPS callback can't overwrite
   // the result of a newer request.
@@ -175,9 +179,22 @@ export default function LocationStep() {
   // navigates, so a storage hiccup can never block the onboarding step.
   useEffect(() => {
     if (state.kind === 'ready') {
+      setSyncing(true);
       void setLocation(state.area).catch(() => {});
+      // Sync the selected area to the backend so it persists across logins
+      // and is available on the hire screen's home area field.
+      void updateProfile({ locationArea: state.area })
+        .then(() => {
+          // Refresh the auth user so user.locationArea is immediately available
+          // on subsequent screens (e.g. the hire screen's home area field).
+          void refreshUser().catch(() => {});
+        })
+        .catch(() => {})
+        .finally(() => {
+          setSyncing(false);
+        });
     }
-  }, [state]);
+  }, [state, refreshUser]);
 
   const goNext = () => {
     router.replace('/onboarding/role' as never);
@@ -243,6 +260,15 @@ export default function LocationStep() {
               </Text>
             ) : null}
           </Card>
+
+          {syncing ? (
+            <Card style={styles.stateCard}>
+              <ActivityIndicator color={colors.primaryDark} />
+              <Text style={styles.stateTitle}>
+                Location save ho rahi hai…
+              </Text>
+            </Card>
+          ) : null}
 
           <Button label="Aage badhein" onPress={goNext} size="lg" />
           <Button

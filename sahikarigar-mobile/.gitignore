@@ -41,7 +41,7 @@ keystores/
 # typescript
 *.tsbuildinfo
 
-# test builds (download from EAS instead)
+# build artifacts (download from GitHub Actions instead)
 *.apk
 *.aab
 

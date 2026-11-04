@@ -6,7 +6,7 @@
 // (POST /me/push-token). The server then pings this device when a hire is
 // accepted / en route / arrived / completed.
 //
-// Everything is best-effort: denied permission or a missing EAS project id
+// Everything is best-effort: denied permission or a missing Expo project id
 // simply means no push — the app works exactly as before.
 // =============================================================================
 
@@ -145,7 +145,8 @@ export async function registerForPushNotifications(): Promise<string | null> {
       });
     }
 
-    // The token is tied to the EAS project (app.json → extra.eas.projectId).
+    // The token is tied to the Expo project ID in app.json → extra.eas.projectId
+    // (required by getExpoPushTokenAsync for push — not an EAS build dependency).
     const tokenResponse = await Notifications.getExpoPushTokenAsync();
     const token = tokenResponse.data;
 

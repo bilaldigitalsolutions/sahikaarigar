@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import * as Application from 'expo-application';
 import * as Font from 'expo-font';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -29,6 +30,13 @@ SplashScreen.preventAutoHideAsync();
 // Crash reporting boots first — every later init is wrapped so a failure lands
 // in Sentry instead of a silent blank screen.
 initObservability();
+
+// Build identity — confirms in logcat exactly which CI run is installed:
+//   adb logcat | findstr "\[Build\]"
+// `dev` means the bundle was built locally (EXPO_PUBLIC_BUILD_ID not set).
+console.log(
+  `[Build] id=${process.env.EXPO_PUBLIC_BUILD_ID ?? 'dev'} version=${Application.nativeApplicationVersion ?? '?'} code=${Application.nativeBuildVersion ?? '?'}`,
+);
 
 // Show hire status banners even while the app is open.
 configureNotificationHandler();

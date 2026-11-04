@@ -8,10 +8,9 @@ import { useMode } from '@/contexts/ModeContext';
 import { listHires } from '@/lib/api';
 import { colors } from '@/theme';
 
-// Tab icons are STATIC BUNDLED PNGs (assets/icons/*.png) — the only render
-// path that bypasses the device font stack entirely. Test devices cannot
-// render runtime-registered icon fonts (Ionicons) or emoji glyphs; both show
-// as empty squares. PNG bitmaps cannot.
+// Tab icons are STATIC BUNDLED PNGs (assets/icons/*.png). Bitmaps bypass the
+// device's text/font stack entirely, so they render even when icon fonts or
+// emoji glyphs are missing from the system (which shows up as empty squares).
 export default function TabsLayout() {
   const { user } = useAuth();
   const { role, ready } = useMode();

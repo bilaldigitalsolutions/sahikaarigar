@@ -1,7 +1,7 @@
 name: Android AAB Build (Free)
 
 # =============================================================================
-# EAS free plan khatam hone ki wajah se CI par release AAB banate hain:
+# Release APK/AAB GitHub Actions par bante hain (EAS use nahi hota):
 #   checkout → node → npm install → expo prebuild → signing inject → gradle → upload
 # Secrets (repo Settings → Secrets and variables → Actions):
 #   KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD
@@ -161,11 +161,13 @@ jobs:
           MYAPP_UPLOAD_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.daemon=false -Dorg.gradle.parallel=true"
           # EXPO_PUBLIC_* vars Metro bundle time par inline hote hain —
-          # eas.json ke barabar values yahan set karo (GitHub builds eas.json
-          # ka env block use nahi karte).
+          # release values yahan set karo (workflow hi build config hai).
           EXPO_PUBLIC_AUTH_API_URL: https://sahikaarigar-auth.onrender.com
           EXPO_PUBLIC_APP_NAME: Sahi Kaarigar
           EXPO_PUBLIC_DEMO_MODE: "0"
+          # Stamped into the JS bundle so the installed app can prove which CI
+          # run it came from (Profile footer + `[Build]` logcat line).
+          EXPO_PUBLIC_BUILD_ID: "run${{ github.run_number }}"
           EXPO_PUBLIC_POSTHOG_KEY: phc_sv8Dzcdm29moWxn96AC9gys7MeTA2FyHyygAyXMjGh2F
           EXPO_PUBLIC_POSTHOG_HOST: https://eu.i.posthog.com
           EXPO_PUBLIC_SENTRY_DSN: https://7157c8fedfbd0b5e2729aab0424e81f0@o4512298339270656.ingest.de.sentry.io/4512298371514448

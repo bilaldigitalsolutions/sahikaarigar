@@ -92,18 +92,37 @@ src/
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run lint` | `expo lint` |
 
-## 📦 Building a release (EAS)
+## 📦 Building a release (GitHub Actions)
 
-```bash
-npm i -g eas-cli
-eas login
-eas build:configure
-eas build -p android --profile production   # produces an .aab for Play Store
+**Android builds are done via GitHub Actions, not EAS.**
+
+Every push to `main` runs `.github/workflows/android-build.yml` (or trigger it
+manually from **Actions → Android AAB Build (Free) → Run workflow**). The
+workflow prebuilds the native project, injects the signing keystore from repo
+secrets, and uploads two artifacts to the run:
+
+| Artifact | Use |
+| --- | --- |
+| `SahiKaarigar-APK` | Direct install / QA on a device |
+| `SahiKaarigar-AAB` | Upload to Google Play Console |
+
+Before installing an APK, verify it actually contains the latest JS bundle:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\verify-apk.ps1 <path-to-app-release.apk>
 ```
+
+The release version lives in `app.json` (`expo.version` / `expo.android.versionCode`).
+Bump both before shipping a new build.
+
+> **Why `extra.eas.projectId` is still in `app.json`:** it is **not** an EAS
+> build dependency. `expo-notifications`' `getExpoPushTokenAsync()` reads it to
+> derive the Expo push token (`Constants.expoConfig.extra.eas.projectId`).
+> Removing it breaks push notifications; keep it unless Expo Push is dropped.
 
 ## 🔜 Next Steps
 
 - Push notifications ✅ (`expo-notifications` — hire status changes ping the user; server side in `auth-server/src/push.js`)
 - Location-based search ✅ (`expo-location` — "near me" sorting + live GPS shared on en_route / arrived)
 - Mappls / Google Places API keys (`.env`) — optional; the area picker already falls back to the keyless Photon geocoder
-- Play Store launch — EAS build is ready; upload the AAB from the EAS dashboard
+- Play Store launch — download the AAB artifact from the latest GitHub Actions run and upload it to Play Console

@@ -9,7 +9,7 @@
 // alone is tens of MB per ABI).
 //
 // Override when needed:
-//   EXPO_ANDROID_ARCHS="arm64-v8a,armeabi-v7a" npx eas build -p android
+//   EXPO_ANDROID_ARCHS="arm64-v8a,armeabi-v7a" npx expo prebuild --platform android
 // =============================================================================
 
 const { withGradleProperties } = require('expo/config-plugins');

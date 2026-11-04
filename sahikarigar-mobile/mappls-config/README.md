@@ -24,7 +24,7 @@ So you only ever need to run:
 
 ```bash
 npx expo prebuild --platform android
-npx expo run:android          # or an EAS development build
+npx expo run:android
 ```
 
 > The generated `android/` folder is git-ignored, so `npx expo prebuild --clean`

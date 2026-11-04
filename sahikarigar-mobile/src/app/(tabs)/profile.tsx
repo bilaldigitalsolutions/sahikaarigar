@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as Application from 'expo-application';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Alert, Linking, Pressable, StyleSheet, Text, View, Modal } from 'react-native';
 
@@ -355,6 +356,12 @@ export default function ProfileScreen() {
         </Pressable>
       </Card>
 
+      {/* Build identity — lets QA confirm which CI run is installed without
+          guessing from an identical versionName/versionCode. */}
+      <Text style={styles.buildStamp}>
+        {`v${Application.nativeApplicationVersion ?? '1.0.28'} (${Application.nativeBuildVersion ?? '36'}) - build ${process.env.EXPO_PUBLIC_BUILD_ID ?? 'dev'}`}
+      </Text>
+
       <Modal visible={showHelp} transparent animationType="fade" onRequestClose={onHelpSheetClose}>
         <View style={styles.helpOverlay}>
           <Pressable style={styles.helpOverlayTouchable} onPress={onHelpSheetClose} accessibilityLabel="Close Help & Support">
@@ -527,6 +534,13 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: spacing.md,
     marginTop: spacing.md,
+  },
+  buildStamp: {
+    fontSize: fontSize.caption,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginTop: spacing.lg,
+    opacity: 0.7,
   },
   helpTitle: {
     fontSize: fontSize.body,

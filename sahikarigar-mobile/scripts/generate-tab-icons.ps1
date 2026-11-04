@@ -23,19 +23,34 @@ $fillR = 17; $fillG = 24; $fillB = 39; $fillA = 255   # #111827 (neutral dark, t
 
 # --- CRC32 (PNG standard, poly 0xEDB88320) -----------------------------------
 function Get-Crc32([byte[]]$data) {
-    $table = New-Object 'System.Collections.Generic.List[long]'
+    # 0xEDB88320 must be treated as an unsigned 32-bit value. In Windows
+    # PowerShell it is parsed as a negative Int32, which sign-extends and
+    # corrupts every table entry. Use Int64 plus explicit 32-bit masks.
+    $table = New-Object 'System.Int64[]' 256
     for ($n = 0; $n -lt 256; $n++) {
-        $c = [long]$n
+        [long]$c = [long]$n
         for ($k = 0; $k -lt 8; $k++) {
-            if (($c -band 1) -ne 0) { $c = (0xEDB88320 -bxor ($c -shr 1)) } else { $c = $c -shr 1 }
+            if (($c -band 1) -ne 0) {
+                $c = ((0xEDB88320L -bxor ($c -shr 1)) -band 0xFFFFFFFFL)
+            } else {
+                $c = (($c -shr 1) -band 0xFFFFFFFFL)
+            }
         }
-        $table.Add($c)
+        $table[$n] = $c
     }
-    $crc = 0xFFFFFFFF
+    [long]$crc = 0xFFFFFFFFL
     foreach ($b in $data) {
-        $crc = ($table[[int](($crc -bxor $b) -band 0xFF)]) -bxor ($crc -shr 8)
+        $idx = [int]((($crc -bxor [long]$b) -band 0xFFL))
+        $crc = (($table[$idx] -bxor ($crc -shr 8)) -band 0xFFFFFFFFL)
     }
-    return ($crc -bxor 0xFFFFFFFF) -band 0xFFFFFFFF
+    return (($crc -bxor 0xFFFFFFFFL) -band 0xFFFFFFFFL)
+}
+
+# Known-answer test: CRC32 of the IEND chunk type (no data) is fixed by the
+# PNG specification. This catches signed-integer regressions immediately.
+$iendCrc = Get-Crc32 ([System.Text.Encoding]::ASCII.GetBytes('IEND'))
+if ($iendCrc -ne 0xAE426082L) {
+    throw ("Get-Crc32 self-test failed: IEND CRC = 0x{0:X8}, expected 0xAE426082" -f $iendCrc)
 }
 
 # --- Adler-32 (zlib trailer) --------------------------------------------------

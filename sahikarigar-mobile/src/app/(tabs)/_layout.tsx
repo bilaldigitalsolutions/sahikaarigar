@@ -36,6 +36,10 @@ function TabIcon({
 }) {
   const [failed, setFailed] = useState(false);
 
+  useEffect(() => {
+    console.log(`[TabIcon] ${name}.png require() resolved to:`, source);
+  }, [name, source]);
+
   if (failed) {
     return (
       <Text
@@ -58,8 +62,12 @@ function TabIcon({
   return (
     <Image
       source={source}
-      onError={() => {
-        console.warn(`[TabIcon] ${name}.png failed to load — using text fallback.`);
+      onError={(event) => {
+        const detail = event.nativeEvent as { error?: string; uri?: string };
+        console.warn(
+          `[TabIcon] ${name}.png failed to load — using text fallback. ` +
+            `source=${String(source)} error=${detail.error ?? 'unknown'} uri=${detail.uri ?? 'unknown'}`
+        );
         setFailed(true);
       }}
       style={{ width: 24, height: 24, tintColor: color }}

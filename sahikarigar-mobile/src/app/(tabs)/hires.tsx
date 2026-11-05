@@ -53,6 +53,10 @@ export default function HiresScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      if (!user) {
+        setLoading(false);
+        return;
+      }
       void load();
       // The worker can change status while this list is open. Poll only while
       // focused so the "OTP ready" banner cannot stay stale.
@@ -60,7 +64,7 @@ export default function HiresScreen() {
         void load();
       }, 5000);
       return () => clearInterval(timer);
-    }, [load]),
+    }, [load, user]),
   );
 
   // Dual-role users (employer + kaarigar) can switch sides. Pure employers

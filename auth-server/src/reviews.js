@@ -42,6 +42,16 @@ function readRating(value) {
   return rating;
 }
 
+/** PostgREST reports missing columns as 42703 or PGRST204, with a message like
+ *  "column reviews.tip does not exist". Keep this check in one place so the
+ *  optional review extras can never make the whole feedback fail on an older
+ *  deployment that has not applied 0012 yet. */
+function isMissingReviewExtras(error) {
+  if (!error) return false;
+  if (error.code === '42703' || error.code === 'PGRST204') return true;
+  return /column .*\.(tip|likes).*does not exist/i.test(error.message || '');
+}
+
 /** The user reviews the worker after the job is completed.
  *  `tip` (rupees, record-only — payment happens offline) and `likes`
  *  (FEEDBACK_LIKES labels) are saved with the review — columns added by
@@ -83,29 +93,59 @@ export async function createReview({ reviewerId, hireRequestId, rating, comment,
   if (existingError) throw new Error(existingError.message);
   if (existing) throw new Error('Is kaam ka review pehle hi de diya hai');
 
-  const { data, error } = await db
-    .from('reviews')
-    .insert({
-      hire_request_id: hireRequestId,
-      reviewer_id: reviewerId,
-      worker_id: hire.worker_id,
-      rating: value,
-      comment: text || null,
-      tip: tipAmount,
-      likes: likeList.length ? likeList : null,
-    })
-    .select('*, reviewer:users(id, name, avatar)')
-    .single();
+  const reviewRow = {
+    hire_request_id: hireRequestId,
+    reviewer_id: reviewerId,
+    worker_id: hire.worker_id,
+    rating: value,
+    comment: text || null,
+  };
+
+  const insertReview = (withExtras) =>
+    db
+      .from('reviews')
+      .insert(
+        withExtras
+          ? { ...reviewRow, tip: tipAmount, likes: likeList.length ? likeList : null }
+          : reviewRow,
+      )
+      .select('*, reviewer:users(id, name, avatar)')
+      .single();
+
+  let { data, error } = await insertReview(true);
+
+  // Feedback must still save when an older deployment has not applied 0012.
+  // Log loudly, retry without the two optional columns, and keep the review.
+  if (error && isMissingReviewExtras(error)) {
+    console.warn(
+      '[reviews] tip/likes columns missing; retrying without extras (run 0012_review_feedback_extras.sql): %s',
+      error.message,
+    );
+    ({ data, error } = await insertReview(false));
+  }
 
   if (error) {
-    // The tip/likes columns are new — 0012_review_feedback_extras.sql not applied yet.
-    if (error.code === 'PGRST204' || /'(tip|likes)' column/i.test(error.message)) {
+    console.error(
+      '[reviews] insert failed for hire %s: code=%s message=%s details=%s hint=%s',
+      hireRequestId,
+      error.code,
+      error.message,
+      error.details,
+      error.hint,
+    );
+    if (error.code === '23505') {
+      throw new Error('Is kaam ka review pehle hi de diya hai');
+    }
+    if (isMissingReviewExtras(error)) {
       throw new Error(
         'Tip/likes save nahi ho paaye — Supabase me 0012_review_feedback_extras.sql migration chalao',
       );
     }
     throw new Error(error.message);
   }
+
+  if (!data) throw new Error('Review save nahi hua');
+  console.log('[reviews] created review %s for hire %s', data.id, hireRequestId);
   return mapReview(data);
 }
 

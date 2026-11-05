@@ -20,7 +20,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getHire, getHireStartOtp, hireAction, type ApiHire } from '@/lib/api';
 import { getDeviceCoords } from '@/lib/location';
 import { colors, fontSize, fontWeight, radius, spacing } from '@/theme';
-import type { HireAction } from '@/types';
+import type { HireAction, HireStatus } from '@/types';
 import { calculateDistance, formatCurrency } from '@/utils';
 
 function fmtTime(iso?: string | null): string {
@@ -40,6 +40,17 @@ const DEMO_ACTIONS: { action: HireAction; label: string }[] = [
   { action: 'start', label: 'Start Work' },
   { action: 'complete', label: 'Complete' },
 ];
+
+/** Demo mode only: the status each simulated action is valid from. Without
+ *  this, the old demo panel showed "Start Work" while the worker was still
+ *  On the way. The real server enforces the same order. */
+const DEMO_ACTION_FROM: Partial<Record<HireAction, HireStatus>> = {
+  accept: 'pending',
+  en_route: 'accepted',
+  arrived: 'en_route',
+  start: 'arrived',
+  complete: 'in_progress',
+};
 
 export default function HireDetailScreen() {
   const router = useRouter();
@@ -225,6 +236,11 @@ function BookingBody({
 }) {
   const { t } = useTranslation();
   const completed = hire.status === 'completed';
+  // Start Work is a WORKER action and only exists after Arrived + customer OTP.
+  // Keep this flag explicit so accepted/en_route can never show it again.
+  const canStartWork = isWorkerViewer && hire.status === 'arrived';
+  // The customer's OTP card is the mirror image of the worker's Start Work.
+  const showStartOtp = !isWorkerViewer && hire.status === 'arrived';
   const [startOtp, setStartOtp] = useState<string | null>(null);
   const [otpError, setOtpError] = useState<string | null>(null);
   const [otpEntry, setOtpEntry] = useState('');
@@ -232,38 +248,38 @@ function BookingBody({
   const [otpEntryError, setOtpEntryError] = useState<string | null>(null);
 
   const otpPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const fetchStartOtpRef = useRef<(() => void) | null>(null);
   const [otpRevealed, setOtpRevealed] = useState(false);
 
   const fetchStartOtp = useCallback(async () => {
-    if (isWorkerViewer) return;
-    let active = true;
+    if (!showStartOtp) return;
     try {
       const { otp } = await getHireStartOtp(hire.id);
-      if (active) {
-        setStartOtp(otp);
-        setOtpError(null);
-        setOtpRevealed(true);
-      }
+      setStartOtp(otp);
+      setOtpError(null);
+      setOtpRevealed(true);
     } catch (e) {
-      if (active) setOtpError(e instanceof Error ? e.message : t('hireDetail.otpLoadFailed'));
+      setOtpError(e instanceof Error ? e.message : t('hireDetail.otpLoadFailed'));
     }
-    return () => {
-      active = false;
-    };
-  }, [hire.id, hire.status, isWorkerViewer]);
-  fetchStartOtpRef.current = fetchStartOtp;
+  }, [hire.id, showStartOtp, t]);
 
   useEffect(() => {
-    fetchStartOtp();
-
-    if (hire.status === 'arrived' && !startOtp) {
-      otpPollRef.current = setInterval(fetchStartOtp, 3000);
-    } else {
+    if (!showStartOtp) {
+      setStartOtp(null);
+      setOtpError(null);
       if (otpPollRef.current) {
         clearInterval(otpPollRef.current);
         otpPollRef.current = null;
       }
+      return;
+    }
+
+    fetchStartOtp();
+
+    if (!startOtp) {
+      otpPollRef.current = setInterval(fetchStartOtp, 3000);
+    } else if (otpPollRef.current) {
+      clearInterval(otpPollRef.current);
+      otpPollRef.current = null;
     }
 
     return () => {
@@ -272,7 +288,7 @@ function BookingBody({
         otpPollRef.current = null;
       }
     };
-  }, [hire.status, startOtp, fetchStartOtp]);
+  }, [showStartOtp, startOtp, fetchStartOtp]);
 
   const verifyStartOtp = async () => {
     if (!hire) return;
@@ -291,6 +307,9 @@ function BookingBody({
   const arrived = ['arrived', 'in_progress', 'completed'].includes(hire.status);
   const workStarted = hire.status === 'in_progress' || completed;
   const cancelled = hire.status === 'cancelled' || hire.status === 'rejected';
+  const demoActions = isDemo
+    ? DEMO_ACTIONS.filter((item) => DEMO_ACTION_FROM[item.action] === hire.status)
+    : [];
 
   const steps: TimelineStep[] = [
     { label: t('common.booked'), time: fmtTime(hire.createdAt), state: 'done' },
@@ -363,21 +382,7 @@ function BookingBody({
                 : t('hireDetail.bookingConfirmedMsg')}
         </Text>
 
-        {!isWorkerViewer && hire.status === 'arrived' ? (
-          <View style={styles.enRouteBanner}>
-            <Ionicons name="location" size={20} color={colors.white} />
-            <View style={styles.enRouteTextWrap}>
-              <Text style={styles.enRouteTitle}>{t('hireDetail.arrivedTitle')}</Text>
-              <Text style={styles.enRouteSub}>
-                {hire.worker?.serviceAreas?.[0]
-                  ? `${hire.worker.serviceAreas[0]} se aa raha hai.`
-                  : t('hireDetail.workerComing')}
-              </Text>
-            </View>
-          </View>
-        ) : null}
-
-        {!isWorkerViewer && hire.status === 'arrived' ? (
+        {showStartOtp ? (
           <View style={styles.arrivedBanner}>
             <Ionicons name="location" size={20} color={colors.white} />
             <View style={styles.arrivedTextWrap}>
@@ -410,7 +415,7 @@ function BookingBody({
         <Text style={styles.sectionTitle}>{t('hireDetail.liveTracking')}</Text>
         <Timeline steps={steps} />
 
-        {!isWorkerViewer && hire.status === 'arrived' ? (
+        {showStartOtp ? (
           <View style={styles.otpCard}>
             <Ionicons name="key" size={16} color={colors.primaryDark} />
             <Text style={styles.otpLabel}>{t('hireDetail.startWorkOTP')}</Text>
@@ -489,12 +494,12 @@ function BookingBody({
           </Text>
         </View>
 
-        {isDemo ? (
+        {isDemo && demoActions.length > 0 ? (
           <View style={styles.demoCard}>
             <Text style={styles.demoTitle}>{t('hireDetail.demoTitle')}</Text>
             <Text style={styles.demoSub}>{t('hireDetail.demoSub')}</Text>
             <View style={styles.demoRow}>
-              {DEMO_ACTIONS.map((item) => (
+              {demoActions.map((item) => (
                 <Pressable
                   key={item.action}
                   style={[styles.demoBtn, busy && styles.disabled]}
@@ -509,7 +514,7 @@ function BookingBody({
         ) : null}
       </ScrollView>
 
-      {isWorkerViewer && hire.status === 'arrived' && otpEntryVisible ? (
+      {canStartWork && otpEntryVisible ? (
         <View style={styles.otpEntryCard}>
           <Text style={styles.otpEntryTitle}>{t('hireDetail.enterOTP')}</Text>
           <Text style={styles.otpEntrySub}>{t('hireDetail.enterOTPSub')}</Text>
@@ -613,7 +618,7 @@ function BookingBody({
                     <Text style={styles.primaryActionText}>{t('hireDetail.arrived')}</Text>
                   </Pressable>
                 </>
-              ) : hire.status === 'arrived' ? (
+              ) : canStartWork ? (
                 <Pressable
                   style={[styles.primaryAction, busy && styles.disabled]}
                   onPress={() => setOtpEntryVisible(true)}

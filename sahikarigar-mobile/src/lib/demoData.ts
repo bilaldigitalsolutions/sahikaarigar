@@ -349,12 +349,28 @@ const NEXT_STATUS: Record<HireAction, ApiHire['status']> = {
   cancel: 'cancelled',
 };
 
+/** Mirror the server's ordering. Demo mode must not let a tester skip
+ *  "On the way"/"Arrived" and start work early. */
+const ACTION_FROM: Record<HireAction, ApiHire['status'][]> = {
+  accept: ['pending'],
+  reject: ['pending'],
+  en_route: ['accepted'],
+  arrived: ['en_route'],
+  start: ['arrived'],
+  complete: ['in_progress'],
+  cancel: ['pending', 'accepted', 'en_route', 'arrived', 'in_progress'],
+};
+
 export function applyLocalAction(
   hire: ApiHire,
   action: HireAction,
   coords?: { lat?: number; lng?: number },
   otp?: string,
 ): ApiHire {
+  if (!ACTION_FROM[action].includes(hire.status)) {
+    throw new Error(`Ye action "${action}" abhi "${hire.status}" status me allowed nahi hai`);
+  }
+
   // "Start Work" needs the same 4-digit OTP the demo employer screen shows —
   // a wrong code must fail here too, exactly like the real server would.
   if (action === 'start') {

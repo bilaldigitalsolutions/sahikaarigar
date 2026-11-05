@@ -53,7 +53,13 @@ export default function HiresScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      load();
+      void load();
+      // The worker can change status while this list is open. Poll only while
+      // focused so the "OTP ready" banner cannot stay stale.
+      const timer = setInterval(() => {
+        void load();
+      }, 5000);
+      return () => clearInterval(timer);
     }, [load]),
   );
 

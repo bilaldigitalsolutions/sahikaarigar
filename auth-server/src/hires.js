@@ -502,34 +502,49 @@ export async function hireAction({ hireId, userId, action, lat, lng, otp }) {
       patch.status = 'rejected';
       break;
 
-    case 'en_route':
+    case 'en_route': {
+      if (!isWorker) throw new Error('Sirf kaarigar hi status badal sakta hai');
+      // Retry-safe: a duplicate request must not move an arrived/in-progress
+      // job backwards. The normal path is accepted -> en_route.
+      if (raw.status === 'en_route') return mapHire(raw);
+      if (raw.status !== 'accepted') {
+        throw new Error('Pehle request accept karo, phir "On the way" dabao');
+      }
+      patch.status = 'en_route';
+      patch.en_route_at = new Date().toISOString();
+      if (Number.isFinite(Number(lat))) patch.worker_lat = Number(lat);
+      if (Number.isFinite(Number(lng))) patch.worker_lng = Number(lng);
+      break;
+    }
+
     case 'arrived': {
       if (!isWorker) throw new Error('Sirf kaarigar hi status badal sakta hai');
-      if (!TRACKABLE.includes(raw.status)) throw new Error('Pehle request accept honi chahiye');
-      patch.status = action;
-      if (action === 'en_route') {
-        patch.en_route_at = new Date().toISOString();
-      } else {
-        const arrivedAt = new Date();
-        patch.arrived_at = arrivedAt.toISOString();
-        patch.arrived_time = patch.arrived_at;
+      // Retry-safe: an already-arrived job stays arrived and must not count
+      // on-time twice. The normal path is en_route -> arrived.
+      if (raw.status === 'arrived') return mapHire(raw);
+      if (raw.status !== 'en_route') {
+        throw new Error('Pehle "On the way" status set karo, phir Arrived dabao');
+      }
+      const arrivedAt = new Date();
+      patch.status = 'arrived';
+      patch.arrived_at = arrivedAt.toISOString();
+      patch.arrived_time = patch.arrived_at;
 
-        // Only the FIRST arrival counts. A repeated tap (or a retry after a
-        // dropped response) must never inflate the worker's score.
-        const alreadyArrived = Boolean(raw.arrived_time || raw.arrived_at);
-        if (!alreadyArrived) {
-          const baseline = raw.scheduled_time || raw.scheduled_date || raw.created_at;
-          const baselineMs = baseline ? new Date(baseline).getTime() : NaN;
-          const minutesFromSchedule = (arrivedAt.getTime() - baselineMs) / 60000;
-          const expectedArrivalMinutes = getExpectedArrivalTime(raw.distance_km);
+      // Only the FIRST arrival counts. A repeated tap (or a retry after a
+      // dropped response) must never inflate the worker's score.
+      const alreadyArrived = Boolean(raw.arrived_time || raw.arrived_at);
+      if (!alreadyArrived) {
+        const baseline = raw.scheduled_time || raw.scheduled_date || raw.created_at;
+        const baselineMs = baseline ? new Date(baseline).getTime() : NaN;
+        const minutesFromSchedule = (arrivedAt.getTime() - baselineMs) / 60000;
+        const expectedArrivalMinutes = getExpectedArrivalTime(raw.distance_km);
 
-          recordOnTime =
-            Number.isFinite(minutesFromSchedule) &&
-            minutesFromSchedule <= expectedArrivalMinutes;
-          // Persist the outcome too, so a late arrival stays visibly late even
-          // after the worker's rolling counters change.
-          patch.arrived_on_time = recordOnTime;
-        }
+        recordOnTime =
+          Number.isFinite(minutesFromSchedule) &&
+          minutesFromSchedule <= expectedArrivalMinutes;
+        // Persist the outcome too, so a late arrival stays visibly late even
+        // after the worker's rolling counters change.
+        patch.arrived_on_time = recordOnTime;
       }
       if (Number.isFinite(Number(lat))) patch.worker_lat = Number(lat);
       if (Number.isFinite(Number(lng))) patch.worker_lng = Number(lng);
@@ -537,10 +552,14 @@ export async function hireAction({ hireId, userId, action, lat, lng, otp }) {
     }
 
     case 'complete':
-      // Business rule: only the employer can close a job as completed.
+      // Business rule: only the employer can close a job, and only AFTER the
+      // worker verified the customer's OTP and the job is actually in progress.
       if (!isEmployer) throw new Error('Sirf employer hi request complete kar sakta hai');
-      if (!TRACKABLE.includes(raw.status)) {
-        throw new Error('Sirf accepted / on the way / reached / in-progress request complete ho sakti hai');
+      // Retry-safe: if the first response was lost after commit, don't count
+      // the job twice.
+      if (raw.status === 'completed') return mapHire(raw);
+      if (raw.status !== 'in_progress') {
+        throw new Error('Kaam pehle shuru hona chahiye — worker OTP verify kare, phir complete karein');
       }
       patch.status = 'completed';
       patch.completed_at = new Date().toISOString();

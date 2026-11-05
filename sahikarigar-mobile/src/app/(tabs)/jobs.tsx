@@ -59,7 +59,13 @@ export default function WorkerJobsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      load();
+      void load();
+      // Keep the worker dashboard (new requests / active jobs) live while the
+      // tab is open; otherwise a status change can look one step behind.
+      const timer = setInterval(() => {
+        void load();
+      }, 5000);
+      return () => clearInterval(timer);
     }, [load]),
   );
 

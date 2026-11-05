@@ -57,11 +57,32 @@ async function fetchWithTimeout(
 }
 
 /**
- * Thrown when a request never reached the server (offline, DNS, or a browser
- * CORS block). The read/write helpers below fall back to bundled demo data in
- * that case so the app stays usable — genuine API errors (4xx/5xx) still throw.
+ * Thrown only when a request never reached the server (offline, DNS, timeout,
+ * or a browser CORS block). Read/write helpers may fall back to bundled demo
+ * data in that case; genuine API errors (4xx/5xx) are thrown as ApiError and
+ * must reach the UI unchanged.
  */
-export class NetworkError extends Error {}
+export class NetworkError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'NetworkError';
+  }
+}
+
+/** A real HTTP/API failure returned by the auth-server (4xx/5xx). The message
+ *  is the server's message, so screens can show the actual reason instead of a
+ *  generic "check your connection" error. */
+export class ApiError extends Error {
+  status: number;
+  code?: string;
+
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.code = code;
+  }
+}
 
 /** Hard cap per request. Render's free tier sleeps, so the first hit after
  *  idle can stall for a minute+ — fail fast with a friendly retry message
@@ -69,32 +90,60 @@ export class NetworkError extends Error {}
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   initAuth();
   const base = requireAuthApiUrl();
+  const method = (init?.method ?? 'GET').toUpperCase();
 
+  let response: Response;
   try {
-    const response = await fetchWithTimeout(`${base}${path}`, {
+    response = await fetchWithTimeout(`${base}${path}`, {
       ...init,
       headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
     });
-
-    const data = (await response.json().catch(() => null)) as
-      | ({ ok?: boolean; message?: string } & Record<string, unknown>)
-      | null;
-
-    if (!response.ok || !data?.ok) {
-      const err = new Error((data?.message as string) || 'Request failed. Please try again.');
-      reportError(err, { where: 'apiFetch', path, status: response.status });
-      throw err;
-    }
-    return data as unknown as T;
   } catch (e) {
     // fetchWithTimeout aborts on timeout after REQUEST_TIMEOUT_MS.
     // A network error (offline, DNS, dropped connection) also reaches here.
-    throw new Error(
-      e instanceof Error && e.name === 'AbortError'
+    const timedOut = e instanceof Error && e.name === 'AbortError';
+    const err = new NetworkError(
+      timedOut
         ? 'Server is waking up. Please try again in 10 seconds.'
         : 'Could not reach the server. Check your connection and try again.',
     );
+    console.warn(`[api] ${method} ${path} network failure`, e);
+    reportError(err, {
+      where: 'apiFetch',
+      path,
+      method,
+      kind: timedOut ? 'timeout' : 'network',
+    });
+    throw err;
   }
+
+  const data = (await response.json().catch(() => null)) as
+    | ({ ok?: boolean; message?: string; code?: string } & Record<string, unknown>)
+    | null;
+
+  if (!response.ok || !data?.ok) {
+    const message =
+      typeof data?.message === 'string' && data.message.trim()
+        ? data.message
+        : `Request failed (${response.status}). Please try again.`;
+    const code = typeof data?.code === 'string' ? data.code : undefined;
+    const err = new ApiError(message, response.status, code);
+    console.warn(`[api] ${method} ${path} failed`, {
+      status: response.status,
+      code,
+      message,
+    });
+    reportError(err, {
+      where: 'apiFetch',
+      path,
+      method,
+      status: response.status,
+      code,
+    });
+    throw err;
+  }
+
+  return data as unknown as T;
 }
 
 // -----------------------------------------------------------------------------
@@ -400,6 +449,9 @@ export async function hireAction(
     return result;
   } catch (e) {
     if (!(e instanceof NetworkError)) throw e;
+    // A failed status change must never be simulated in a production build:
+    // the worker/customer would see a state the server never recorded.
+    if (!DEMO_MODE) throw e;
     const hire = getLocalHire(id);
     if (!hire) throw e;
     return { hire: applyLocalAction(hire, action, coords, otp) };
@@ -415,6 +467,7 @@ export async function getHireStartOtp(id: string): Promise<{ otp: string }> {
     return await apiFetch<{ otp: string }>(`/hires/${encodeURIComponent(id)}/start-otp`);
   } catch (e) {
     if (!(e instanceof NetworkError)) throw e;
+    if (!DEMO_MODE) throw e;
     const hire = getLocalHire(id);
     if (!hire?.startOtp) throw e;
     return { otp: hire.startOtp };
@@ -558,6 +611,9 @@ export async function createReview(payload: {
     return result;
   } catch (e) {
     if (!(e instanceof NetworkError)) throw e;
+    // Never fake a successful review in a production build — the worker's
+    // rating and the customer's history would silently diverge from the server.
+    if (!DEMO_MODE) throw e;
     const hire = getLocalHire(payload.hireRequestId);
     return {
       review: addLocalReview({
@@ -581,6 +637,7 @@ export async function sendPlatformFeedback(payload: {
     return await apiFetch('/feedback', { method: 'POST', body: JSON.stringify(payload) });
   } catch (e) {
     if (!(e instanceof NetworkError)) throw e;
+    if (!DEMO_MODE) throw e;
     return {
       feedback: {
         id: `demo-feedback-${Date.now()}`,

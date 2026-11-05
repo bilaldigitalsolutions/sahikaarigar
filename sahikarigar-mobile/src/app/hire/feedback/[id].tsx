@@ -16,7 +16,7 @@ import {
 import { Avatar, Button, Checkbox, Header, Screen, StarInput } from '@/components';
 import { FEEDBACK_LIKES, skillLabel } from '@/constants';
 import { useAuth } from '@/contexts/AuthContext';
-import { createReview, getHire, sendPlatformFeedback, type ApiHire } from '@/lib/api';
+import { ApiError, createReview, getHire, sendPlatformFeedback, type ApiHire } from '@/lib/api';
 import { colors, fontSize, fontWeight, radius, spacing } from '@/theme';
 
 function fmtCompleted(iso?: string | null): string {
@@ -51,7 +51,11 @@ export default function FeedbackScreen() {
       .then((result) => {
         if (active) {
           setHire(result.hire);
-          setError(null);
+          setError(
+            result.hire.status === 'completed'
+              ? null
+              : 'This job is not completed yet. Feedback opens after the work is marked completed.',
+          );
           if (result.review) {
             setRating(result.review.rating);
             setComment(result.review.comment ?? '');
@@ -73,7 +77,20 @@ export default function FeedbackScreen() {
   const toggleLike = (label: string) =>
     setLikes((prev) => (prev.includes(label) ? prev.filter((l) => l !== label) : [...prev, label]));
 
+  // Sirf CUSTOMER ka review chalta hai (server bhi reject karta hai) — agar
+  // kaarigar yahan pahunch bhi gaya (purani notification deep-link), to submit
+  // disable rehna chahiye, warna hamesha error aayega.
+  const isWorkerViewer = hire?.worker?.userId != null && hire.worker.userId === user?.id;
+
   const onSubmit = async () => {
+    if (submitting || alreadyReviewed) return;
+    if (isWorkerViewer) {
+      Alert.alert(
+        'Feedback sirf customer de sakta hai',
+        'Only the customer who booked this job can submit feedback.',
+      );
+      return;
+    }
     if (rating < 1) {
       Alert.alert('Add a rating', 'Give the worker a rating from 1 to 5 stars.');
       return;
@@ -87,26 +104,65 @@ export default function FeedbackScreen() {
       Alert.alert('Invalid tip amount', 'Tip cannot be negative.');
       return;
     }
+
     setSubmitting(true);
+    console.log('[Feedback] submitting', {
+      hireId: id,
+      rating,
+      hasComment: comment.trim().length > 0,
+      tip: tipAmount,
+      likes,
+      appRating,
+    });
+
     try {
-      await createReview({
+      const { review } = await createReview({
         hireRequestId: id,
         rating,
         comment: comment.trim() || undefined,
         tip: Number.isFinite(tipAmount) ? tipAmount : 0,
         likes,
       });
+      console.log('[Feedback] worker review saved', { hireId: id, reviewId: review.id });
+      setAlreadyReviewed(true);
+
       if (appRating > 0) {
-        await sendPlatformFeedback({
-          hireRequestId: id,
-          rating: appRating,
-          comment: likes.length ? likes.join(', ') : undefined,
-        });
+        try {
+          await sendPlatformFeedback({
+            hireRequestId: id,
+            rating: appRating,
+            comment: likes.length ? likes.join(', ') : undefined,
+          });
+          console.log('[Feedback] platform feedback saved', { hireId: id, appRating });
+        } catch (e) {
+          // The worker review is already saved and is the important part. Do
+          // not tell the customer the whole submission failed because only the
+          // optional app rating failed.
+          console.warn('[Feedback] platform feedback failed after review saved', {
+            hireId: id,
+            status: e instanceof ApiError ? e.status : undefined,
+            code: e instanceof ApiError ? e.code : undefined,
+            message: e instanceof Error ? e.message : String(e),
+          });
+        }
       }
+
       Alert.alert('Thank you!', 'Your feedback has been submitted.', [
         { text: 'OK', onPress: () => router.replace('/(tabs)/hires') },
       ]);
     } catch (e) {
+      const status = e instanceof ApiError ? e.status : undefined;
+      const code = e instanceof ApiError ? e.code : undefined;
+      console.warn('[Feedback] worker review failed', {
+        hireId: id,
+        name: e instanceof Error ? e.name : typeof e,
+        status,
+        code,
+        message: e instanceof Error ? e.message : String(e),
+      });
+      if (e instanceof ApiError && /already|pehle hi/i.test(e.message)) {
+        setAlreadyReviewed(true);
+      }
       Alert.alert(
         'Could not submit feedback',
         e instanceof Error ? e.message : 'Please try again.',
@@ -119,10 +175,6 @@ export default function FeedbackScreen() {
   const workerUser = hire?.worker?.user ?? null;
   const workerName = workerUser?.name ?? 'Kaarigar';
   const primarySkill = hire?.worker?.skills?.[0];
-  // Sirf CUSTOMER ka review chalta hai (server bhi reject karta hai) — agar
-  // kaarigar yahan pahunch bhi gaya (purani notification deep-link), to submit
-  // disable rehna chahiye, warna hamesha error aayega.
-  const isWorkerViewer = hire?.worker?.userId != null && hire.worker.userId === user?.id;
 
   // Live tip amount — the field takes a number (or a short note); show the
   // rupees value as it is typed instead of a stale hardcoded ₹0.

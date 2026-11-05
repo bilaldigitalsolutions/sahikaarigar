@@ -48,7 +48,13 @@ export default function MyJobsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      load();
+      void load();
+      // Keep the worker's job list in step with customer/OTP changes while
+      // the tab is open; detail polling alone leaves these cards stale.
+      const timer = setInterval(() => {
+        void load();
+      }, 5000);
+      return () => clearInterval(timer);
     }, [load]),
   );
 

@@ -32,10 +32,11 @@ export async function requestLocationPermission(): Promise<boolean> {
 
 /**
  * Current device position, or null when denied / unavailable.
- * Results are cached for the app session so repeated calls stay free.
+ * Results are cached for the app session so repeated calls stay free — pass
+ * `{ fresh: true }` for live tracking, where a stale fix would be wrong.
  */
-export async function getDeviceCoords(): Promise<DeviceCoords | null> {
-  if (cached) return cached;
+export async function getDeviceCoords(options: { fresh?: boolean } = {}): Promise<DeviceCoords | null> {
+  if (!options.fresh && cached) return cached;
   try {
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== 'granted') return null;

@@ -47,9 +47,11 @@ import {
 } from './hires.js';
 import {
   createReview,
+  createCustomerReview,
   createPlatformFeedback,
   listReviewsByWorker,
   getReviewByHireRequest,
+  getCustomerReviewByHireRequest,
 } from './reviews.js';
 import { createReport } from './reports.js';
 import {
@@ -502,8 +504,11 @@ app.get('/hires/:id', async (req, res, next) => {
       res.status(403).json({ ok: false, code: 'FORBIDDEN', message: 'Ye booking aapki nahi hai' });
       return;
     }
-    const review = await getReviewByHireRequest(req.params.id);
-    res.json({ ok: true, hire, review });
+    const [review, customerReview] = await Promise.all([
+      getReviewByHireRequest(req.params.id),
+      getCustomerReviewByHireRequest(req.params.id),
+    ]);
+    res.json({ ok: true, hire, review, customerReview });
   } catch (error) {
     next(error);
   }
@@ -660,6 +665,24 @@ app.post('/reviews', async (req, res, next) => {
       likes: req.body?.likes,
     });
     res.json({ ok: true, review });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Worker -> customer feedback. Separate from /reviews (customer -> worker).
+app.post('/customer-reviews', async (req, res, next) => {
+  try {
+    const session = await Session.getSession(req, res, { sessionRequired: true });
+    const { authUserId, phone } = await resolveSession(session);
+    const user = await getOrCreateUserByAuthId(authUserId, phone);
+    const customerReview = await createCustomerReview({
+      reviewerId: user.id,
+      hireRequestId: req.body?.hireRequestId,
+      rating: req.body?.rating,
+      comment: req.body?.comment,
+    });
+    res.json({ ok: true, customerReview });
   } catch (error) {
     next(error);
   }

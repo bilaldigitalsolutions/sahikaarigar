@@ -34,6 +34,21 @@ export function mapReview(row) {
   };
 }
 
+/** Worker -> customer feedback row. */
+export function mapCustomerReview(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    hireRequestId: row.hire_request_id,
+    reviewerId: row.reviewer_id,
+    customerId: row.customer_id,
+    rating: row.rating,
+    comment: row.comment ?? null,
+    createdAt: row.created_at,
+    reviewer: mapUser(row.reviewer),
+  };
+}
+
 function readRating(value) {
   const rating = Number(value);
   if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
@@ -50,6 +65,17 @@ function isMissingReviewExtras(error) {
   if (!error) return false;
   if (error.code === '42703' || error.code === 'PGRST204') return true;
   return /column .*\.(tip|likes).*does not exist/i.test(error.message || '');
+}
+
+/** `customer_reviews` table has not been created yet (migration 0021). */
+function isMissingCustomerReviews(error) {
+  if (!error) return false;
+  return (
+    error.code === '42P01' ||
+    error.code === 'PGRST205' ||
+    /customer_reviews.*does not exist/i.test(error.message || '') ||
+    /Could not find the table.*customer_reviews/i.test(error.message || '')
+  );
 }
 
 /** The user reviews the worker after the job is completed.
@@ -147,6 +173,109 @@ export async function createReview({ reviewerId, hireRequestId, rating, comment,
   if (!data) throw new Error('Review save nahi hua');
   console.log('[reviews] created review %s for hire %s', data.id, hireRequestId);
   return mapReview(data);
+}
+
+/**
+ * The worker rates the CUSTOMER after the job is completed. One review per
+ * hire request; stored in `customer_reviews` (0021_worker_feedback.sql) so the
+ * customer -> worker `reviews` table keeps its existing one-row-per-hire
+ * constraint.
+ */
+export async function createCustomerReview({ reviewerId, hireRequestId, rating, comment }) {
+  const value = readRating(rating);
+  const text = typeof comment === 'string' ? comment.trim().slice(0, 500) : '';
+
+  const { data: hire, error: hireError } = await db
+    .from('hire_requests')
+    .select('id, employer_id, worker_id, status, workerProfile:worker_profiles(user_id)')
+    .eq('id', hireRequestId)
+    .maybeSingle();
+
+  if (hireError) throw new Error(hireError.message);
+  if (!hire) throw new Error('Hire request nahi mila');
+  if (hire.status !== 'completed') throw new Error('Pehle kaam complete hona chahiye');
+
+  const workerUserId = hire.workerProfile?.user_id ?? null;
+  if (!workerUserId || workerUserId !== reviewerId) {
+    throw new Error('Sirf kaarigar hi customer ko feedback de sakta hai');
+  }
+  if (workerUserId === hire.employer_id) {
+    throw new Error('You cannot review yourself.');
+  }
+
+  const { data: existing, error: existingError } = await db
+    .from('customer_reviews')
+    .select('id')
+    .eq('hire_request_id', hireRequestId)
+    .maybeSingle();
+
+  if (existingError) {
+    if (isMissingCustomerReviews(existingError)) {
+      throw new Error(
+        'Customer feedback abhi database me support nahi hai — Supabase me 0021_worker_feedback.sql migration chalao',
+      );
+    }
+    throw new Error(existingError.message);
+  }
+  if (existing) throw new Error('Is kaam ka customer feedback pehle hi de diya hai');
+
+  const { data, error } = await db
+    .from('customer_reviews')
+    .insert({
+      hire_request_id: hireRequestId,
+      reviewer_id: reviewerId,
+      customer_id: hire.employer_id,
+      rating: value,
+      comment: text || null,
+    })
+    // Two FKs point at users (reviewer_id + customer_id); pin the reviewer one
+    // so PostgREST's embedded-resource lookup is unambiguous.
+    .select('*, reviewer:users!reviewer_id(id, name, avatar)')
+    .single();
+
+  if (error) {
+    console.error(
+      '[reviews] customer review insert failed for hire %s: code=%s message=%s',
+      hireRequestId,
+      error.code,
+      error.message,
+    );
+    if (error.code === '23505') {
+      throw new Error('Is kaam ka customer feedback pehle hi de diya hai');
+    }
+    if (isMissingCustomerReviews(error)) {
+      throw new Error(
+        'Customer feedback abhi database me support nahi hai — Supabase me 0021_worker_feedback.sql migration chalao',
+      );
+    }
+    throw new Error(error.message);
+  }
+
+  if (!data) throw new Error('Customer feedback save nahi hua');
+  console.log('[reviews] created customer review %s for hire %s', data.id, hireRequestId);
+  return mapCustomerReview(data);
+}
+
+/** The worker's feedback on the customer for a hire (null when not submitted). */
+export async function getCustomerReviewByHireRequest(hireRequestId) {
+  const { data, error } = await db
+    .from('customer_reviews')
+    .select('*, reviewer:users!reviewer_id(id, name, avatar)')
+    .eq('hire_request_id', hireRequestId)
+    .maybeSingle();
+
+  if (error) {
+    // The app must keep working while the 0021 migration is rolling out.
+    if (isMissingCustomerReviews(error)) {
+      console.warn(
+        '[reviews] customer_reviews table missing; run 0021_worker_feedback.sql: %s',
+        error.message,
+      );
+      return null;
+    }
+    throw new Error(error.message);
+  }
+  return mapCustomerReview(data);
 }
 
 /** The user rates the platform itself (independent of the worker review). */

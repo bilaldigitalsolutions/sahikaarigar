@@ -13,12 +13,14 @@ import { initAuth } from './auth';
 import { DEMO_MODE, requireAuthApiUrl } from './config';
 import { reportError, trackEvent } from './observability';
 import {
+  addLocalCustomerReview,
   addLocalReview,
   applyLocalAction,
   createLocalHire,
   DEMO_USER,
   filterDemoWorkers,
   findDemoWorker,
+  findLocalCustomerReview,
   findLocalReview,
   getLocalHire,
   listLocalHires,
@@ -263,6 +265,18 @@ export interface ApiReview {
   reviewer: ApiPublicUser | null;
 }
 
+/** The worker's review of the CUSTOMER after a completed job. */
+export interface ApiCustomerReview {
+  id: string;
+  hireRequestId: string;
+  reviewerId: string;
+  customerId: string;
+  rating: number;
+  comment?: string | null;
+  createdAt: string;
+  reviewer: ApiPublicUser | null;
+}
+
 // -----------------------------------------------------------------------------
 // Workers — public reads (no session needed)
 // -----------------------------------------------------------------------------
@@ -392,14 +406,24 @@ export async function listHires(): Promise<{
   }
 }
 
-export async function getHire(id: string): Promise<{ hire: ApiHire; review: ApiReview | null }> {
+export async function getHire(id: string): Promise<{
+  hire: ApiHire;
+  /** Customer -> worker feedback. */
+  review: ApiReview | null;
+  /** Worker -> customer feedback. */
+  customerReview: ApiCustomerReview | null;
+}> {
   try {
     return await apiFetch(`/hires/${encodeURIComponent(id)}`);
   } catch (e) {
     if (!(e instanceof NetworkError)) throw e;
     const hire = getLocalHire(id);
     if (!hire) throw e;
-    return { hire, review: findLocalReview(id) };
+    return {
+      hire,
+      review: findLocalReview(id),
+      customerReview: findLocalCustomerReview(id),
+    };
   }
 }
 
@@ -623,6 +647,37 @@ export async function createReview(payload: {
         comment: payload.comment,
         tip: payload.tip,
         likes: payload.likes,
+      }),
+    };
+  }
+}
+
+/**
+ * Worker -> customer feedback after a completed job. Kept separate from
+ * `createReview` because it targets the customer (employer), not the worker.
+ */
+export async function createCustomerReview(payload: {
+  hireRequestId: string;
+  rating: number;
+  comment?: string;
+}): Promise<{ customerReview: ApiCustomerReview }> {
+  try {
+    const result = await apiFetch<{ customerReview: ApiCustomerReview }>('/customer-reviews', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    trackEvent('feedback_submitted', { rating: payload.rating, side: 'worker' });
+    return result;
+  } catch (e) {
+    if (!(e instanceof NetworkError)) throw e;
+    if (!DEMO_MODE) throw e;
+    const hire = getLocalHire(payload.hireRequestId);
+    return {
+      customerReview: addLocalCustomerReview({
+        hireRequestId: payload.hireRequestId,
+        customerId: hire?.employerId ?? 'demo-employer-1',
+        rating: payload.rating,
+        comment: payload.comment,
       }),
     };
   }

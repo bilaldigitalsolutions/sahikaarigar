@@ -561,6 +561,19 @@ export async function deleteUserAccount({ userId, authUserId }) {
     if (error) throw new Error(error.message);
   }
 
+  // Worker -> customer feedback they wrote or received. Missing table is
+  // tolerated while migration 0021 is rolling out; account deletion must not
+  // depend on the new feature.
+  {
+    const { error } = await db
+      .from('customer_reviews')
+      .delete()
+      .or(`reviewer_id.eq.${userId},customer_id.eq.${userId}`);
+    if (error && error.code !== '42P01' && error.code !== 'PGRST205') {
+      throw new Error(error.message);
+    }
+  }
+
   // Their worker profile + everything attached (hires, reviews on it).
   if (workerProfileId) {
     const { error: reviewsError } = await db

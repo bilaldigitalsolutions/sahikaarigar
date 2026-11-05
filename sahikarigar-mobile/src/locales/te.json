@@ -306,7 +306,15 @@
     "waitingForOTP": "OTP కోసం ఎదురుచూపు",
     "workInProgressTitle": "పని జరుగుతోంది!",
     "workStarted": "పని మొదలైంది",
-    "workerComing": "కారిగారు వస్తున్నారు…"
+    "workerComing": "కారిగారు వస్తున్నారు…",
+    "workStartedLock": "పని మొదలైంది — ఇప్పుడు కాల్/రద్దు చేయలేరు.",
+    "routeToCustomer": "కస్టమర్ వద్దకు మార్గం",
+    "getDirections": "దిశలు పొందండి",
+    "workerLiveLocation": "కారిగారి ప్రత్యక్ష స్థానం",
+    "workerNearArea": "కారిగారు {{area}} దగ్గర ఉన్నారు",
+    "workerOnTheWay": "కారిగారు మీ స్థానానికి వస్తున్నారు.",
+    "liveLocationUpdating": "ప్రత్యక్ష స్థానం కొన్ని సెకన్లకు ఒకసారి అప్‌డేట్ అవుతుంది.",
+    "trackWorker": "మ్యాప్‌లో కారిగారిని చూడండి"
   },
   "feedback": {
     "title": "ఫీడ్‌బ్యాక్",

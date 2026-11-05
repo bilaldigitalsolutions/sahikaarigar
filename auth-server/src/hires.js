@@ -34,9 +34,9 @@ export const HIRE_SELECT =
   'customer_rating_avg, system_rating_score, availability, ' +
   'user:users!user_id(id, name, avatar, phone, location_area, location_city))';
 
-/** Statuses from which a job can still be completed / cancelled.
- *  `in_progress` = the kaarigar reached the site and verified the start OTP. */
-const TRACKABLE = ['accepted', 'en_route', 'arrived', 'in_progress'];
+/** Statuses from which either side may still cancel. Once the start OTP is
+ *  verified (`in_progress`) the job is locked — same rule as the app. */
+const CANCELLABLE_STATUSES = ['pending', 'accepted', 'en_route', 'arrived'];
 
 /** Worker cancels count AFTER accepting — at this many the profile is FLAGGED
  *  in the admin panel. Record-only: the admin decides any actual penalty. */
@@ -112,8 +112,10 @@ if (OTP_SECRET.length < 16) {
 
 /** Statuses from which BOTH sides may see each other's phone number. Before
  *  'accepted' the numbers are stripped server-side — masking must live in the
- *  API, not just in a disabled button, otherwise the payload still leaks them. */
-const PHONE_REVEALED_STATUSES = ['accepted', 'en_route', 'arrived', 'in_progress', 'completed'];
+ *  API, not just in a disabled button, otherwise the payload still leaks them.
+ *  Once work starts (in_progress) calls are no longer allowed, so the number is
+ *  stripped again; it stays hidden for completed/cancelled/rejected too. */
+const PHONE_REVEALED_STATUSES = ['accepted', 'en_route', 'arrived'];
 
 // ------------------------------ start-OTP rate limit -------------------------
 /** Guesses allowed per (user, hire) per window — a 4-digit code must never be
@@ -590,14 +592,13 @@ export async function hireAction({ hireId, userId, action, lat, lng, otp }) {
     }
 
     case 'cancel': {
-      // Both sides may step out of the booking: the employer before/at any
-      // stage, the kaarigar too (genuine emergencies happen) — but every
+      // Both sides may step out of the booking until work starts — but every
       // cancellation is RECORDED, never auto-blocked (Trust & Penalty).
       if (!isEmployer && !isWorker) {
         throw new Error('Sirf is booking ke employer ya kaarigar hi cancel kar sakte hain');
       }
-      if (![...TRACKABLE, 'pending'].includes(raw.status)) {
-        throw new Error('Ye request ab cancel nahi ho sakti');
+      if (!CANCELLABLE_STATUSES.includes(raw.status)) {
+        throw new Error('Kaam shuru ho gaya — ab cancel nahi ho sakta');
       }
       patch.status = 'cancelled';
       patch.cancelled_by = isWorker ? 'worker' : 'employer';

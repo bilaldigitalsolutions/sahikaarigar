@@ -9,7 +9,13 @@
 
 import type { HireAction, User } from '@/types';
 
-import type { ApiHire, ApiPublicUser, ApiReview, ApiWorker } from './api';
+import type {
+  ApiCustomerReview,
+  ApiHire,
+  ApiPublicUser,
+  ApiReview,
+  ApiWorker,
+} from './api';
 
 // ---------------------------------------------------------------------------
 // Demo session user
@@ -257,6 +263,7 @@ export const DEMO_REVIEWS: ApiReview[] = [
 
 const localHires = new Map<string, ApiHire>();
 const localReviews: ApiReview[] = [];
+const localCustomerReviews: ApiCustomerReview[] = [];
 let hireCounter = 0;
 
 const nowIso = () => new Date().toISOString();
@@ -358,7 +365,8 @@ const ACTION_FROM: Record<HireAction, ApiHire['status'][]> = {
   arrived: ['en_route'],
   start: ['arrived'],
   complete: ['in_progress'],
-  cancel: ['pending', 'accepted', 'en_route', 'arrived', 'in_progress'],
+  // Mirrors the server + UI rules: once work starts, cancellation locks.
+  cancel: ['pending', 'accepted', 'en_route', 'arrived'],
 };
 
 export function applyLocalAction(
@@ -424,6 +432,30 @@ export function addLocalReview(input: {
 
 export function findLocalReview(hireRequestId: string): ApiReview | null {
   return localReviews.find((r) => r.hireRequestId === hireRequestId) ?? null;
+}
+
+export function addLocalCustomerReview(input: {
+  hireRequestId: string;
+  customerId: string;
+  rating: number;
+  comment?: string;
+}): ApiCustomerReview {
+  const review: ApiCustomerReview = {
+    id: `demo-customer-review-${localCustomerReviews.length + 1}`,
+    hireRequestId: input.hireRequestId,
+    reviewerId: 'demo-worker-user',
+    customerId: input.customerId,
+    rating: input.rating,
+    comment: input.comment ?? null,
+    createdAt: nowIso(),
+    reviewer: { id: 'demo-worker-user', name: 'Demo Kaarigar', avatar: null },
+  };
+  localCustomerReviews.push(review);
+  return review;
+}
+
+export function findLocalCustomerReview(hireRequestId: string): ApiCustomerReview | null {
+  return localCustomerReviews.find((r) => r.hireRequestId === hireRequestId) ?? null;
 }
 
 export function findDemoWorker(id: string): ApiWorker | null {

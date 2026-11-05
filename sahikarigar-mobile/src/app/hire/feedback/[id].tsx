@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { usePreventRemove } from 'expo-router/react-navigation';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -13,10 +14,17 @@ import {
   View,
 } from 'react-native';
 
-import { Avatar, Button, Checkbox, Header, Screen, StarInput } from '@/components';
+import { Avatar, Button, Checkbox, Screen, StarInput } from '@/components';
 import { FEEDBACK_LIKES, skillLabel } from '@/constants';
 import { useAuth } from '@/contexts/AuthContext';
-import { ApiError, createReview, getHire, sendPlatformFeedback, type ApiHire } from '@/lib/api';
+import {
+  ApiError,
+  createCustomerReview,
+  createReview,
+  getHire,
+  sendPlatformFeedback,
+  type ApiHire,
+} from '@/lib/api';
 import { colors, fontSize, fontWeight, radius, spacing } from '@/theme';
 
 function fmtCompleted(iso?: string | null): string {
@@ -26,6 +34,8 @@ function fmtCompleted(iso?: string | null): string {
   const time = d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
   return `${date} at ${time}`;
 }
+
+type FeedbackDestination = '/(tabs)/hires' | '/(tabs)/jobs';
 
 export default function FeedbackScreen() {
   const router = useRouter();
@@ -37,7 +47,9 @@ export default function FeedbackScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [rating, setRating] = useState(5);
+  // Ratings start at 0 on purpose: both are required, so the submit button
+  // cannot be pressed until the user actually chooses a score.
+  const [rating, setRating] = useState(0);
   const [comment, setComment] = useState('');
   const [tip, setTip] = useState('');
   const [appRating, setAppRating] = useState(0);
@@ -49,18 +61,24 @@ export default function FeedbackScreen() {
     let active = true;
     getHire(id)
       .then((result) => {
-        if (active) {
-          setHire(result.hire);
-          setError(
-            result.hire.status === 'completed'
-              ? null
-              : 'This job is not completed yet. Feedback opens after the work is marked completed.',
-          );
-          if (result.review) {
-            setRating(result.review.rating);
-            setComment(result.review.comment ?? '');
-            setAlreadyReviewed(true);
-          }
+        if (!active) return;
+        const viewerIsWorker =
+          result.hire.worker?.userId != null && result.hire.worker.userId === user?.id;
+
+        setHire(result.hire);
+        setError(
+          result.hire.status === 'completed'
+            ? null
+            : 'This job is not completed yet. Feedback opens after the work is marked completed.',
+        );
+
+        // Each side has its own review: customer -> worker (`review`) and
+        // worker -> customer (`customerReview`).
+        const existing = viewerIsWorker ? result.customerReview : result.review;
+        if (existing) {
+          setRating(existing.rating);
+          setComment(existing.comment ?? '');
+          setAlreadyReviewed(true);
         }
       })
       .catch((e) => {
@@ -72,42 +90,71 @@ export default function FeedbackScreen() {
     return () => {
       active = false;
     };
-  }, [id]);
+  }, [id, user?.id]);
+
+  const isWorkerViewer = hire?.worker?.userId != null && hire.worker.userId === user?.id;
+
+  // Feedback is mandatory: after completion, both sides must submit before
+  // leaving this screen. Back / gesture navigation is blocked until then.
+  const mustSubmit = Boolean(
+    hire && hire.status === 'completed' && !alreadyReviewed && !loading && !error,
+  );
+
+  usePreventRemove(mustSubmit, () => {
+    Alert.alert(
+      'Feedback zaroori hai',
+      'Kaam complete hone ke baad feedback dena zaroori hai. Dono ratings choose karke submit karein.',
+    );
+  });
+
+  const destination: FeedbackDestination = isWorkerViewer ? '/(tabs)/jobs' : '/(tabs)/hires';
+  const goToRoleHome = () => {
+    // Drop the hire detail/feedback screens so Android Back cannot reopen a
+    // completed job after the mandatory feedback has been submitted.
+    if (router.canDismiss()) router.dismissAll();
+    router.replace(destination);
+  };
 
   const toggleLike = (label: string) =>
     setLikes((prev) => (prev.includes(label) ? prev.filter((l) => l !== label) : [...prev, label]));
 
-  // Sirf CUSTOMER ka review chalta hai (server bhi reject karta hai) — agar
-  // kaarigar yahan pahunch bhi gaya (purani notification deep-link), to submit
-  // disable rehna chahiye, warna hamesha error aayega.
-  const isWorkerViewer = hire?.worker?.userId != null && hire.worker.userId === user?.id;
-
   const onSubmit = async () => {
-    if (submitting || alreadyReviewed) return;
-    if (isWorkerViewer) {
-      Alert.alert(
-        'Feedback sirf customer de sakta hai',
-        'Only the customer who booked this job can submit feedback.',
-      );
+    if (submitting || alreadyReviewed || !hire) return;
+    if (hire.status !== 'completed') {
+      Alert.alert('Feedback not open yet', 'Feedback opens after the work is completed.');
       return;
     }
     if (rating < 1) {
-      Alert.alert('Add a rating', 'Give the worker a rating from 1 to 5 stars.');
+      Alert.alert(
+        isWorkerViewer ? 'Rate the customer' : 'Add a rating',
+        isWorkerViewer
+          ? 'Give the customer a rating from 1 to 5 stars.'
+          : 'Give the worker a rating from 1 to 5 stars.',
+      );
       return;
     }
-    const tipAmount = tip.trim() ? Number(tip.trim()) : 0;
-    if (tip.trim() && Number.isNaN(tipAmount)) {
-      Alert.alert('Invalid tip amount', 'Please enter a valid amount.');
+    if (appRating < 1) {
+      Alert.alert('Rate the app', 'Give SahiKaarigar a rating from 1 to 5 stars.');
       return;
     }
-    if (tipAmount < 0) {
-      Alert.alert('Invalid tip amount', 'Tip cannot be negative.');
-      return;
+
+    let tipAmount = 0;
+    if (!isWorkerViewer) {
+      tipAmount = tip.trim() ? Number(tip.trim()) : 0;
+      if (tip.trim() && Number.isNaN(tipAmount)) {
+        Alert.alert('Invalid tip amount', 'Please enter a valid amount.');
+        return;
+      }
+      if (tipAmount < 0) {
+        Alert.alert('Invalid tip amount', 'Tip cannot be negative.');
+        return;
+      }
     }
 
     setSubmitting(true);
     console.log('[Feedback] submitting', {
       hireId: id,
+      side: isWorkerViewer ? 'worker' : 'customer',
       rating,
       hasComment: comment.trim().length > 0,
       tip: tipAmount,
@@ -116,15 +163,26 @@ export default function FeedbackScreen() {
     });
 
     try {
-      const { review } = await createReview({
-        hireRequestId: id,
-        rating,
-        comment: comment.trim() || undefined,
-        tip: Number.isFinite(tipAmount) ? tipAmount : 0,
-        likes,
-      });
-      console.log('[Feedback] worker review saved', { hireId: id, reviewId: review.id });
-      setAlreadyReviewed(true);
+      if (isWorkerViewer) {
+        const { customerReview } = await createCustomerReview({
+          hireRequestId: id,
+          rating,
+          comment: comment.trim() || undefined,
+        });
+        console.log('[Feedback] customer review saved', {
+          hireId: id,
+          reviewId: customerReview.id,
+        });
+      } else {
+        const { review } = await createReview({
+          hireRequestId: id,
+          rating,
+          comment: comment.trim() || undefined,
+          tip: Number.isFinite(tipAmount) ? tipAmount : 0,
+          likes,
+        });
+        console.log('[Feedback] worker review saved', { hireId: id, reviewId: review.id });
+      }
 
       if (appRating > 0) {
         try {
@@ -135,9 +193,9 @@ export default function FeedbackScreen() {
           });
           console.log('[Feedback] platform feedback saved', { hireId: id, appRating });
         } catch (e) {
-          // The worker review is already saved and is the important part. Do
-          // not tell the customer the whole submission failed because only the
-          // optional app rating failed.
+          // The counterparty feedback is already saved and is the important
+          // part. Do not tell the user the whole submission failed because the
+          // optional platform part had a problem.
           console.warn('[Feedback] platform feedback failed after review saved', {
             hireId: id,
             status: e instanceof ApiError ? e.status : undefined,
@@ -147,14 +205,21 @@ export default function FeedbackScreen() {
         }
       }
 
-      Alert.alert('Thank you!', 'Your feedback has been submitted.', [
-        { text: 'OK', onPress: () => router.replace('/(tabs)/hires') },
-      ]);
+      setAlreadyReviewed(true);
+      Alert.alert(
+        'Thank you!',
+        isWorkerViewer
+          ? 'Customer feedback submitted successfully.'
+          : 'Your feedback has been submitted successfully.',
+        [{ text: 'OK', onPress: goToRoleHome }],
+        { cancelable: false },
+      );
     } catch (e) {
       const status = e instanceof ApiError ? e.status : undefined;
       const code = e instanceof ApiError ? e.code : undefined;
-      console.warn('[Feedback] worker review failed', {
+      console.warn('[Feedback] review failed', {
         hireId: id,
+        side: isWorkerViewer ? 'worker' : 'customer',
         name: e instanceof Error ? e.name : typeof e,
         status,
         code,
@@ -172,24 +237,26 @@ export default function FeedbackScreen() {
     }
   };
 
-  const workerUser = hire?.worker?.user ?? null;
-  const workerName = workerUser?.name ?? 'Kaarigar';
+  const counterparty = isWorkerViewer ? hire?.employer : hire?.worker?.user;
+  const counterpartyName = counterparty?.name ?? (isWorkerViewer ? 'Customer' : 'Kaarigar');
   const primarySkill = hire?.worker?.skills?.[0];
 
-  // Live tip amount — the field takes a number (or a short note); show the
-  // rupees value as it is typed instead of a stale hardcoded ₹0.
   const tipTrimmed = tip.trim();
   const tipDisplay =
     tipTrimmed && Number.isFinite(Number(tipTrimmed)) && Number(tipTrimmed) > 0
       ? `₹${Number(tipTrimmed)}`
       : '₹0';
 
+  const canSubmit =
+    Boolean(hire) &&
+    hire?.status === 'completed' &&
+    !alreadyReviewed &&
+    !submitting &&
+    rating > 0 &&
+    appRating > 0;
+
   return (
-    <Screen
-      padded={false}
-      edges={['bottom']}
-      header={<Header title="Feedback" showBack={false} />}
-    >
+    <Screen padded={false} edges={['bottom']}>
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator color={colors.primaryDark} />
@@ -209,51 +276,87 @@ export default function FeedbackScreen() {
               <View style={styles.bannerIcon}>
                 <Ionicons name="checkmark" size={26} color={colors.white} />
               </View>
-              <Text style={styles.bannerTitle}>Work Completed!</Text>
+              <Text style={styles.bannerTitle}>
+                {isWorkerViewer ? 'Kaam complete ho gaya!' : 'Work Completed!'}
+              </Text>
               <Text style={styles.bannerText}>
-                Your kaarigar has finished the work. Please share your feedback.
+                {isWorkerViewer
+                  ? 'Customer ne kaam complete mark kar diya. Please rate the customer and the app.'
+                  : 'Your kaarigar has finished the work. Please share your feedback.'}
               </Text>
             </View>
 
+            {alreadyReviewed ? (
+              <View style={[styles.card, styles.alreadyCard]}>
+                <Ionicons name="checkmark-circle" size={24} color="#16A34A" />
+                <Text style={styles.alreadyTitle}>Feedback already submitted</Text>
+                <Text style={styles.alreadyText}>
+                  {isWorkerViewer
+                    ? 'Aap is job ka customer feedback de chuke hain.'
+                    : 'Aap is job ka feedback de chuke hain.'}
+                </Text>
+                <Button
+                  label={isWorkerViewer ? 'Go to My Work' : 'Go to My Hires'}
+                  onPress={goToRoleHome}
+                  style={styles.alreadyBtn}
+                />
+              </View>
+            ) : null}
+
             <View style={styles.card}>
               <View style={styles.workerRow}>
-                <Avatar uri={workerUser?.avatar} name={workerName} size={64} />
+                <Avatar uri={counterparty?.avatar} name={counterpartyName} size={64} />
                 <View style={styles.workerInfo}>
-                  <Text style={styles.workerName}>{workerName}</Text>
+                  <Text style={styles.workerName}>{counterpartyName}</Text>
                   <Text style={styles.workerMeta}>
-                    {primarySkill ? skillLabel(primarySkill) : 'Kaarigar'} • Completed on{' '}
-                    {fmtCompleted(hire.completedAt ?? hire.updatedAt)}
+                    {isWorkerViewer
+                      ? 'Customer'
+                      : primarySkill
+                        ? skillLabel(primarySkill)
+                        : 'Kaarigar'}{' '}
+                    • Completed on {fmtCompleted(hire.completedAt ?? hire.updatedAt)}
                   </Text>
                 </View>
               </View>
-              <Text style={styles.question}>How was your experience?</Text>
+              <Text style={styles.question}>
+                {isWorkerViewer ? 'How was the customer?' : 'How was your experience?'}
+              </Text>
               <StarInput value={rating} onChange={setRating} size={30} />
+              {rating < 1 ? (
+                <Text style={styles.requiredHint}>Tap a star to rate (required)</Text>
+              ) : null}
             </View>
 
-            <View style={styles.card}>
-              <View style={styles.tipsHead}>
-                <Text style={styles.cardTitle}>Tips for kaarigar</Text>
-                <View style={styles.optionalBadge}>
-                  <Text style={styles.optionalText}>Optional</Text>
+            {!isWorkerViewer ? (
+              <View style={styles.card}>
+                <View style={styles.tipsHead}>
+                  <Text style={styles.cardTitle}>Tips for kaarigar</Text>
+                  <View style={styles.optionalBadge}>
+                    <Text style={styles.optionalText}>Optional</Text>
+                  </View>
+                </View>
+                <View style={styles.tipRow}>
+                  <TextInput
+                    style={styles.tipInput}
+                    placeholder="Add a tip amount (optional)..."
+                    placeholderTextColor={colors.muted}
+                    value={tip}
+                    onChangeText={setTip}
+                    keyboardType="number-pad"
+                  />
+                  <Text style={styles.tipCurrency}>{tipDisplay}</Text>
                 </View>
               </View>
-              <View style={styles.tipRow}>
-                <TextInput
-                  style={styles.tipInput}
-                  placeholder="Add a tip amount or note (optional)..."
-                  placeholderTextColor={colors.muted}
-                  value={tip}
-                  onChangeText={setTip}
-                  keyboardType="default"
-                />
-                <Text style={styles.tipCurrency}>{tipDisplay}</Text>
-              </View>
-            </View>
+            ) : null}
 
-            <Text style={styles.reviewLabel}>Review</Text>
+            <Text style={styles.reviewLabel}>Review (optional)</Text>
             <TextInput
               style={styles.textarea}
-              placeholder={'Share your experience...\ne.g., work quality, behavior, communication'}
+              placeholder={
+                isWorkerViewer
+                  ? 'Share your experience with this customer...'
+                  : 'Share your experience...\ne.g., work quality, behavior, communication'
+              }
               placeholderTextColor={colors.muted}
               value={comment}
               onChangeText={setComment}
@@ -266,6 +369,9 @@ export default function FeedbackScreen() {
               <Text style={styles.cardTitle}>Rate SahiKaarigar App</Text>
               <Text style={styles.cardSub}>How was your overall app experience?</Text>
               <StarInput value={appRating} onChange={setAppRating} size={26} />
+              {appRating < 1 ? (
+                <Text style={styles.requiredHint}>App rating is required</Text>
+              ) : null}
               <Text style={[styles.cardTitle, styles.likesTitle]}>What did you like?</Text>
               {FEEDBACK_LIKES.map((label) => (
                 <Checkbox
@@ -277,22 +383,29 @@ export default function FeedbackScreen() {
               ))}
             </View>
 
+            {!alreadyReviewed ? (
+              <View style={styles.mandatoryNote}>
+                <Ionicons name="information-circle-outline" size={18} color={colors.primaryDark} />
+                <Text style={styles.mandatoryText}>
+                  Feedback zaroori hai — dono ratings ke bina submit nahi hoga.
+                </Text>
+              </View>
+            ) : null}
           </ScrollView>
 
           <View style={styles.footer}>
             <Button
-              label={
-                isWorkerViewer
-                  ? 'Feedback sirf customer de sakta hai'
-                  : alreadyReviewed
-                    ? 'Feedback already submitted'
-                    : 'Submit Feedback'
-              }
+              label={alreadyReviewed ? 'Feedback already submitted' : 'Submit Feedback'}
               onPress={onSubmit}
               loading={submitting}
-              disabled={isWorkerViewer || alreadyReviewed}
+              disabled={!canSubmit || alreadyReviewed}
               size="lg"
             />
+            {!alreadyReviewed && (rating < 1 || appRating < 1) ? (
+              <Text style={styles.footerHint}>
+                Rate {isWorkerViewer ? 'the customer' : 'the worker'} and the app to continue.
+              </Text>
+            ) : null}
           </View>
         </KeyboardAvoidingView>
       )}
@@ -340,6 +453,24 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.card,
   },
+  alreadyCard: {
+    alignItems: 'center',
+    borderColor: '#BBF7D0',
+    backgroundColor: '#F0FDF4',
+  },
+  alreadyTitle: {
+    fontSize: fontSize.body,
+    fontWeight: fontWeight.bold,
+    color: '#166534',
+    marginTop: spacing.sm,
+  },
+  alreadyText: {
+    fontSize: fontSize.caption,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginTop: 2,
+  },
+  alreadyBtn: { marginTop: spacing.md },
   workerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   workerInfo: { flex: 1 },
   workerName: { fontSize: fontSize.title, fontWeight: fontWeight.bold, color: colors.textPrimary },
@@ -350,6 +481,11 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     marginTop: spacing.lg,
     marginBottom: spacing.sm,
+  },
+  requiredHint: {
+    fontSize: fontSize.caption,
+    color: colors.danger,
+    marginTop: spacing.sm,
   },
   tipsHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   cardTitle: { fontSize: fontSize.body, fontWeight: fontWeight.bold, color: colors.textPrimary },
@@ -394,11 +530,34 @@ const styles = StyleSheet.create({
   },
   cardSub: { fontSize: fontSize.caption, color: colors.textSecondary, marginTop: 2, marginBottom: spacing.md },
   likesTitle: { marginTop: spacing.lg },
+  mandatoryNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.lg,
+    padding: spacing.md,
+    borderRadius: radius.button,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+    backgroundColor: colors.primaryTint,
+  },
+  mandatoryText: {
+    flex: 1,
+    fontSize: fontSize.caption,
+    fontWeight: fontWeight.semibold,
+    color: colors.primaryDark,
+    lineHeight: 18,
+  },
   footer: {
     padding: spacing.lg,
     borderTopWidth: 1,
     borderTopColor: colors.border,
     backgroundColor: colors.card,
   },
+  footerHint: {
+    fontSize: fontSize.caption,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginTop: spacing.sm,
+  },
 });
-

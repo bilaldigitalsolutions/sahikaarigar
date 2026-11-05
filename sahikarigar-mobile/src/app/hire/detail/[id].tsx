@@ -15,9 +15,11 @@ import {
 } from 'react-native';
 
 import { Avatar, BrandLogo, Button, Header, Screen, Timeline, type TimelineStep } from '@/components';
-import { SUPPORT_PHONE } from '@/constants';
+import { SUPPORT_PHONE, areaLabel } from '@/constants';
 import { useAuth } from '@/contexts/AuthContext';
 import { getHire, getHireStartOtp, hireAction, type ApiHire } from '@/lib/api';
+import { openDirections, openMapLocation } from '@/lib/directions';
+import { canCall, canCancel } from '@/lib/hireRules';
 import { getDeviceCoords } from '@/lib/location';
 import { colors, fontSize, fontWeight, radius, spacing } from '@/theme';
 import type { HireAction, HireStatus } from '@/types';
@@ -107,6 +109,9 @@ export default function HireDetailScreen() {
   const onHelp = () => Alert.alert(t('common.help'), `Support: ${SUPPORT_PHONE}`);
 
   const onCall = () => {
+    // Defence in depth: even if a stale render leaves the button enabled,
+    // never start a call once work has started or the booking is closed.
+    if (!hire || !canCall(hire.status)) return;
     const workerViewer = hire?.worker?.userId != null && hire?.worker?.userId === user?.id;
     const phone = workerViewer ? hire?.employer?.phone : hire?.worker?.user?.phone;
     if (!phone) {
@@ -117,7 +122,7 @@ export default function HireDetailScreen() {
   };
 
   const onCancel = () => {
-    if (!hire) return;
+    if (!hire || !canCancel(hire.status)) return;
     Alert.alert(t('hireDetail.cancelBooking'), t('hireDetail.cancelBookingSub'), [
       { text: t('common.no'), style: 'cancel' },
       {
@@ -143,10 +148,19 @@ export default function HireDetailScreen() {
     setBusy(true);
     try {
       const coords =
-        action === 'en_route' || action === 'arrived' ? await getDeviceCoords() : null;
+        action === 'en_route' || action === 'arrived'
+          ? await getDeviceCoords({ fresh: true })
+          : null;
       const otpToSend = otp ?? (action === 'start' && isDemo ? hire?.startOtp ?? undefined : undefined);
       const { hire: updated } = await hireAction(hire.id, action, coords ?? undefined, otpToSend);
       setHire(updated);
+
+      // "On the way" now immediately opens the route to the customer's
+      // address; the detail screen also keeps a Get Directions button visible
+      // while the worker is en_route / arrived.
+      if (action === 'en_route' && updated.status === 'en_route') {
+        void openDirections({ label: updated.location || updated.homeLocation });
+      }
     } catch (e) {
       if (otp != null) throw e;
       Alert.alert(t('hireDetail.couldNotUpdate'), e instanceof Error ? e.message : t('common.error'));
@@ -157,9 +171,17 @@ export default function HireDetailScreen() {
 
   const workerUser = hire?.worker?.user ?? null;
   const workerName = workerUser?.name ?? t('common.worker');
+  const isWorkerViewer = hire?.worker?.userId != null && hire?.worker?.userId === user?.id;
 
+  // The booking distance is customer -> worker. Only show it on the customer's
+  // screen; for the worker their own coordinates are the origin, not a
+  // meaningful "distance away".
   const distance =
-    user?.lat != null && user?.lng != null && hire?.workerLat != null && hire?.workerLng != null
+    !isWorkerViewer &&
+    user?.lat != null &&
+    user?.lng != null &&
+    hire?.workerLat != null &&
+    hire?.workerLng != null
       ? calculateDistance(user.lat, user.lng, hire.workerLat, hire.workerLng)
       : null;
 
@@ -190,7 +212,7 @@ export default function HireDetailScreen() {
               distance={distance}
               busy={busy}
               isDemo={isDemo}
-              isWorkerViewer={hire?.worker?.userId != null && hire.worker.userId === user?.id}
+              isWorkerViewer={isWorkerViewer}
               onCall={onCall}
               onCancel={onCancel}
               onAction={runAction}
@@ -307,9 +329,29 @@ function BookingBody({
   const arrived = ['arrived', 'in_progress', 'completed'].includes(hire.status);
   const workStarted = hire.status === 'in_progress' || completed;
   const cancelled = hire.status === 'cancelled' || hire.status === 'rejected';
+  const callEnabled = canCall(hire.status);
+  const cancelEnabled = canCancel(hire.status);
+  const showDirections = isWorkerViewer && ['en_route', 'arrived'].includes(hire.status);
+  const showLiveWorker = !isWorkerViewer && ['en_route', 'arrived'].includes(hire.status);
+  const workerArea = hire.worker?.user?.locationArea
+    ? areaLabel(hire.worker.user.locationArea)
+    : null;
+  const hasWorkerCoords = hire.workerLat != null && hire.workerLng != null;
   const demoActions = isDemo
     ? DEMO_ACTIONS.filter((item) => DEMO_ACTION_FROM[item.action] === hire.status)
     : [];
+
+  const onGetDirections = () => {
+    void openDirections({ label: hire.location || hire.homeLocation });
+  };
+
+  const onTrackWorker = () => {
+    void openMapLocation({
+      lat: hire.workerLat,
+      lng: hire.workerLng,
+      label: workerArea ?? hire.location,
+    });
+  };
 
   const steps: TimelineStep[] = [
     { label: t('common.booked'), time: fmtTime(hire.createdAt), state: 'done' },
@@ -409,6 +451,58 @@ function BookingBody({
                 ) : null}
               </View>
             </View>
+          </View>
+        ) : null}
+
+        {showDirections ? (
+          <View style={styles.directionsCard}>
+            <View style={styles.directionsHead}>
+              <Ionicons name="navigate" size={18} color={colors.primaryDark} />
+              <Text style={styles.directionsTitle}>{t('hireDetail.routeToCustomer')}</Text>
+            </View>
+            <Text style={styles.directionsAddress} numberOfLines={3}>
+              {hire.location}
+            </Text>
+            {hire.homeLocation ? (
+              <Text style={styles.directionsSub} numberOfLines={2}>
+                {hire.homeLocation}
+              </Text>
+            ) : null}
+            <Pressable
+              style={styles.directionsBtn}
+              onPress={onGetDirections}
+              accessibilityRole="button"
+              accessibilityLabel={t('hireDetail.getDirections')}
+            >
+              <Ionicons name="map-outline" size={17} color={colors.white} />
+              <Text style={styles.directionsBtnText}>{t('hireDetail.getDirections')}</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        {showLiveWorker ? (
+          <View style={styles.liveCard}>
+            <View style={styles.liveHead}>
+              <View style={styles.liveDot} />
+              <Text style={styles.liveTitle}>{t('hireDetail.workerLiveLocation')}</Text>
+            </View>
+            <Text style={styles.liveSub}>
+              {workerArea
+                ? t('hireDetail.workerNearArea', { area: workerArea })
+                : t('hireDetail.workerOnTheWay')}
+            </Text>
+            <Text style={styles.liveMeta}>{t('hireDetail.liveLocationUpdating')}</Text>
+            {hasWorkerCoords || workerArea ? (
+              <Pressable
+                style={styles.liveBtn}
+                onPress={onTrackWorker}
+                accessibilityRole="button"
+                accessibilityLabel={t('hireDetail.trackWorker')}
+              >
+                <Ionicons name="map-outline" size={16} color={colors.primaryDark} />
+                <Text style={styles.liveBtnText}>{t('hireDetail.trackWorker')}</Text>
+              </Pressable>
+            ) : null}
           </View>
         ) : null}
 
@@ -548,26 +642,52 @@ function BookingBody({
 
       <View style={styles.bottomBar}>
         <View style={styles.bottomCol}>
-          <View style={styles.callWrap}>
+          {/* Once the OTP is verified (in_progress) the booking is locked. */}
+          {hire.status === 'in_progress' ? (
+            <View style={styles.lockBanner}>
+              <Ionicons name="lock-closed" size={16} color={colors.primaryDark} />
+              <Text style={styles.lockBannerText}>{t('hireDetail.workStartedLock')}</Text>
+            </View>
+          ) : null}
+
+          {/* Call and Cancel are always visible; their enabled state is driven
+              only by the status rules in lib/hireRules.ts. */}
+          <View style={styles.primaryActionsRow}>
             <Pressable
-              style={[styles.callBtn, (!accepted || workStarted) && styles.disabled]}
+              style={[styles.callBtn, !callEnabled && styles.disabled]}
               onPress={onCall}
-              disabled={!accepted || workStarted}
+              disabled={!callEnabled}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !callEnabled }}
             >
               <Ionicons name="call" size={17} color={colors.primaryDark} />
-              <Text style={styles.callText}>{isWorkerViewer ? t('hireDetail.callCustomer') : t('hireDetail.callWorker')}</Text>
-            </Pressable>
-            {!accepted ? (
-              <Text style={styles.callHint}>
-                {isWorkerViewer
-                  ? t('hireDetail.callWorkerDisabled')
-                  : t('hireDetail.callCustomerDisabled')}
+              <Text style={styles.callText}>
+                {isWorkerViewer ? t('hireDetail.callCustomer') : t('hireDetail.callWorker')}
               </Text>
-            ) : null}
+            </Pressable>
+            <Pressable
+              style={[styles.cancelBtn, (!cancelEnabled || busy) && styles.disabled]}
+              onPress={onCancel}
+              disabled={!cancelEnabled || busy}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !cancelEnabled || busy }}
+            >
+              <Ionicons name="close-circle-outline" size={17} color={colors.danger} />
+              <Text style={styles.cancelText}>{t('hireDetail.cancelJob')}</Text>
+            </Pressable>
           </View>
+
+          {hire.status === 'pending' ? (
+            <Text style={styles.callHint}>
+              {isWorkerViewer
+                ? t('hireDetail.callWorkerDisabled')
+                : t('hireDetail.callCustomerDisabled')}
+            </Text>
+          ) : null}
+
           <View style={styles.actionsRow}>
             {isWorkerViewer ? (
-              completed ? null : hire.status === 'pending' ? (
+              hire.status === 'pending' ? (
                 <>
                   <Pressable
                     style={[styles.outlineAction, busy && styles.disabled]}
@@ -585,37 +705,26 @@ function BookingBody({
                   </Pressable>
                 </>
               ) : hire.status === 'accepted' ? (
-                <>
-                  <Pressable
-                    style={[styles.outlineAction, busy && styles.disabled]}
-                    onPress={onCancel}
-                    disabled={busy}
-                  >
-                    <Text style={styles.outlineActionText}>{t('hireDetail.cancelJob')}</Text>
-                  </Pressable>
-                  <Pressable
-                    style={[styles.primaryAction, busy && styles.disabled]}
-                    onPress={() => onAction('en_route')}
-                    disabled={busy}
-                  >
-                    <Text style={styles.primaryActionText}>{t('hireDetail.onTheWay')}</Text>
-                  </Pressable>
-                </>
+                <Pressable
+                  style={[styles.primaryAction, busy && styles.disabled]}
+                  onPress={() => onAction('en_route')}
+                  disabled={busy}
+                >
+                  <Ionicons name="navigate-outline" size={17} color={colors.white} />
+                  <Text style={styles.primaryActionText}>{t('hireDetail.onTheWay')}</Text>
+                </Pressable>
               ) : hire.status === 'en_route' ? (
                 <>
-                  <Pressable
-                    style={[styles.outlineAction, busy && styles.disabled]}
-                    onPress={onCancel}
-                    disabled={busy}
-                  >
-                    <Text style={styles.outlineActionText}>{t('hireDetail.cancelJob')}</Text>
-                  </Pressable>
                   <Pressable
                     style={[styles.primaryAction, busy && styles.disabled]}
                     onPress={() => onAction('arrived')}
                     disabled={busy}
                   >
                     <Text style={styles.primaryActionText}>{t('hireDetail.arrived')}</Text>
+                  </Pressable>
+                  <Pressable style={styles.outlineAction} onPress={onGetDirections}>
+                    <Ionicons name="map-outline" size={16} color={colors.textPrimary} />
+                    <Text style={styles.outlineActionText}>{t('hireDetail.getDirections')}</Text>
                   </Pressable>
                 </>
               ) : canStartWork ? (
@@ -626,41 +735,38 @@ function BookingBody({
                 >
                   <Text style={styles.primaryActionText}>{t('hireDetail.startWork')}</Text>
                 </Pressable>
-              ) : null
+              ) : completed ? (
+                <>
+                  <Pressable style={styles.primaryAction} onPress={onFeedback}>
+                    <Text style={styles.primaryActionText}>{t('hireDetail.giveFeedback')}</Text>
+                  </Pressable>
+                  <Pressable style={styles.outlineAction} onPress={onHelp}>
+                    <Text style={styles.outlineActionText}>{t('hireDetail.help')}</Text>
+                  </Pressable>
+                </>
+              ) : (
+                <Pressable style={styles.outlineAction} onPress={onHelp}>
+                  <Text style={styles.outlineActionText}>{t('hireDetail.help')}</Text>
+                </Pressable>
+              )
             ) : (
               <>
                 {completed ? (
-                  <>
-                    <Pressable style={styles.primaryAction} onPress={onFeedback}>
-                      <Text style={styles.primaryActionText}>{t('hireDetail.giveFeedback')}</Text>
-                    </Pressable>
-                    <Pressable style={styles.outlineAction} onPress={onHelp}>
-                      <Text style={styles.outlineActionText}>{t('hireDetail.help')}</Text>
-                    </Pressable>
-                  </>
-                ) : (
-                  <>
-                    {workStarted && !completed ? (
-                      <Pressable
-                        style={[styles.primaryAction, busy && styles.disabled]}
-                        onPress={() => onAction('complete')}
-                        disabled={busy}
-                      >
-                        <Text style={styles.primaryActionText}>{t('hireDetail.workCompleted')}</Text>
-                      </Pressable>
-                    ) : null}
-                    <Pressable
-                      style={[styles.outlineAction, busy && styles.disabled]}
-                      onPress={onCancel}
-                      disabled={busy}
-                    >
-                      <Text style={styles.outlineActionText}>{t('hireDetail.cancelJob')}</Text>
-                    </Pressable>
-                    <Pressable style={styles.outlineAction} onPress={onHelp}>
-                      <Text style={styles.outlineActionText}>{t('hireDetail.help')}</Text>
-                    </Pressable>
-                  </>
-                )}
+                  <Pressable style={styles.primaryAction} onPress={onFeedback}>
+                    <Text style={styles.primaryActionText}>{t('hireDetail.giveFeedback')}</Text>
+                  </Pressable>
+                ) : workStarted && !completed ? (
+                  <Pressable
+                    style={[styles.primaryAction, busy && styles.disabled]}
+                    onPress={() => onAction('complete')}
+                    disabled={busy}
+                  >
+                    <Text style={styles.primaryActionText}>{t('hireDetail.workCompleted')}</Text>
+                  </Pressable>
+                ) : null}
+                <Pressable style={styles.outlineAction} onPress={onHelp}>
+                  <Text style={styles.outlineActionText}>{t('hireDetail.help')}</Text>
+                </Pressable>
               </>
             )}
           </View>
@@ -926,6 +1032,90 @@ const styles = StyleSheet.create({
   totalLabel: { fontSize: fontSize.body, fontWeight: fontWeight.bold, color: colors.textPrimary },
   totalValue: { fontSize: fontSize.title, fontWeight: fontWeight.bold, color: colors.primaryDark },
   totalHint: { fontSize: fontSize.caption, color: colors.textSecondary, textAlign: 'right', marginTop: 2 },
+  directionsCard: {
+    alignSelf: 'stretch',
+    marginTop: spacing.md,
+    padding: spacing.md,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+    backgroundColor: colors.primaryTint,
+  },
+  directionsHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  directionsTitle: {
+    flex: 1,
+    fontSize: fontSize.body,
+    fontWeight: fontWeight.bold,
+    color: colors.primaryDark,
+  },
+  directionsAddress: {
+    fontSize: fontSize.small,
+    color: colors.textPrimary,
+    marginTop: spacing.sm,
+    lineHeight: 20,
+  },
+  directionsSub: { fontSize: fontSize.caption, color: colors.textSecondary, marginTop: 2 },
+  directionsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    height: 42,
+    marginTop: spacing.md,
+    borderRadius: radius.button,
+    backgroundColor: colors.primaryDark,
+  },
+  directionsBtnText: {
+    fontSize: fontSize.caption,
+    fontWeight: fontWeight.semibold,
+    color: colors.white,
+  },
+  liveCard: {
+    alignSelf: 'stretch',
+    marginTop: spacing.md,
+    padding: spacing.md,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+    backgroundColor: colors.primaryTint,
+  },
+  liveHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  liveDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#16A34A',
+  },
+  liveTitle: {
+    flex: 1,
+    fontSize: fontSize.body,
+    fontWeight: fontWeight.bold,
+    color: colors.primaryDark,
+  },
+  liveSub: {
+    fontSize: fontSize.small,
+    color: colors.textPrimary,
+    marginTop: spacing.sm,
+    lineHeight: 20,
+  },
+  liveMeta: { fontSize: fontSize.caption, color: colors.textSecondary, marginTop: 2 },
+  liveBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    height: 42,
+    marginTop: spacing.md,
+    borderRadius: radius.button,
+    borderWidth: 1,
+    borderColor: colors.primaryDark,
+    backgroundColor: colors.white,
+  },
+  liveBtnText: {
+    fontSize: fontSize.caption,
+    fontWeight: fontWeight.semibold,
+    color: colors.primaryDark,
+  },
   bottomBar: {
     padding: spacing.md,
     borderTopWidth: 1,
@@ -934,10 +1124,28 @@ const styles = StyleSheet.create({
   },
   bottomCol: { alignSelf: 'stretch' },
   actionsRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
-  callWrap: {
-    alignItems: 'stretch',
+  lockBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    marginBottom: spacing.sm,
+    borderRadius: radius.button,
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+    backgroundColor: '#FEF3C7',
   },
+  lockBannerText: {
+    flex: 1,
+    fontSize: fontSize.caption,
+    fontWeight: fontWeight.semibold,
+    color: '#92400E',
+    lineHeight: 18,
+  },
+  primaryActionsRow: { flexDirection: 'row', gap: spacing.sm },
   callBtn: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -949,6 +1157,19 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
   },
   callText: { fontSize: fontSize.caption, fontWeight: fontWeight.semibold, color: colors.primaryDark },
+  cancelBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    height: 48,
+    borderRadius: radius.button,
+    borderWidth: 1.5,
+    borderColor: colors.danger,
+    backgroundColor: colors.white,
+  },
+  cancelText: { fontSize: fontSize.caption, fontWeight: fontWeight.semibold, color: colors.danger },
   callHint: {
     fontSize: fontSize.caption - 2,
     color: colors.textSecondary,
@@ -956,8 +1177,10 @@ const styles = StyleSheet.create({
   },
   primaryAction: {
     flex: 1.2,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 6,
     height: 48,
     borderRadius: radius.button,
     backgroundColor: colors.primaryDark,

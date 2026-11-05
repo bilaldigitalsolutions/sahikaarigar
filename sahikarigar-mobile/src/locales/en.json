@@ -305,7 +305,15 @@
     "waitingForOTP": "Waiting for OTP",
     "workInProgressTitle": "Work in Progress!",
     "workStarted": "Work started",
-    "workerComing": "Kaarigar aa raha hai…"
+    "workerComing": "Kaarigar aa raha hai…",
+    "workStartedLock": "Kaam shuru ho gaya — ab call/cancel nahi ho sakta.",
+    "routeToCustomer": "Route to customer",
+    "getDirections": "Get Directions",
+    "workerLiveLocation": "Worker live location",
+    "workerNearArea": "Worker is near {{area}}",
+    "workerOnTheWay": "Worker is on the way to your location.",
+    "liveLocationUpdating": "Live location updates every few seconds.",
+    "trackWorker": "Track Worker on Map"
   },
   "feedback": {
     "title": "Feedback",

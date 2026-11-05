@@ -1,5 +1,5 @@
 # =============================================================================
-# Secrets & credentials — inko kabhi commit mat karo (GitHub Push Protection
+# Secrets & credentials ï¿½ inko kabhi commit mat karo (GitHub Push Protection
 # bhi inhe block karta hai).
 # =============================================================================
 *service-account*.json
@@ -13,11 +13,15 @@ keystores/
 *.p12
 *.mobileprovision
 
-# Environment files (real values wale) — .env.example templates allowed
+# Environment files (real values wale) ï¿½ .env.example templates allowed
 .env
 .env.local
 .env.*.local
 .env.sahi-kaarigar
+
+# APK-build helper credentials kept locally only (never commit).
+apk-s/Import .env
+apk-s/client_secret_*.json
 # Build artifacts & dependencies (root-level). Pehle se tracked purane
 # auth-server/node_modules ko git rm --cached karne ki zaroorat hai - alag task.
 node_modules/

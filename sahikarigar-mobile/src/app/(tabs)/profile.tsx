@@ -166,7 +166,7 @@ export default function ProfileScreen() {
           accessibilityLabel="Refresh profile"
         >
           <Ionicons
-            name={refreshing ? 'loader-outline' : 'refresh-outline'}
+            name={refreshing ? 'sync-outline' : 'refresh-outline'}
             size={22}
             color={colors.primaryDark}
           />

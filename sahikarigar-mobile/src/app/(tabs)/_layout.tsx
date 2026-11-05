@@ -1,6 +1,6 @@
 import { Redirect, Tabs } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Image, Text, type ImageSourcePropType } from 'react-native';
+import { Image, Text, type ColorValue, type ImageSourcePropType } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/contexts/AuthContext';
@@ -32,7 +32,7 @@ function TabIcon({
 }: {
   name: TabIconName;
   source: ImageSourcePropType;
-  color: string;
+  color: ColorValue;
 }) {
   const [failed, setFailed] = useState(false);
 

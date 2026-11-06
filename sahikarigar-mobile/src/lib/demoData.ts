@@ -36,6 +36,8 @@ export const DEMO_USER: User = {
   isVerified: true,
   address: null,
   trustScore: 82,
+  customerRatingAverage: 4.7,
+  customerRatingCount: 12,
   createdAt: '2026-01-01T09:00:00.000Z',
   updatedAt: '2026-01-01T09:00:00.000Z',
 };
@@ -315,6 +317,10 @@ export function createLocalHire(input: {
     startOtp: String(Math.floor(1000 + Math.random() * 9000)),
     createdAt: nowIso(),
     updatedAt: nowIso(),
+    customerRating: {
+      average: DEMO_USER.customerRatingAverage,
+      count: DEMO_USER.customerRatingCount,
+    },
     employer: {
       id: DEMO_USER.id,
       name: input.name ?? DEMO_USER.name,

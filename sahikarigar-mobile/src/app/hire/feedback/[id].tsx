@@ -26,6 +26,7 @@ import {
   type ApiHire,
 } from '@/lib/api';
 import { colors, fontSize, fontWeight, radius, spacing } from '@/theme';
+import { formatCurrency, formatDuration } from '@/utils';
 
 function fmtCompleted(iso?: string | null): string {
   if (!iso) return '';
@@ -241,6 +242,28 @@ export default function FeedbackScreen() {
   const counterpartyName = counterparty?.name ?? (isWorkerViewer ? 'Customer' : 'Kaarigar');
   const primarySkill = hire?.worker?.skills?.[0];
 
+  // The final bill comes from the API after completion. Older rows may not
+  // have it, so derive the same value from the timestamps as a fallback.
+  const workerRate = Number(hire?.worker?.hourlyRate);
+  const hourlyRate =
+    Number.isFinite(workerRate) && workerRate > 0 ? workerRate : Number(hire?.proposedRate ?? 0);
+  const startedAtMs = hire?.startedAt ? new Date(hire.startedAt).getTime() : NaN;
+  const completedAtMs = hire?.completedAt ? new Date(hire.completedAt).getTime() : NaN;
+  const fallbackDurationMinutes =
+    Number.isFinite(startedAtMs) && Number.isFinite(completedAtMs) && completedAtMs >= startedAtMs
+      ? (completedAtMs - startedAtMs) / 60000
+      : NaN;
+  const serverDurationMinutes =
+    hire?.durationMinutes != null ? Number(hire.durationMinutes) : NaN;
+  const durationMinutes = Number.isFinite(serverDurationMinutes)
+    ? serverDurationMinutes
+    : fallbackDurationMinutes;
+  const hasDuration = Number.isFinite(durationMinutes);
+  const computedTotal = hasDuration ? (durationMinutes / 60) * hourlyRate : 0;
+  const storedTotal = hire?.totalAmount != null ? Number(hire.totalAmount) : NaN;
+  const totalAmount = Number.isFinite(storedTotal) ? storedTotal : computedTotal;
+  const amountKnown = Number.isFinite(storedTotal) || hasDuration;
+
   const tipTrimmed = tip.trim();
   const tipDisplay =
     tipTrimmed && Number.isFinite(Number(tipTrimmed)) && Number(tipTrimmed) > 0
@@ -283,6 +306,20 @@ export default function FeedbackScreen() {
                 {isWorkerViewer
                   ? 'Customer ne kaam complete mark kar diya. Please rate the customer and the app.'
                   : 'Your kaarigar has finished the work. Please share your feedback.'}
+              </Text>
+            </View>
+
+            <View style={styles.amountCard}>
+              <View style={styles.amountInfo}>
+                <Text style={styles.amountLabel}>Work total</Text>
+                <Text style={styles.amountMeta}>
+                  {`${formatCurrency(hourlyRate)}/hr${
+                    hasDuration ? ` • ${formatDuration(durationMinutes)}` : ''
+                  }`}
+                </Text>
+              </View>
+              <Text style={styles.amountValue}>
+                {amountKnown ? formatCurrency(totalAmount) : '—'}
               </Text>
             </View>
 
@@ -444,6 +481,34 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: spacing.xs,
     lineHeight: 21,
+  },
+  amountCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+    marginTop: spacing.lg,
+    padding: spacing.lg,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+    backgroundColor: colors.primaryTint,
+  },
+  amountInfo: { flex: 1 },
+  amountLabel: {
+    fontSize: fontSize.caption,
+    fontWeight: fontWeight.semibold,
+    color: colors.textSecondary,
+  },
+  amountMeta: {
+    fontSize: fontSize.caption,
+    color: colors.textSecondary,
+    marginTop: 3,
+  },
+  amountValue: {
+    fontSize: fontSize.h2,
+    fontWeight: fontWeight.bold,
+    color: colors.primaryDark,
   },
   card: {
     marginTop: spacing.lg,

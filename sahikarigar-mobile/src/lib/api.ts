@@ -163,6 +163,12 @@ export interface ApiPublicUser {
   trustScore?: number;
 }
 
+/** Worker -> customer rating aggregate (users.customer_rating_*). */
+export interface ApiCustomerRating {
+  average: number;
+  count: number;
+}
+
 export type ApiAvailability = 'available' | 'busy' | 'offline';
 
 export interface ApiWorker {
@@ -238,6 +244,10 @@ export interface ApiHire {
   /** null until arrival, then true when on time / false when late. */
   arrivedOnTime?: boolean | null;
   completedAt?: string | null;
+  /** Server-calculated work duration from startedAt -> completedAt. */
+  durationMinutes?: number | null;
+  /** Server-calculated final bill; null until the job is completed. */
+  totalAmount?: number | null;
   enRouteAt?: string | null;
   arrivedAt?: string | null;
   arrivedTime?: string | null;
@@ -248,6 +258,8 @@ export interface ApiHire {
   phoneRevealed: boolean;
   createdAt: string;
   updatedAt: string;
+  /** Worker -> customer aggregate for the hire's employer. */
+  customerRating?: ApiCustomerRating | null;
   employer: ApiPublicUser | null;
   worker: ApiHireWorker | null;
 }

@@ -4,6 +4,9 @@
 // `reviews`  = the user rates the WORKER (one per completed hire request; the
 //              rating_average / rating_count columns are kept in sync by a DB
 //              trigger, so we never compute them here).
+// `customer_reviews` = the worker rates the CUSTOMER (one per completed hire).
+//              users.customer_rating_average / customer_rating_count are kept
+//              in sync by the 0022 trigger and refreshed explicitly below.
 // `platform_feedback` = the user rates SahiKaarigar ITSELF.
 // =============================================================================
 
@@ -76,6 +79,23 @@ function isMissingCustomerReviews(error) {
     /customer_reviews.*does not exist/i.test(error.message || '') ||
     /Could not find the table.*customer_reviews/i.test(error.message || '')
   );
+}
+
+/**
+ * Recalculate users.customer_rating_average / customer_rating_count from the
+ * customer_reviews rows. 0022_customer_rating.sql defines this function and
+ * also calls it from a trigger; the explicit call keeps the aggregate fresh
+ * even on a deployment where the trigger has not been installed yet.
+ *
+ * The shared `db` client is created with SUPABASE_SERVICE_ROLE_KEY in
+ * users.js, and 0022 grants EXECUTE only to service_role. Never move this call
+ * to an anon/authenticated client — it would fail with a permission error.
+ */
+async function refreshCustomerRating(customerId) {
+  const { error } = await db.rpc('refresh_customer_rating', {
+    p_customer_id: customerId,
+  });
+  if (error) throw new Error(error.message);
 }
 
 /** The user reviews the worker after the job is completed.
@@ -252,6 +272,21 @@ export async function createCustomerReview({ reviewerId, hireRequestId, rating, 
   }
 
   if (!data) throw new Error('Customer feedback save nahi hua');
+
+  // The review is already saved. A missing 0022 migration or a transient
+  // aggregate failure must not tell the worker the feedback failed — the next
+  // review / migration backfill will repair the denormalised value.
+  try {
+    await refreshCustomerRating(hire.employer_id);
+  } catch (ratingError) {
+    console.warn(
+      '[reviews] customer review %s saved but rating refresh failed ' +
+        '(run 0022_customer_rating.sql if the columns/function are missing): %s',
+      data.id,
+      ratingError.message,
+    );
+  }
+
   console.log('[reviews] created customer review %s for hire %s', data.id, hireRequestId);
   return mapCustomerReview(data);
 }

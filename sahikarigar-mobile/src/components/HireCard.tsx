@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Badge, Card } from '@/components/ui';
@@ -7,6 +8,7 @@ import type { ApiHire } from '@/lib/api';
 import { colors, fontSize, fontWeight, radius, spacing } from '@/theme';
 import {
   formatCurrency,
+  formatRatingSummary,
   formatRelativeDate,
   getWorkerBadge,
   workerBadgeTone,
@@ -34,10 +36,23 @@ const TONE: Record<string, 'neutral' | 'success' | 'warning' | 'danger' | 'prima
 };
 
 export function HireCard({ hire, perspective, onPress, notice }: HireCardProps) {
+  const { t } = useTranslation();
   const counterparty =
     perspective === 'employer' ? hire.worker?.user?.name : hire.employer?.name;
   const title = counterparty ?? 'Booking';
   const workerBadge = hire.worker ? getWorkerBadge(hire.worker) : null;
+  const trust =
+    perspective === 'worker'
+      ? { label: t('rating.customerLabel'), rating: hire.customerRating ?? null }
+      : hire.worker
+        ? {
+            label: t('rating.workerLabel'),
+            rating: {
+              average: hire.worker.ratingAverage,
+              count: hire.worker.ratingCount,
+            },
+          }
+        : null;
 
   return (
     <Card onPress={onPress} style={styles.card}>
@@ -57,6 +72,15 @@ export function HireCard({ hire, perspective, onPress, notice }: HireCardProps) 
         <View style={styles.notice}>
           <Ionicons name="key" size={13} color={colors.primaryDark} />
           <Text style={styles.noticeText}>{notice.label}</Text>
+        </View>
+      ) : null}
+
+      {trust ? (
+        <View style={styles.ratingRow}>
+          <Ionicons name="star" size={13} color={colors.warning} />
+          <Text style={styles.ratingText}>
+            {trust.label}: {formatRatingSummary(trust.rating, t)}
+          </Text>
         </View>
       ) : null}
 
@@ -90,6 +114,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryTint,
   },
   noticeText: { fontSize: fontSize.caption - 1, fontWeight: fontWeight.semibold, color: colors.primaryDark },
+  ratingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: spacing.sm,
+  },
+  ratingText: { fontSize: fontSize.caption, color: colors.textSecondary },
   description: { fontSize: fontSize.small, color: colors.textSecondary, marginTop: spacing.sm },
   footer: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginTop: spacing.md },
   meta: { fontSize: fontSize.caption, color: colors.textSecondary },

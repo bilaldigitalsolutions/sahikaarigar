@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Alert,
@@ -24,6 +25,7 @@ import {
 import { colors, fontSize, fontWeight, radius, shadows, spacing } from '@/theme';
 import {
   formatCurrency,
+  formatRatingSummary,
   formatRelativeDate,
   getWorkerBadge,
   workerBadgeTone,
@@ -385,6 +387,7 @@ function RequestCard({
   onAccept: () => void;
   onReject: () => void;
 }) {
+  const { t } = useTranslation();
   const price = formatCurrency(hire.proposedRate);
   const time = formatRelativeDate(hire.createdAt);
 
@@ -404,6 +407,18 @@ function RequestCard({
         <View style={styles.requestHeader}>
           <Text style={styles.requestPrice}>{price}</Text>
           <Text style={styles.requestTime}>{time}</Text>
+        </View>
+
+        <View style={styles.customerRow}>
+          <Ionicons name="person-circle-outline" size={17} color={colors.textSecondary} />
+          <View style={styles.customerInfo}>
+            <Text style={styles.customerName} numberOfLines={1}>
+              {hire.employer?.name ?? 'Customer'}
+            </Text>
+            <Text style={styles.customerRating} numberOfLines={1}>
+              {t('rating.customerLabel')}: {formatRatingSummary(hire.customerRating, t)}
+            </Text>
+          </View>
         </View>
 
         {/* Pickup → drop rail: dot on top, arrow at the bottom. */}
@@ -588,6 +603,23 @@ const styles = StyleSheet.create({
     fontSize: fontSize.caption,
     color: colors.textSecondary,
     paddingBottom: 3,
+  },
+  customerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: spacing.sm,
+  },
+  customerInfo: { flex: 1 },
+  customerName: {
+    fontSize: fontSize.caption,
+    fontWeight: fontWeight.semibold,
+    color: colors.textPrimary,
+  },
+  customerRating: {
+    fontSize: fontSize.caption - 1,
+    color: colors.textSecondary,
+    marginTop: 1,
   },
   routeRow: {
     flexDirection: 'row',

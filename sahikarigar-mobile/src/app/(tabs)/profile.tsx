@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Application from 'expo-application';
 import { useFocusEffect, useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { Alert, Linking, Pressable, StyleSheet, Text, View, Modal } from 'react-native';
 
 import { Avatar, Badge, Button, Card, Screen } from '@/components';
@@ -9,7 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getLocation } from '@/lib/storage';
 import { getWorkerProfile } from '@/lib/api';
 import { colors, fontSize, fontWeight, radius, shadows, spacing } from '@/theme';
-import { formatPhone } from '@/utils';
+import { formatPhone, formatRatingSummary } from '@/utils';
 import { deleteUserAccount } from '@/lib/api';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -21,6 +22,7 @@ const ROLE_LABEL: Record<string, string> = {
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { user, signOut, refreshUser } = useAuth();
   const [savedArea, setSavedArea] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
@@ -229,6 +231,16 @@ export default function ProfileScreen() {
           }
         />
         <InfoRow icon="star" label="Trust Score" value={String(user.trustScore ?? 0)} />
+        {user.role === 'employer' ? (
+          <InfoRow
+            icon="star-half"
+            label={t('rating.customerLabel')}
+            value={formatRatingSummary(
+              { average: user.customerRatingAverage, count: user.customerRatingCount },
+              t,
+            )}
+          />
+        ) : null}
       </Card>
 
       {user.role === 'employer' ? (

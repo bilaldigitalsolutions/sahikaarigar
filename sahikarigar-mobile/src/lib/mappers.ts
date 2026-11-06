@@ -43,6 +43,8 @@ export function mapUser(row: Row): User {
     isVerified: row.is_verified === true,
     address: toTextOrNull(row.address),
     trustScore: toNumber(row.trust_score),
+    customerRatingAverage: toNumber(row.customer_rating_average),
+    customerRatingCount: toNumber(row.customer_rating_count),
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
   };

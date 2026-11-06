@@ -39,7 +39,8 @@ const AADHAAR_KEY_BYTES = 32;
  */
 const USER_COLUMNS =
   'id, firebase_uid, auth_user_id, phone, name, role, avatar, location_area, location_city, ' +
-  'lat, lng, is_active, is_verified, address, trust_score, created_at, updated_at';
+  'lat, lng, is_active, is_verified, address, trust_score, ' +
+  'customer_rating_average, customer_rating_count, created_at, updated_at';
 
 /**
  * One-time/idempotent upgrade for rows written before encryption existed.

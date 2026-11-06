@@ -19,6 +19,10 @@ export interface User {
   isVerified: boolean;
   address?: string | null;
   trustScore: number;
+  /** Average rating workers gave this user as a customer. */
+  customerRatingAverage: number;
+  /** Number of worker -> customer reviews. */
+  customerRatingCount: number;
   createdAt: string;
   updatedAt: string;
 }

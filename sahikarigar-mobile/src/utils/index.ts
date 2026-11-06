@@ -1,5 +1,7 @@
 // Utility Functions
 
+import type { TFunction } from 'i18next';
+
 import type { WorkerBadge } from '@/types';
 
 /** The minimum fields needed to derive a worker's performance badge. */
@@ -50,6 +52,39 @@ export function maskPhone(phone: string): string {
 /** Format currency in Indian Rupees. */
 export function formatCurrency(amount: number): string {
   return `₹${Math.round(amount).toLocaleString('en-IN')}`;
+}
+
+/** Format a whole number of minutes for the hire timer, e.g. 195 -> "3 hrs 15 mins". */
+export function formatDuration(totalMinutes: number): string {
+  const safeMinutes = Math.max(
+    0,
+    Math.floor(Number.isFinite(totalMinutes) ? totalMinutes : 0),
+  );
+  const hours = Math.floor(safeMinutes / 60);
+  const minutes = safeMinutes % 60;
+
+  if (hours > 0 && minutes > 0) {
+    return `${hours} ${hours === 1 ? 'hr' : 'hrs'} ${minutes} ${
+      minutes === 1 ? 'min' : 'mins'
+    }`;
+  }
+  if (hours > 0) return `${hours} ${hours === 1 ? 'hr' : 'hrs'}`;
+  return `${minutes} ${minutes === 1 ? 'min' : 'mins'}`;
+}
+
+/** Human label for a rating aggregate, e.g. "4.5★ (12 reviews)".
+ *  `t` is required because both the empty state and the review-count noun are
+ *  user-visible text and must follow the active language. */
+export function formatRatingSummary(
+  rating: { average?: number | null; count?: number | null } | null | undefined,
+  t: TFunction,
+): string {
+  const count = Math.max(0, Math.floor(Number(rating?.count ?? 0)));
+  const averageValue = Number(rating?.average ?? 0);
+  const average = Number.isFinite(averageValue) ? averageValue : 0;
+
+  if (count === 0) return t('rating.noReviews');
+  return t('rating.summary', { average: average.toFixed(1), count });
 }
 
 /** Format a date relative to now (e.g. "3 hr ago"). */

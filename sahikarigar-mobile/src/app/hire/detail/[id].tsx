@@ -23,7 +23,7 @@ import { canCall, canCancel } from '@/lib/hireRules';
 import { getDeviceCoords } from '@/lib/location';
 import { colors, fontSize, fontWeight, radius, spacing } from '@/theme';
 import type { HireAction, HireStatus } from '@/types';
-import { calculateDistance, formatCurrency } from '@/utils';
+import { calculateDistance, formatCurrency, formatDuration, formatRatingSummary } from '@/utils';
 
 function fmtTime(iso?: string | null): string {
   if (!iso) return '';
@@ -258,6 +258,18 @@ function BookingBody({
 }) {
   const { t } = useTranslation();
   const completed = hire.status === 'completed';
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  // Re-render the live duration while work is running. The screen already
+  // polls the server every 3 seconds; this keeps the timer moving between
+  // refreshes without re-rendering every second.
+  useEffect(() => {
+    if (hire.status !== 'in_progress') return;
+    setNowMs(Date.now());
+    const timer = setInterval(() => setNowMs(Date.now()), 15_000);
+    return () => clearInterval(timer);
+  }, [hire.status, hire.startedAt]);
+
   // Start Work is a WORKER action and only exists after Arrived + customer OTP.
   // Keep this flag explicit so accepted/en_route can never show it again.
   const canStartWork = isWorkerViewer && hire.status === 'arrived';
@@ -336,10 +348,44 @@ function BookingBody({
   const workerArea = hire.worker?.user?.locationArea
     ? areaLabel(hire.worker.user.locationArea)
     : null;
+  const customerName = hire.employer?.name ?? 'Customer';
+  const customerRating = hire.customerRating ?? null;
+  const workerRating = hire.worker
+    ? {
+        average: hire.worker.ratingAverage,
+        count: hire.worker.ratingCount,
+      }
+    : null;
   const hasWorkerCoords = hire.workerLat != null && hire.workerLng != null;
   const demoActions = isDemo
     ? DEMO_ACTIONS.filter((item) => DEMO_ACTION_FROM[item.action] === hire.status)
     : [];
+
+  // Final bill = actual work time × hourly rate. While work is in progress,
+  // `completedAt` is absent so the current clock is the end time. When the job
+  // is completed, the server's stored total is authoritative.
+  const workerRate = Number(hire.worker?.hourlyRate);
+  const hourlyRate =
+    Number.isFinite(workerRate) && workerRate > 0 ? workerRate : Number(hire.proposedRate ?? 0);
+  const startedAtMs = hire.startedAt ? new Date(hire.startedAt).getTime() : NaN;
+  const completedAtMs = hire.completedAt ? new Date(hire.completedAt).getTime() : NaN;
+  const endMs = completed && Number.isFinite(completedAtMs) ? completedAtMs : nowMs;
+  const computedDurationMinutes =
+    Number.isFinite(startedAtMs) && Number.isFinite(endMs)
+      ? Math.max(0, (endMs - startedAtMs) / 60000)
+      : NaN;
+  const serverDurationMinutes =
+    hire.durationMinutes != null ? Number(hire.durationMinutes) : NaN;
+  const durationMinutes = Number.isFinite(serverDurationMinutes)
+    ? serverDurationMinutes
+    : computedDurationMinutes;
+  const hasDuration = Number.isFinite(durationMinutes);
+  const durationLabel = hasDuration ? formatDuration(durationMinutes) : '—';
+  const computedTotal = hasDuration ? (durationMinutes / 60) * hourlyRate : 0;
+  const storedTotal = hire.totalAmount != null ? Number(hire.totalAmount) : NaN;
+  const totalAmount = Number.isFinite(storedTotal) ? storedTotal : computedTotal;
+  const totalDisplay =
+    Number.isFinite(storedTotal) || hasDuration ? formatCurrency(totalAmount) : '—';
 
   const onGetDirections = () => {
     void openDirections({ label: hire.location || hire.homeLocation });
@@ -454,6 +500,33 @@ function BookingBody({
           </View>
         ) : null}
 
+        <Text style={styles.sectionTitle}>{t('hireDetail.trustTitle')}</Text>
+        <View style={styles.trustCard}>
+          <View style={styles.trustRow}>
+            <View style={styles.trustIcon}>
+              <Ionicons name="person-outline" size={18} color={colors.primaryDark} />
+            </View>
+            <View style={styles.trustInfo}>
+              <Text style={styles.trustName} numberOfLines={1}>
+                {t('hireDetail.customerLine', { name: customerName })}
+              </Text>
+              <Text style={styles.trustRating}>{formatRatingSummary(customerRating, t)}</Text>
+            </View>
+          </View>
+          <View style={styles.trustDivider} />
+          <View style={styles.trustRow}>
+            <View style={styles.trustIcon}>
+              <Ionicons name="construct-outline" size={18} color={colors.primaryDark} />
+            </View>
+            <View style={styles.trustInfo}>
+              <Text style={styles.trustName} numberOfLines={1}>
+                {t('hireDetail.workerLine', { name: workerName })}
+              </Text>
+              <Text style={styles.trustRating}>{formatRatingSummary(workerRating, t)}</Text>
+            </View>
+          </View>
+        </View>
+
         {showDirections ? (
           <View style={styles.directionsCard}>
             <View style={styles.directionsHead}>
@@ -567,21 +640,41 @@ function BookingBody({
           </View>
         ) : null}
 
+        {hire.status === 'in_progress' ? (
+          <View style={styles.timerCard}>
+            <Ionicons name="timer-outline" size={18} color={colors.primaryDark} />
+            <Text style={styles.timerText}>
+              {t('hireDetail.liveWorkTimer', { duration: durationLabel })}
+            </Text>
+          </View>
+        ) : null}
+
         <View style={styles.feeCard}>
           <View style={styles.feeRow}>
             <View style={styles.feeCol}>
               <Text style={styles.feeLabel}>{t('hireDetail.rateLabel')}</Text>
-              <Text style={styles.feeValue}>₹{hire.proposedRate}/hr</Text>
+              <Text style={styles.feeValue}>{formatCurrency(hourlyRate)}/hr</Text>
             </View>
             <View style={styles.feeDivider} />
             <View style={styles.feeCol}>
-              <Text style={styles.feeLabel}>{t('hireDetail.platformFee')}</Text>
-              <Text style={styles.feeValue}>{formatCurrency(0)}</Text>
+              <Text style={styles.feeLabel}>{t('hireDetail.workDuration')}</Text>
+              <Text style={styles.feeValue}>{durationLabel}</Text>
             </View>
           </View>
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>{t('hireDetail.estimatedTotal')}</Text>
-            <Text style={styles.totalValue}>{formatCurrency(hire.proposedRate)}</Text>
+            <Text style={styles.totalLabel}>
+              {completed ? t('hireDetail.total') : t('hireDetail.estimatedTotal')}
+            </Text>
+            <View style={styles.totalValueWrap}>
+              <Text style={styles.totalValue}>{totalDisplay}</Text>
+              {completed && hasDuration ? (
+                <Text style={styles.totalDuration}>({durationLabel})</Text>
+              ) : null}
+            </View>
+          </View>
+          <View style={styles.platformRow}>
+            <Text style={styles.feeLabel}>{t('hireDetail.platformFee')}</Text>
+            <Text style={styles.feeSmallValue}>{formatCurrency(0)}</Text>
           </View>
           <Text style={styles.totalHint}>
             {t('hireDetail.perHourRate')}
@@ -853,6 +946,44 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     flexShrink: 1,
   },
+  trustCard: {
+    alignSelf: 'stretch',
+    marginTop: -spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+  },
+  trustRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.md,
+  },
+  trustIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primaryTint,
+  },
+  trustInfo: { flex: 1 },
+  trustName: {
+    fontSize: fontSize.small,
+    fontWeight: fontWeight.semibold,
+    color: colors.textPrimary,
+  },
+  trustRating: {
+    fontSize: fontSize.caption,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  trustDivider: {
+    height: 1,
+    backgroundColor: colors.border,
+  },
   sectionTitle: {
     alignSelf: 'stretch',
     fontSize: fontSize.body,
@@ -1030,8 +1161,50 @@ const styles = StyleSheet.create({
     paddingTop: spacing.lg,
   },
   totalLabel: { fontSize: fontSize.body, fontWeight: fontWeight.bold, color: colors.textPrimary },
+  totalValueWrap: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'flex-end',
+    flexShrink: 1,
+    flexWrap: 'wrap',
+    gap: 6,
+  },
   totalValue: { fontSize: fontSize.title, fontWeight: fontWeight.bold, color: colors.primaryDark },
+  totalDuration: {
+    fontSize: fontSize.caption,
+    fontWeight: fontWeight.semibold,
+    color: colors.textSecondary,
+  },
+  platformRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: spacing.md,
+  },
+  feeSmallValue: {
+    fontSize: fontSize.caption,
+    fontWeight: fontWeight.semibold,
+    color: colors.textPrimary,
+  },
   totalHint: { fontSize: fontSize.caption, color: colors.textSecondary, textAlign: 'right', marginTop: 2 },
+  timerCard: {
+    alignSelf: 'stretch',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+    padding: spacing.md,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+    backgroundColor: colors.primaryTint,
+  },
+  timerText: {
+    flex: 1,
+    fontSize: fontSize.small,
+    fontWeight: fontWeight.semibold,
+    color: colors.primaryDark,
+  },
   directionsCard: {
     alignSelf: 'stretch',
     marginTop: spacing.md,

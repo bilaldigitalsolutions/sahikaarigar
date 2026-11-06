@@ -21,12 +21,27 @@ import { notifyWorkerOfNewHire } from './push.js';
 import { db } from './users.js';
 import { getWorkerBadge, getWorkerProfileIdForUser } from './workers.js';
 
+/**
+ * Hire projection shared by every hire read.
+ *
+ * Two different "customer rating" concepts appear below — do not merge them:
+ * - worker_profiles.customer_rating_avg is the WORKER's average rating as a
+ *   worker (a legacy mirror of worker_profiles.rating_average, populated from
+ *   public.reviews).
+ * - users.customer_rating_average is the CUSTOMER's average rating given BY
+ *   workers (public.customer_reviews, migration 0022).
+ *
+ * `!employer_id` pins the employer FK explicitly: hire_requests has both
+ * employer_id and worker_id, so PostgREST must never guess which relationship
+ * the users embed means.
+ */
 export const HIRE_SELECT =
   'id, employer_id, worker_id, description, location, home_location, proposed_rate, status, ' +
-  'scheduled_date, scheduled_time, completed_at, phone_revealed, created_at, updated_at, ' +
+  'scheduled_date, scheduled_time, completed_at, total_amount, phone_revealed, created_at, updated_at, ' +
   'en_route_at, arrived_at, arrived_time, started_at, worker_lat, worker_lng, ' +
   'distance_km, arrived_on_time, ' +
-  'employer:users(id, name, phone, avatar, location_area, location_city), ' +
+  'employer:users!employer_id(id, name, phone, avatar, location_area, location_city, ' +
+  'customer_rating_average, customer_rating_count), ' +
   // `!user_id` pins the FK explicitly so PostgREST always joins worker_profiles
   // to users through user_id, never through another column.
   'worker:worker_profiles(id, user_id, skills, hourly_rate, rating_average, ' +
@@ -45,6 +60,16 @@ const WORKER_CANCEL_FLAG_LIMIT = 3;
 /** Friendly hint when the 0010 migration columns (started_at …) are missing —
  *  a raw PostgREST "column … not found" tells the developer nothing useful. */
 function hireReadError(error) {
+  if (/total_amount/i.test(error.message)) {
+    return new Error(
+      'Kaam ka total amount abhi database me nahi hai — Supabase me 0023_hire_total_amount.sql migration chalao',
+    );
+  }
+  if (/customer_rating_average|customer_rating_count/i.test(error.message)) {
+    return new Error(
+      'Customer rating data abhi database me nahi hai — Supabase me 0022_customer_rating.sql migration chalao',
+    );
+  }
   if (/started_at/i.test(error.message)) {
     return new Error(
       'Booking ka timeline abhi database me nahi hai — Supabase me 0010_hire_start_flow.sql migration chalao',
@@ -215,6 +240,15 @@ function mapUser(row) {
   };
 }
 
+/** Worker -> customer rating aggregate from `users` (0022 migration). */
+function mapCustomerRating(row) {
+  if (!row) return null;
+  return {
+    average: Number(row.customer_rating_average ?? 0),
+    count: Number(row.customer_rating_count ?? 0),
+  };
+}
+
 /** mapUser + phone stripping until the booking is accepted (see above). */
 function mapHireUser(row, revealPhone) {
   const user = mapUser(row);
@@ -225,6 +259,14 @@ function mapHireUser(row, revealPhone) {
 export function mapHire(row) {
   if (!row) return null;
   const revealPhone = PHONE_REVEALED_STATUSES.includes(row.status);
+  const startedAtMs = row.started_at ? new Date(row.started_at).getTime() : NaN;
+  const completedAtMs = row.completed_at ? new Date(row.completed_at).getTime() : NaN;
+  const durationMinutes =
+    Number.isFinite(startedAtMs) &&
+    Number.isFinite(completedAtMs) &&
+    completedAtMs >= startedAtMs
+      ? Math.round(((completedAtMs - startedAtMs) / 60000) * 100) / 100
+      : null;
 
   let worker = null;
   if (row.worker) {
@@ -270,6 +312,8 @@ export function mapHire(row) {
     expectedArrivalMinutes: getExpectedArrivalTime(row.distance_km),
     arrivedOnTime: row.arrived_on_time ?? null,
     completedAt: row.completed_at ?? null,
+    durationMinutes,
+    totalAmount: row.total_amount == null ? null : Number(row.total_amount),
     enRouteAt: row.en_route_at ?? null,
     arrivedAt: row.arrived_at ?? null,
     arrivedTime: row.arrived_time ?? row.arrived_at ?? null,
@@ -279,6 +323,7 @@ export function mapHire(row) {
     phoneRevealed: revealPhone,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    customerRating: mapCustomerRating(row.employer),
     employer: mapHireUser(row.employer, revealPhone),
     worker,
   };
@@ -576,8 +621,44 @@ export async function hireAction({ hireId, userId, action, lat, lng, otp }) {
       if (raw.status !== 'in_progress') {
         throw new Error('Kaam pehle shuru hona chahiye — worker OTP verify kare, phir complete karein');
       }
-      patch.status = 'completed';
-      patch.completed_at = new Date().toISOString();
+      {
+        // Bill actual time worked, not a fixed one-hour estimate. The worker's
+        // current hourly rate is authoritative; proposed_rate is only a
+        // fallback for older rows where the profile rate is missing.
+        const startedAtMs = raw.started_at ? new Date(raw.started_at).getTime() : NaN;
+        if (!Number.isFinite(startedAtMs)) {
+          throw new Error(
+            'Kaam ka start time nahi mila — worker ko OTP verify karke kaam shuru karna hoga',
+          );
+        }
+
+        const { data: rateRow, error: rateError } = await db
+          .from('worker_profiles')
+          .select('hourly_rate')
+          .eq('id', raw.worker_id)
+          .maybeSingle();
+        if (rateError) throw new Error(rateError.message);
+
+        const profileRate = Number(rateRow?.hourly_rate);
+        const hourlyRate =
+          Number.isFinite(profileRate) && profileRate > 0
+            ? profileRate
+            : Number(raw.proposed_rate);
+        if (!Number.isFinite(hourlyRate) || hourlyRate <= 0) {
+          throw new Error('Kaarigar ka hourly rate nahi mila — booking complete nahi kar sakte');
+        }
+
+        const completedAt = new Date();
+        const durationMinutes = Math.max(
+          0,
+          (completedAt.getTime() - startedAtMs) / 60000,
+        );
+        const totalAmount = Math.round((durationMinutes / 60) * hourlyRate * 100) / 100;
+
+        patch.status = 'completed';
+        patch.completed_at = completedAt.toISOString();
+        patch.total_amount = totalAmount;
+      }
       countJob = true;
       workerBecomesFree = true;
       break;
@@ -648,6 +729,18 @@ export async function hireAction({ hireId, userId, action, lat, lng, otp }) {
     if (/hire_requests_status/i.test(error.message)) {
       throw new Error(
         'Kaam shuru ka status abhi database me support nahi hai — Supabase me 0010_hire_start_flow.sql migration chalao',
+      );
+    }
+    // final bill column missing — 0023_hire_total_amount.sql not applied.
+    if (/total_amount/i.test(error.message)) {
+      throw new Error(
+        'Kaam ka total amount abhi database me nahi hai — Supabase me 0023_hire_total_amount.sql migration chalao',
+      );
+    }
+    // Customer rating columns missing — 0022_customer_rating.sql not applied.
+    if (/customer_rating_average|customer_rating_count/i.test(error.message)) {
+      throw new Error(
+        'Customer rating data abhi database me nahi hai — Supabase me 0022_customer_rating.sql migration chalao',
       );
     }
     // Timeline column missing — 0010_hire_start_flow.sql not applied (the

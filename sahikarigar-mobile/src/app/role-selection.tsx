@@ -19,7 +19,7 @@ export default function RoleSelectionScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ skill?: string; area?: string }>();
   const { user } = useAuth();
-  const { role, roleChosen, hasWorkerProfile, setRole } = useMode();
+  const { role, roleChosen, setRole } = useMode();
 
   // A search intent from before login — forward it to the employer home.
   const skill = params.skill ? String(params.skill) : undefined;
@@ -44,16 +44,12 @@ export default function RoleSelectionScreen() {
 
   const chooseWorker = () => {
     setRole('worker');
-    if (!user) {
-      // Workers must log in first.
-      router.replace('/(auth)/login');
-      return;
-    }
-    if (hasWorkerProfile) {
+    if (user?.role === 'worker') {
       // Registration already done — straight to the kaarigar dashboard.
       router.replace('/(tabs)');
     } else {
-      // No profile yet — documents / registration form comes first.
+      // Signed-in non-worker or logged-out visitor — the registration form
+      // handles the OTP step for unverified numbers.
       router.replace('/register-worker');
     }
   };

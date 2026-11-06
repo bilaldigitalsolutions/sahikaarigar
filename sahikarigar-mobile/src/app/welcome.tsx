@@ -57,9 +57,15 @@ export default function WelcomeScreen() {
   const [area, setArea] = useState<string | null>(null);
 
   const goRegister = () => router.push('/register-worker');
-  // Login always goes through "Aap Kaun Hain?" first so the app knows which
-  // side (worker / employer) the returning user wants before asking for OTP.
-  const goLogin = () => router.push('/onboarding/role' as never);
+  // A signed-in worker never needs the role/OTP screens again — go straight to
+  // the dashboard. Everyone else picks a side first.
+  const goLogin = () => {
+    if (user?.role === 'worker') {
+      router.push('/(tabs)');
+      return;
+    }
+    router.push('/onboarding/role' as never);
+  };
 
   // Guest browse — browsing is free, so the category cards and "Hire a
   // Worker" open the search screen instead of a login wall. Same split as the

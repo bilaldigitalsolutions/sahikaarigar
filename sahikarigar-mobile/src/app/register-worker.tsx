@@ -66,7 +66,7 @@ export default function RegisterWorkerScreen() {
     setValues((prev) => ({ ...prev, ...p }));
 
   // The exact skill list we validate and submit. Trimming plus de-duping here
-  // means every selected chip reaches the API, in the order it was tapped.
+  // means every selected skill reaches the API, in the order it was picked.
   const selectedSkills = Array.from(
     new Set(values.skills.map((skill) => skill.trim()).filter(Boolean)),
   );
@@ -183,6 +183,13 @@ export default function RegisterWorkerScreen() {
       setBusy(false);
     }
   };
+
+  // An already-registered worker should never see the registration form again
+  // (for example after returning from the OTP screen with next=/register-worker).
+  if (user?.role === 'worker') {
+    router.replace('/(tabs)');
+    return null;
+  }
 
   // Registering as a Kaarigar requires a verified mobile number. The OTP comes
   // during LOGIN only ("registration ke time OTP") — so an unverified visitor is

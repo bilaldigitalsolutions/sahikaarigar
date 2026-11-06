@@ -186,11 +186,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         posthog.reset();
         setAnalyticsUserId(null);
 
-        // Hard reset the navigation stack: pop every screen the signed-in
-        // session pushed (modals, hire flow, nested tabs), then replace the
-        // root route with the public landing screen. Otherwise Android's
-        // hardware Back reopens the signed-in screens underneath.
-        if (router.canDismiss()) router.dismissAll();
+        // Hard reset the navigation stack. Pop everything back to the first
+        // screen (even when the current screen is inside the tab navigator),
+        // then replace that first screen with the public landing page. This
+        // guarantees Android's hardware Back cannot reopen a signed-in screen.
+        try {
+          router.dismissAll();
+        } catch {
+          // Navigator not ready — the replace below still sends us home.
+        }
         router.replace(redirectTo);
       }
     },

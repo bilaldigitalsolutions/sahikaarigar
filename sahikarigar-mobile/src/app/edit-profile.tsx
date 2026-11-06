@@ -25,7 +25,7 @@ import { validateAadhaar } from '@/utils';
  *
  * 100% identical UI to the registration screen (register-worker.tsx): the same
  * shared <WorkerProfileForm /> provides every field — Full Name, Phone
- * (read-only/locked), Skills (multi-select chips), Experience, Location,
+ * (read-only/locked), Skills (multi-select dropdown), Experience, Location,
  * Aadhaar (masked, read-only/locked once on file), Profile Photo, Work Photos
  * (up to 5), Availability, Expected Charge — plus the Terms & Conditions row
  * and an "Update Profile" button with a loading state.

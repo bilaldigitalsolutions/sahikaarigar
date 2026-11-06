@@ -12,9 +12,18 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  Alert,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 
 import { Input, LocationPicker, Select, type PlaceResult } from '@/components/ui';
 import { AVAILABILITY_OPTIONS, SKILLS, VALIDATION, skillLabel } from '@/constants';
@@ -80,6 +89,7 @@ export function WorkerProfileForm({
   requireAadhaarPhoto = false,
 }: WorkerProfileFormProps) {
   const { t } = useTranslation();
+  const [skillsOpen, setSkillsOpen] = useState(false);
   const aadhaarDigits = (values.aadhaar ?? '').replace(/\D/g, '');
   const aadhaarCheck = validateAadhaar(aadhaarDigits);
   // Empty is NOT valid: Aadhaar is mandatory during worker registration.
@@ -87,9 +97,18 @@ export function WorkerProfileForm({
   const aadhaarPhotoMissing =
     requireAadhaarPhoto && (!values.aadhaarPhotoUri || !values.aadhaarPhotoDataUrl);
 
-  // Keep a synchronous mirror of the latest selection. Two chips tapped in the
-  // same frame would otherwise both read the same `values.skills` prop and the
-  // second patch would overwrite the first — making multi-select look broken.
+  // All choices for the skills dropdown: the built-in catalogue plus any legacy
+  // skill ids already stored on the worker that are not in the current list.
+  const skillOptions = [
+    ...SKILLS.map((skill) => ({ id: skill.id, label: skill.label })),
+    ...extraSkills
+      .filter((id) => !SKILLS.some((skill) => skill.id === id))
+      .map((id) => ({ id, label: skillLabel(id) })),
+  ];
+
+  // Keep a synchronous mirror of the latest selection. Tapping several rows in
+  // the dropdown can happen before React re-renders with the updated prop, so
+  // the mirror prevents an earlier selection from being overwritten.
   const skillsRef = useRef<string[]>(values.skills);
   useEffect(() => {
     skillsRef.current = values.skills;
@@ -100,6 +119,12 @@ export function WorkerProfileForm({
     const next = current.includes(id)
       ? current.filter((skill) => skill !== id)
       : [...current, id];
+    skillsRef.current = next;
+    onChange({ skills: next });
+  };
+
+  const removeSkill = (id: string) => {
+    const next = skillsRef.current.filter((skill) => skill !== id);
     skillsRef.current = next;
     onChange({ skills: next });
   };
@@ -226,43 +251,123 @@ export function WorkerProfileForm({
         </View>
       </View>
 
-      {/* ---- Skills ---- */}
+      {/* ---- Skills (multi-select dropdown) ---- */}
       <View style={styles.mt}>
         <Text style={styles.label}>Skills</Text>
-        <View style={styles.chipsRow}>
-          {[
-            ...SKILLS.map((s) => ({ id: s.id, label: s.label })),
-            ...extraSkills
-              .filter((id) => !SKILLS.some((s) => s.id === id))
-              .map((id) => ({ id, label: skillLabel(id) })),
-          ].map((chip) => {
-            const selected = values.skills.includes(chip.id);
-            return (
-              <Pressable
-                key={chip.id}
-                style={[styles.chip, selected && styles.chipSelected]}
-                onPress={() => toggleSkill(chip.id)}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: selected }}
-              >
-                <Text
-                  style={[
-                    styles.chipText,
-                    selected && styles.chipTextSelected,
-                  ]}
+        <Pressable
+          style={styles.dropdownField}
+          onPress={() => setSkillsOpen(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Select skills"
+        >
+          <Ionicons name="construct-outline" size={18} color={colors.textSecondary} />
+          <Text
+            style={[
+              styles.dropdownText,
+              values.skills.length === 0 && styles.dropdownPlaceholder,
+            ]}
+            numberOfLines={1}
+          >
+            {values.skills.length > 0
+              ? `${values.skills.length} skill${values.skills.length === 1 ? '' : 's'} selected`
+              : 'Select your skills'}
+          </Text>
+          <Ionicons name="chevron-down" size={18} color={colors.textSecondary} />
+        </Pressable>
+
+        {values.skills.length > 0 ? (
+          <View style={styles.selectedTags}>
+            {values.skills.map((id) => (
+              <View key={id} style={styles.skillTag}>
+                <Text style={styles.skillTagText}>{skillLabel(id)}</Text>
+                <Pressable
+                  onPress={() => removeSkill(id)}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Remove ${skillLabel(id)}`}
                 >
-                  {chip.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
+                  <Ionicons name="close-circle" size={16} color={colors.primaryDark} />
+                </Pressable>
+              </View>
+            ))}
+          </View>
+        ) : null}
+
         <Text style={styles.hint}>
           {values.skills.length > 0
             ? t('hireDetail.skillsSelected', { count: values.skills.length })
             : t('hireDetail.selectMultiple')}
         </Text>
       </View>
+
+      <Modal
+        visible={skillsOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSkillsOpen(false)}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => setSkillsOpen(false)}>
+          <Pressable style={styles.modalSheet} onPress={() => {}}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalHeaderText}>
+                <Text style={styles.modalTitle}>Select Skills</Text>
+                <Text style={styles.modalSubtitle}>Choose all the work you can do</Text>
+              </View>
+              <Pressable
+                onPress={() => setSkillsOpen(false)}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel="Close skills"
+              >
+                <Ionicons name="close" size={22} color={colors.textSecondary} />
+              </Pressable>
+            </View>
+
+            <ScrollView
+              style={styles.modalList}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.modalListContent}
+            >
+              {skillOptions.map((option) => {
+                const selected = values.skills.includes(option.id);
+                return (
+                  <Pressable
+                    key={option.id}
+                    style={[styles.skillOption, selected && styles.skillOptionSelected]}
+                    onPress={() => toggleSkill(option.id)}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: selected }}
+                  >
+                    <View style={[styles.skillCheckbox, selected && styles.skillCheckboxChecked]}>
+                      {selected ? (
+                        <Ionicons name="checkmark" size={16} color={colors.white} />
+                      ) : null}
+                    </View>
+                    <Text
+                      style={[
+                        styles.skillOptionText,
+                        selected && styles.skillOptionTextSelected,
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+
+            <Pressable
+              style={styles.modalDone}
+              onPress={() => setSkillsOpen(false)}
+              accessibilityRole="button"
+            >
+              <Text style={styles.modalDoneText}>
+                Done ({values.skills.length} selected)
+              </Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* ---- Experience ---- */}
       <Input
@@ -519,22 +624,114 @@ const styles = StyleSheet.create({
   fieldLocked: { backgroundColor: colors.primaryBg, borderColor: colors.primaryBorder },
   phonePrefix: { fontSize: fontSize.small, color: colors.textPrimary, fontWeight: fontWeight.medium },
   phoneInput: { flex: 1, fontSize: fontSize.body, color: colors.textPrimary, paddingVertical: 0 },
-  chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  chip: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
+  dropdownField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    minHeight: 50,
+    paddingHorizontal: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.button,
+    backgroundColor: colors.white,
+  },
+  dropdownText: { flex: 1, fontSize: fontSize.small, color: colors.textPrimary },
+  dropdownPlaceholder: { color: colors.muted },
+  selectedTags: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  skillTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: spacing.sm,
     borderRadius: radius.pill,
     borderWidth: 1,
     borderColor: colors.primaryBorder,
     backgroundColor: colors.primaryBg,
   },
-  chipSelected: { backgroundColor: colors.primaryDark, borderColor: colors.primaryDark },
-  chipText: {
+  skillTagText: {
     fontSize: fontSize.caption,
+    fontWeight: fontWeight.medium,
+    color: colors.primaryDark,
+  },
+  modalBackdrop: { flex: 1, backgroundColor: colors.overlay, justifyContent: 'flex-end' },
+  modalSheet: {
+    maxHeight: '82%',
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.xl,
+    borderTopLeftRadius: radius.card,
+    borderTopRightRadius: radius.card,
+    backgroundColor: colors.card,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.lg,
+  },
+  modalHeaderText: { flex: 1 },
+  modalTitle: {
+    fontSize: fontSize.title,
+    fontWeight: fontWeight.semibold,
+    color: colors.textPrimary,
+  },
+  modalSubtitle: {
+    marginTop: 2,
+    fontSize: fontSize.caption,
+    color: colors.textSecondary,
+  },
+  modalList: { maxHeight: 420 },
+  modalListContent: { paddingBottom: spacing.sm },
+  skillOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.button,
+  },
+  skillOptionSelected: { backgroundColor: colors.primaryTint },
+  skillCheckbox: {
+    width: 24,
+    height: 24,
+    borderRadius: radius.sm - 2,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.white,
+  },
+  skillCheckboxChecked: {
+    backgroundColor: colors.primaryDark,
+    borderColor: colors.primaryDark,
+  },
+  skillOptionText: {
+    fontSize: fontSize.small,
     fontWeight: fontWeight.medium,
     color: colors.textPrimary,
   },
-  chipTextSelected: { color: colors.white },
+  skillOptionTextSelected: {
+    color: colors.primaryDark,
+    fontWeight: fontWeight.semibold,
+  },
+  modalDone: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 50,
+    marginTop: spacing.md,
+    borderRadius: radius.button,
+    backgroundColor: colors.primaryDark,
+  },
+  modalDoneText: {
+    fontSize: fontSize.small,
+    fontWeight: fontWeight.bold,
+    color: colors.white,
+  },
   uploadRow: { flexDirection: 'row', gap: spacing.md },
   uploadCol: { flex: 1 },
   uploadBox: {

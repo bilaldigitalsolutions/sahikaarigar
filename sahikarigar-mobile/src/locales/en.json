@@ -205,6 +205,7 @@
     "workAreaLabel": "Kaam ki Location",
     "homeAreaSub": "Customer's home area — set during onboarding.",
     "workAreaSub": "Search work area — e.g. Madhapur, LB Nagar",
+    "workAreaOptionalHint": "Khali chhodo toh kaarigar aapke ghar aayega, ya specific location daalo.",
     "bookingStarted": "Booking started"
   },
   "hireDetail": {

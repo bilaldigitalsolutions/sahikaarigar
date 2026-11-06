@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Linking,
@@ -22,12 +22,20 @@ const PRIVACY_POLICY_URL = 'https://appland.info/app/33336/privacy-policy';
 export default function LoginScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ skill?: string; area?: string; next?: string }>();
-  const { signIn, busy } = useAuth();
+  const { signIn, busy, user } = useAuth();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [error, setError] = useState<string | null>(null);
   /** Explicit consent to data processing (DPDP requirement). */
   const [consentGiven, setConsentGiven] = useState(false);
+
+  // A signed-in worker must never be shown the OTP form again. This is a
+  // safety net in addition to (auth)/_layout and the worker-login entry point.
+  useEffect(() => {
+    if (user?.role === 'worker') {
+      router.replace('/(tabs)');
+    }
+  }, [user, router]);
 
   /** Where to land after OTP — a deep link (e.g. a hire page) wins. */
   const next = params.next ? String(params.next) : undefined;

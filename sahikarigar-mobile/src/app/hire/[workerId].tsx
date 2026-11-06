@@ -33,8 +33,8 @@ export default function CreateHireScreen() {
   const [description, setDescription] = useState('');
   /** Customer's home area — auto-filled from onboarding, read-only on this screen. */
   const [homeLocation, setHomeLocation] = useState(user?.locationArea ?? '');
-  /** Work location — editable, defaults to home area. */
-  const [workLocation, setWorkLocation] = useState(user?.locationArea ?? '');
+  /** Work location — optional. Blank means the worker should come to home. */
+  const [workLocation, setWorkLocation] = useState('');
   /** Worker's hourly rate — pre-filled, read-only, set by the worker. */
   const [workerRate, setWorkerRate] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
@@ -125,11 +125,17 @@ export default function CreateHireScreen() {
         // will give the final answer.
       }
 
+      // Optional work location: when the customer leaves it blank, the worker
+      // should travel to the account's home location instead. Send the resolved
+      // address so the API always stores a usable `location`.
+      const customerHome = (homeLocation ?? '').trim();
+      const travelLocation = (workLocation ?? '').trim() || customerHome;
+
       const { hire } = await createHire({
         workerId,
         description: description.trim(),
-        location: (workLocation ?? '').trim(),
-        homeLocation: (homeLocation ?? '').trim(),
+        location: travelLocation,
+        homeLocation: customerHome,
         proposedRate: workerRate ?? 0,
         name: user?.name,
       });
@@ -149,10 +155,8 @@ export default function CreateHireScreen() {
       setError(t('hire.invalidDescription'));
       return;
     }
-    if (workLocation.trim().length < 3) {
-      setError(t('hire.invalidLocation'));
-      return;
-    }
+    // "Kaam ki Location" is optional. A blank value is valid and resolves to
+    // the customer's home location inside `send()` / the server.
     await send();
   };
 
@@ -211,6 +215,7 @@ export default function CreateHireScreen() {
             }}
             icon="location-outline"
           />
+          <Text style={styles.fieldHint}>{t('hire.workAreaOptionalHint')}</Text>
         </View>
 
         <View style={styles.rateRow}>
@@ -245,6 +250,12 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   locationWrap: { marginBottom: spacing.lg },
+  fieldHint: {
+    fontSize: fontSize.caption,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+    lineHeight: 19,
+  },
   inputReadOnly: {
     backgroundColor: colors.background,
     color: colors.textSecondary,

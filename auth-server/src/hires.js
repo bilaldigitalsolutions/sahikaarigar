@@ -311,10 +311,11 @@ export async function createHireRequest({
   const text = String(description || '').trim();
   if (text.length < 10) throw new Error('Kaam ki detail kam se kam 10 letter likho');
 
-  const place = String(location || '').trim();
-  if (place.length < 3) throw new Error('Kaam ki jagah (location) likho');
-
-  const customerHome = String(homeLocation || '').trim();
+  // "Kaam ki Location" is optional. Keep the raw request values here; the
+  // effective work address is resolved against the customer's saved home area
+  // after we read their account row below.
+  const requestedPlace = String(location || '').trim();
+  const requestedHome = String(homeLocation || '').trim();
 
   const rate = Number(proposedRate);
   if (!Number.isFinite(rate) || rate <= 0) throw new Error('Rate sahi daalo');
@@ -348,6 +349,18 @@ export async function createHireRequest({
   if (!worker) throw new Error('Kaarigar nahi mila');
   if (!worker.is_approved) throw new Error('Ye kaarigar abhi approved nahi hai');
   if (worker.availability !== 'available') throw new Error('Ye kaarigar abhi available nahi hai');
+
+  // Home location is the account's onboarding area. The client also sends its
+  // cached copy as a fallback, but the DB value wins so a stale/edited payload
+  // cannot silently redirect the worker somewhere else.
+  const customerHome = String(employer?.location_area || '').trim() || requestedHome;
+  // Blank work location means "come to my home". Store that resolved address in
+  // `location` so every downstream screen (worker jobs, maps, distance) has a
+  // real destination; keep the original home in `home_location` too.
+  const place = requestedPlace || customerHome;
+  if (place.length < 3) {
+    throw new Error('Kaam ki jagah ya apni home location save karo');
+  }
 
   // Store the distance at booking time so the arrival window stays stable even
   // if the worker later moves or updates their service areas.

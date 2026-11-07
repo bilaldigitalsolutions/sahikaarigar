@@ -28,6 +28,15 @@ import {
 } from './demoData';
 import { mapUser } from './mappers';
 
+/**
+ * CHANGE: single source of truth for all demo-only fallbacks in this module.
+ * `DEMO_MODE` is derived from EXPO_PUBLIC_DEMO_MODE in lib/config.ts, so no
+ * function reads process.env directly.
+ */
+export function isDemoMode(): boolean {
+  return DEMO_MODE === true;
+}
+
 // -----------------------------------------------------------------------------
 // Network — fetch with timeout wrapper.
 // -----------------------------------------------------------------------------
@@ -60,15 +69,28 @@ async function fetchWithTimeout(
 
 /**
  * Thrown only when a request never reached the server (offline, DNS, timeout,
- * or a browser CORS block). Read/write helpers may fall back to bundled demo
- * data in that case; genuine API errors (4xx/5xx) are thrown as ApiError and
- * must reach the UI unchanged.
+ * or a browser CORS block). CHANGE: read/write helpers fall back to bundled
+ * demo data only when isDemoMode() is true; otherwise they rethrow a clear
+ * NetworkError. Genuine API errors (4xx/5xx) remain ApiError and reach the UI
+ * unchanged.
  */
 export class NetworkError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'NetworkError';
   }
+}
+
+/** CHANGE: stable retry message for failed requests that must not fall back. */
+const NETWORK_RETRY_MESSAGE =
+  'Network error. Please check your connection and retry.';
+
+/**
+ * CHANGE: fail closed instead of returning fake/empty data. Callers can catch
+ * `NetworkError` and show a retry action.
+ */
+function throwNetworkRetryError(): never {
+  throw new NetworkError(NETWORK_RETRY_MESSAGE);
 }
 
 /** A real HTTP/API failure returned by the auth-server (4xx/5xx). The message
@@ -313,6 +335,10 @@ export async function searchWorkers(params: {
     return await apiFetch(`/workers${suffix}`);
   } catch (e) {
     if (!(e instanceof NetworkError)) throw e;
+    // CHANGE: demo workers are allowed only when demo mode is explicitly on.
+    // In production this throws, so an empty list can only mean a real empty
+    // result from the API.
+    if (!isDemoMode()) throwNetworkRetryError();
     const workers = filterDemoWorkers({ skill: params.skill, area: params.area });
     return {
       workers,
@@ -328,8 +354,10 @@ export async function getWorker(
     return await apiFetch(`/workers/${encodeURIComponent(id)}`);
   } catch (e) {
     if (!(e instanceof NetworkError)) throw e;
+    // CHANGE: only an explicit demo build may resolve a bundled worker profile.
+    if (!isDemoMode()) throwNetworkRetryError();
     const worker = findDemoWorker(id);
-    if (!worker) throw e;
+    if (!worker) throwNetworkRetryError();
     const reviews = reviewsForWorker(id);
     return { worker, reviews, reviewCount: reviews.length };
   }
@@ -367,6 +395,9 @@ export async function updateProfile(payload: {
     return mapUser(data.user);
   } catch (e) {
     if (!(e instanceof NetworkError)) throw e;
+    // CHANGE: never fake a saved profile outside demo mode. The caller must
+    // show the network error and let the user retry.
+    if (!isDemoMode()) throwNetworkRetryError();
     return { ...DEMO_USER, ...payload };
   }
 }
@@ -397,6 +428,9 @@ export async function registerWorker(payload: {
     return { user: mapUser(data.user), workerProfile: data.workerProfile };
   } catch (e) {
     if (!(e instanceof NetworkError)) throw e;
+    // CHANGE: registration must fail loudly in production. A fake success here
+    // would make the worker believe an application exists when it does not.
+    if (!isDemoMode()) throwNetworkRetryError();
     return { user: { ...DEMO_USER, name: payload.name, role: 'worker' }, workerProfile: null };
   }
 }
@@ -414,6 +448,8 @@ export async function listHires(): Promise<{
     return await apiFetch('/hires');
   } catch (e) {
     if (!(e instanceof NetworkError)) throw e;
+    // CHANGE: an empty/old demo hire list is not a valid production fallback.
+    if (!isDemoMode()) throwNetworkRetryError();
     return { workerProfileId: null, asEmployer: listLocalHires(), asWorker: [] };
   }
 }
@@ -429,8 +465,11 @@ export async function getHire(id: string): Promise<{
     return await apiFetch(`/hires/${encodeURIComponent(id)}`);
   } catch (e) {
     if (!(e instanceof NetworkError)) throw e;
+    // CHANGE: local demo hires are demo-only; production must surface the
+    // network failure instead of showing stale local state.
+    if (!isDemoMode()) throwNetworkRetryError();
     const hire = getLocalHire(id);
-    if (!hire) throw e;
+    if (!hire) throwNetworkRetryError();
     return {
       hire,
       review: findLocalReview(id),
@@ -453,15 +492,12 @@ export async function createHire(payload: {
     return result;
   } catch (e) {
     if (!(e instanceof NetworkError)) throw e;
-    // Phantom-booking guard: only an explicit demo build
-    // (EXPO_PUBLIC_DEMO_MODE=1) may fall back to a simulated local hire.
-    // Production builds must NEVER create a fake booking that no worker sees
-    // and no admin can track — surface a clear network error instead so the
-    // user can retry once the server is awake.
-    if (process.env.EXPO_PUBLIC_DEMO_MODE === '1') {
+    // CHANGE: use the single demo flag instead of reading process.env here.
+    // Production builds must never create a fake booking that no worker sees.
+    if (isDemoMode()) {
       return { hire: createLocalHire(payload) };
     }
-    throw new Error('Server is waking up. Please try again in 10 seconds.');
+    throwNetworkRetryError();
   }
 }
 
@@ -485,11 +521,10 @@ export async function hireAction(
     return result;
   } catch (e) {
     if (!(e instanceof NetworkError)) throw e;
-    // A failed status change must never be simulated in a production build:
-    // the worker/customer would see a state the server never recorded.
-    if (!DEMO_MODE) throw e;
+    // CHANGE: a failed status change is never simulated outside demo mode.
+    if (!isDemoMode()) throwNetworkRetryError();
     const hire = getLocalHire(id);
-    if (!hire) throw e;
+    if (!hire) throwNetworkRetryError();
     return { hire: applyLocalAction(hire, action, coords, otp) };
   }
 }
@@ -503,9 +538,10 @@ export async function getHireStartOtp(id: string): Promise<{ otp: string }> {
     return await apiFetch<{ otp: string }>(`/hires/${encodeURIComponent(id)}/start-otp`);
   } catch (e) {
     if (!(e instanceof NetworkError)) throw e;
-    if (!DEMO_MODE) throw e;
+    // CHANGE: demo-only start OTP fallback; production always fails closed.
+    if (!isDemoMode()) throwNetworkRetryError();
     const hire = getLocalHire(id);
-    if (!hire?.startOtp) throw e;
+    if (!hire?.startOtp) throwNetworkRetryError();
     return { otp: hire.startOtp };
   }
 }
@@ -562,6 +598,9 @@ export async function getWorkerDashboard(): Promise<ApiWorkerDashboard> {
     return await apiFetch('/worker/dashboard');
   } catch (e) {
     if (!(e instanceof NetworkError)) throw e;
+    // CHANGE: an empty dashboard is demo-only. Production must throw so an
+    // approved worker is never flipped back to "Verification Pending".
+    if (!isDemoMode()) throwNetworkRetryError();
     return EMPTY_WORKER_DASHBOARD;
   }
 }
@@ -578,6 +617,9 @@ export async function getWorkerProfile(): Promise<ApiWorker | null> {
     return data.worker ?? null;
   } catch (e) {
     if (!(e instanceof NetworkError)) throw e;
+    // CHANGE: null previously meant both "not a worker" and "network failed".
+    // Production now throws so the UI can distinguish the two states.
+    if (!isDemoMode()) throwNetworkRetryError();
     return null;
   }
 }
@@ -612,6 +654,8 @@ export async function updateWorkerProfile(payload: {
     return data.worker ?? null;
   } catch (e) {
     if (!(e instanceof NetworkError)) throw e;
+    // CHANGE: never return a fake successful profile update in production.
+    if (!isDemoMode()) throwNetworkRetryError();
     return null; // demo build — no live worker profile to update
   }
 }
@@ -626,6 +670,8 @@ export async function setWorkerAvailability(
     });
   } catch (e) {
     if (!(e instanceof NetworkError)) throw e;
+    // CHANGE: availability changes must fail loudly in production.
+    if (!isDemoMode()) throwNetworkRetryError();
     return { worker: null };
   }
 }
@@ -647,9 +693,8 @@ export async function createReview(payload: {
     return result;
   } catch (e) {
     if (!(e instanceof NetworkError)) throw e;
-    // Never fake a successful review in a production build — the worker's
-    // rating and the customer's history would silently diverge from the server.
-    if (!DEMO_MODE) throw e;
+    // CHANGE: never fake a successful review in a production build.
+    if (!isDemoMode()) throwNetworkRetryError();
     const hire = getLocalHire(payload.hireRequestId);
     return {
       review: addLocalReview({
@@ -682,7 +727,8 @@ export async function createCustomerReview(payload: {
     return result;
   } catch (e) {
     if (!(e instanceof NetworkError)) throw e;
-    if (!DEMO_MODE) throw e;
+    // CHANGE: demo-only customer review fallback.
+    if (!isDemoMode()) throwNetworkRetryError();
     const hire = getLocalHire(payload.hireRequestId);
     return {
       customerReview: addLocalCustomerReview({
@@ -704,7 +750,8 @@ export async function sendPlatformFeedback(payload: {
     return await apiFetch('/feedback', { method: 'POST', body: JSON.stringify(payload) });
   } catch (e) {
     if (!(e instanceof NetworkError)) throw e;
-    if (!DEMO_MODE) throw e;
+    // CHANGE: demo-only platform-feedback fallback.
+    if (!isDemoMode()) throwNetworkRetryError();
     return {
       feedback: {
         id: `demo-feedback-${Date.now()}`,

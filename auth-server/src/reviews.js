@@ -192,7 +192,44 @@ export async function createReview({ reviewerId, hireRequestId, rating, comment,
 
   if (!data) throw new Error('Review save nahi hua');
   console.log('[reviews] created review %s for hire %s', data.id, hireRequestId);
+
+  // Mark hire as fully rated if both sides have now submitted.
+  await markFeedbackComplete(hireRequestId);
+
   return mapReview(data);
+}
+
+/**
+ * After either side submits a review, check whether BOTH reviews now exist
+ * (customer->worker in `reviews`, worker->customer in `customer_reviews`).
+ * If so, set feedback_complete = true on the hire row so the admin panel can
+ * see which completed hires still have pending feedback.
+ */
+async function markFeedbackComplete(hireRequestId) {
+  try {
+    const [reviewRes, customerReviewRes] = await Promise.all([
+      db.from('reviews').select('id').eq('hire_request_id', hireRequestId).maybeSingle(),
+      db.from('customer_reviews').select('id').eq('hire_request_id', hireRequestId).maybeSingle(),
+    ]);
+
+    const bothExist = Boolean(reviewRes.data && customerReviewRes.data);
+    if (!bothExist) return;
+
+    const { error } = await db
+      .from('hire_requests')
+      .update({ feedback_complete: true })
+      .eq('id', hireRequestId);
+    if (error) {
+      console.warn(
+        `[reviews] could not set feedback_complete for hire ${hireRequestId}: ${error.message}`,
+      );
+    }
+  } catch (error) {
+    // Never let feedback-complete tracking break a successful review submission.
+    console.warn(
+      `[reviews] feedback-complete check failed for hire ${hireRequestId}: ${error.message}`,
+    );
+  }
 }
 
 /**
@@ -288,6 +325,10 @@ export async function createCustomerReview({ reviewerId, hireRequestId, rating, 
   }
 
   console.log('[reviews] created customer review %s for hire %s', data.id, hireRequestId);
+
+  // Mark hire as fully rated if both sides have now submitted.
+  await markFeedbackComplete(hireRequestId);
+
   return mapCustomerReview(data);
 }
 

@@ -3,6 +3,7 @@
 // =============================================================================
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import Session from 'supertokens-node/recipe/session';
 import { db, decryptAadhaarNumber } from './users.js';
 
 const ADMIN_SESSION_TTL_SECONDS = 4 * 60 * 60;
@@ -315,6 +316,15 @@ export async function listAdminUsers(role, search = '', page = 1, limit = 50) {
 }
 
 export async function setUserActive(userId, isActive) {
+  const wasActive = await db
+    .from('users')
+    .select('id, auth_user_id, is_active')
+    .eq('id', userId)
+    .in('role', ['employer', 'worker'])
+    .maybeSingle();
+  if (wasActive.error) throw new Error(wasActive.error.message);
+  if (!wasActive.data) throw new Error('User nahi mila');
+
   const { data, error } = await db.from('users')
     .update({ is_active: Boolean(isActive) })
     .eq('id', userId)
@@ -323,6 +333,24 @@ export async function setUserActive(userId, isActive) {
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!data) throw new Error('User nahi mila');
+
+  // Suspending: revoke every active SuperTokens session so the user cannot
+  // keep using the app with an existing access token.
+  if (wasActive.data.is_active && !Boolean(isActive)) {
+    const authUserId = wasActive.data.auth_user_id;
+    if (authUserId) {
+      try {
+        await Session.revokeAllSessionsForUser(authUserId);
+      } catch (revokeError) {
+        // Best-effort: the DB flag is already set; a SuperTokens outage must
+        // not block the suspension itself.
+        console.warn(
+          `[admin] could not revoke SuperTokens sessions for user ${userId}: ${revokeError.message}`,
+        );
+      }
+    }
+  }
+
   return { id: data.id, isActive: data.is_active };
 }
 
@@ -430,7 +458,7 @@ export async function setReportStatus(reportId, status) {
 
 const ADMIN_HIRE_SELECT =
   'id, employer_id, worker_id, description, location, home_location, proposed_rate, status, scheduled_date, ' +
-  'completed_at, created_at, updated_at, employer:users(id, name, phone), ' +
+  'completed_at, created_at, updated_at, feedback_complete, employer:users(id, name, phone), ' +
   'worker:worker_profiles(id, user:users!user_id(id, name, phone))';
 const HIRE_STATUSES = ['pending', 'accepted', 'rejected', 'completed', 'cancelled', 'en_route', 'arrived', 'in_progress'];
 
@@ -478,6 +506,95 @@ async function workerLifetimeStatsMap(workerIds) {
     }
   }
   return performance;
+}
+
+/**
+ * Option C — admin force-close for stuck jobs.
+ *
+ * target_status 'cancelled': stops the billing timer, marks the hire cancelled,
+ *   no charge is applied (total_amount preserved if already set).
+ * target_status 'completed': completes the hire, calculates final
+ *   duration_minutes from started_at to now, and preserves total_amount using
+ *   the agreed proposed_rate (not the worker's current hourly_rate).
+ *
+ * Logs the admin action via force_closed_by / force_closed_at /
+ * force_closed_reason on the hire row.
+ */
+export async function forceCloseHire(
+  hireId,
+  { reason, targetStatus, closedByAdminEmail },
+) {
+  if (!['cancelled', 'completed'].includes(targetStatus)) {
+    throw new Error('target_status must be cancelled or completed');
+  }
+  if (!reason || String(reason).trim().length < 3) {
+    throw new Error('Force-close reason must be at least 3 characters');
+  }
+
+  const { data: hire, error: hireError } = await db
+    .from('hire_requests')
+    .select(
+      'id, status, started_at, completed_at, total_amount, proposed_rate, employer_id, worker_id',
+    )
+    .eq('id', hireId)
+    .maybeSingle();
+  if (hireError) throw new Error(hireError.message);
+  if (!hire) throw new Error('Hire request nahi mila');
+
+  const alreadyTerminal = ['completed', 'cancelled', 'rejected'].includes(hire.status);
+  if (alreadyTerminal) {
+    throw new Error(
+      `Ye hire pehle se ${hire.status} hai — force-close nahi kiya ja sakta`,
+    );
+  }
+
+  const now = new Date();
+  const patch = {
+    status: targetStatus,
+    force_closed_by: closedByAdminEmail,
+    force_closed_at: now.toISOString(),
+    force_closed_reason: String(reason).trim(),
+  };
+
+  if (targetStatus === 'completed') {
+    patch.completed_at = now.toISOString();
+
+    if (hire.started_at) {
+      const startedAtMs = new Date(hire.started_at).getTime();
+      const durationMinutes = Math.max(0, (now.getTime() - startedAtMs) / 60000);
+      const hourlyRate = Number(hire.proposed_rate);
+      if (!Number.isFinite(hourlyRate) || hourlyRate <= 0) {
+        throw new Error('Hire ka proposed_rate nahi mila — force-close complete nahi ho sakta');
+      }
+      patch.total_amount = Math.round((durationMinutes / 60) * hourlyRate * 100) / 100;
+    } else {
+      // Never started — zero bill, mark completed for record-keeping.
+      patch.total_amount = 0;
+    }
+  } else {
+    // cancelled: stop the billing timer. Do not set completed_at.
+    // Preserve any total_amount already stored; otherwise leave it null.
+    patch.cancelled_by = 'admin';
+    patch.cancelled_at = now.toISOString();
+  }
+
+  const { data, error } = await db
+    .from('hire_requests')
+    .update(patch)
+    .eq('id', hireId)
+    .select('id, status, total_amount, force_closed_by, force_closed_at, force_closed_reason')
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error('Force-close save failed');
+
+  return {
+    id: data.id,
+    status: data.status,
+    totalAmount: data.total_amount,
+    forceClosedBy: data.force_closed_by,
+    forceClosedAt: data.force_closed_at,
+    forceClosedReason: data.force_closed_reason,
+  };
 }
 
 export async function listAdminHires(status, page = 1, limit = 50) {

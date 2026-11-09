@@ -17,7 +17,7 @@ export const WORKER_PUBLIC_SELECT =
   'id, user_id, skills, experience, description, hourly_rate, availability, portfolio, ' +
   'rating_average, rating_count, completed_jobs, total_jobs_completed, on_time_jobs, ' +
   'customer_rating_avg, system_rating_score, service_areas, is_approved, created_at, ' +
-  'user:users!user_id(id, name, avatar, location_area, location_city, is_verified, trust_score)';
+  'user:users!user_id(id, name, avatar, location_area, location_city, is_verified, trust_score, is_active)';
 
 function mapPublicUser(row) {
   if (!row) return null;
@@ -96,6 +96,7 @@ export async function searchWorkers({ skill, area, page = 1, limit = 20 } = {}) 
     .select(WORKER_PUBLIC_SELECT, { count: 'exact' })
     .eq('is_approved', true)
     .eq('availability', 'available')
+    .eq('user.is_active', true) // Suspended workers are hidden from search
     .order('rating_average', { ascending: false })
     .order('completed_jobs', { ascending: false })
     .order('created_at', { ascending: false })
@@ -120,6 +121,7 @@ export async function getWorkerById(profileId) {
     .from('worker_profiles')
     .select(WORKER_PUBLIC_SELECT)
     .eq('id', profileId)
+    .eq('user.is_active', true) // Suspended workers are not publicly visible
     .maybeSingle();
 
   if (error) throw new Error(error.message);

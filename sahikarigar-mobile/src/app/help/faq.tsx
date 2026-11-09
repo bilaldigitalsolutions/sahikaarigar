@@ -9,7 +9,7 @@ const EMPLOYER_FAQS: { q: string; a: string }[] = [
   {
     q: 'SahiKaarigar kaise kaam karta hai?',
     a:
-      'App par apni requirement post karo — nearby verified workers milegi. Profile dekho, hire karo, aur kaam complete hone par in-app payment karo.',
+      'App par apni requirement post karo — nearby verified workers milegi. Profile dekho, hire karo, aur kaam complete hone par worker ko direct cash ya UPI se payment karein.',
   },
   {
     q: 'Kya worker verified hota hai?',
@@ -19,7 +19,7 @@ const EMPLOYER_FAQS: { q: string; a: string }[] = [
   {
     q: 'Payment kaise karni hai?',
     a:
-      'Payment app ke through hi hoti hai — UPI, card ya wallet se. Paise kaam complete hone ke baad release hote hai, taaki dono pakde safe rahein.',
+      'Payment direct hoti hai — worker ko kaam complete hone par cash ya UPI se payment karein. SahiKaarigar app mein koi in-app payment, escrow, ya wallet nahi hai. Platform fee ₹0 hai — koi commission nahi kाटा जाता.',
   },
   {
     q: 'Mera phone number safe hai?',
@@ -35,9 +35,9 @@ const WORKER_FAQS: { q: string; a: string }[] = [
       'App download karke "Join as Kaarigar" par tap karo. Apna naam, phone, skill aur area bharo — OTP verify karke account chalu kar lo.',
   },
   {
-    q: 'Mujhe paise kaise milenge (Commission)?',
+    q: 'Mujhe paise kaise milenge?',
     a:
-      'Kaam complete hone ke baad client app se payment karta hai. Platform commission kaat kar baaki amount aapke wallet/bank mein aata hai.',
+      'Kaam complete hone ke baad client aapko direct cash ya UPI se payment karta hai. SahiKaarigar ka koi commission, wallet, ya payout system nahi hai. Platform fee ₹0 hai — aapko poora amount milta hai.',
   },
   {
     q: 'Zyada jobs kaise milengi?',

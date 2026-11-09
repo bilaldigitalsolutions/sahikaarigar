@@ -39,7 +39,7 @@ export const HIRE_SELECT =
   'id, employer_id, worker_id, description, location, home_location, proposed_rate, status, ' +
   'scheduled_date, scheduled_time, completed_at, total_amount, phone_revealed, created_at, updated_at, ' +
   'en_route_at, arrived_at, arrived_time, started_at, worker_lat, worker_lng, ' +
-  'distance_km, arrived_on_time, ' +
+  'distance_km, arrived_on_time, feedback_complete, ' +
   'employer:users!employer_id(id, name, phone, avatar, location_area, location_city, ' +
   'customer_rating_average, customer_rating_count), ' +
   // `!user_id` pins the FK explicitly so PostgREST always joins worker_profiles
@@ -321,6 +321,7 @@ export function mapHire(row) {
     workerLat: row.worker_lat ?? null,
     workerLng: row.worker_lng ?? null,
     phoneRevealed: revealPhone,
+    feedbackComplete: Boolean(row.feedback_complete),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     customerRating: mapCustomerRating(row.employer),
@@ -622,9 +623,10 @@ export async function hireAction({ hireId, userId, action, lat, lng, otp }) {
         throw new Error('Kaam pehle shuru hona chahiye — worker OTP verify kare, phir complete karein');
       }
       {
-        // Bill actual time worked, not a fixed one-hour estimate. The worker's
-        // current hourly rate is authoritative; proposed_rate is only a
-        // fallback for older rows where the profile rate is missing.
+        // Bill actual time worked at the AGREED rate (proposed_rate from the
+        // booking), not the worker's current hourly_rate. A worker can change
+        // their rate at any time, but the customer agreed to proposed_rate at
+        // booking time — that is the rate that must be charged.
         const startedAtMs = raw.started_at ? new Date(raw.started_at).getTime() : NaN;
         if (!Number.isFinite(startedAtMs)) {
           throw new Error(
@@ -632,18 +634,7 @@ export async function hireAction({ hireId, userId, action, lat, lng, otp }) {
           );
         }
 
-        const { data: rateRow, error: rateError } = await db
-          .from('worker_profiles')
-          .select('hourly_rate')
-          .eq('id', raw.worker_id)
-          .maybeSingle();
-        if (rateError) throw new Error(rateError.message);
-
-        const profileRate = Number(rateRow?.hourly_rate);
-        const hourlyRate =
-          Number.isFinite(profileRate) && profileRate > 0
-            ? profileRate
-            : Number(raw.proposed_rate);
+        const hourlyRate = Number(raw.proposed_rate);
         if (!Number.isFinite(hourlyRate) || hourlyRate <= 0) {
           throw new Error('Kaarigar ka hourly rate nahi mila — booking complete nahi kar sakte');
         }

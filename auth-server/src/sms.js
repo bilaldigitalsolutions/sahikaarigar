@@ -16,6 +16,25 @@
 
 const TIMEOUT_MS = 10_000;
 
+// =============================================================================
+// STAGING ONLY — Fixed OTP bypass for QA.
+// NEVER set ENABLE_FIXED_OTP=true on production. It is ignored when
+// NODE_ENV=production as an extra safety guard.
+// =============================================================================
+const ENABLE_FIXED_OTP = process.env.ENABLE_FIXED_OTP === 'true';
+
+/**
+ * STAGING ONLY: receives the real SuperTokens-generated OTP and logs it
+ * clearly to Render logs instead of sending an SMS. QA reads the code from
+ * the logs and enters it in the app. No real SMS is ever sent.
+ */
+async function fixed({ phone, otp }) {
+  console.log(
+    `[FIXED_OTP] Staging bypass: OTP for ${phone} -> ${otp} (no SMS sent, ENABLE_FIXED_OTP=true)`,
+  );
+  return;
+}
+
 function need(name) {
   const value = process.env[name];
   if (!value) {
@@ -48,6 +67,15 @@ const providers = {
       'SMS provider is not configured. Set SMS_PROVIDER and its credentials; ' +
         'OTPs are never printed to the server log.',
     );
+  },
+
+  // STAGING ONLY — logs the real OTP to Render logs, sends no SMS.
+  // Active only when ENABLE_FIXED_OTP=true (and NODE_ENV != production).
+  async fixed({ phone, otp }) {
+    console.log(
+      `[FIXED_OTP] Staging bypass: OTP for ${phone} -> ${otp} (no SMS sent, ENABLE_FIXED_OTP=true)`,
+    );
+    return;
   },
 
   async msg91({ phone, otp }) {
@@ -241,6 +269,12 @@ export function isSmsProviderConfigured(name) {
  * leaking the code to the logs.
  */
 export function resolveSmsProvider() {
+  // STAGING ONLY: fixed OTP bypass. Completely disabled in production
+  // (guarded by NODE_ENV check) and only when explicitly opted in.
+  if (ENABLE_FIXED_OTP && process.env.NODE_ENV !== 'production') {
+    return 'fixed';
+  }
+
   const explicit = (process.env.SMS_PROVIDER || '').trim().toLowerCase();
 
   if (explicit && explicit !== 'console') {

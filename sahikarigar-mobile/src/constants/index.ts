@@ -173,8 +173,11 @@ export const RECENT_SEARCHES = [
   'plumber in Banjara Hills',
 ] as const;
 
-/** Chips in the feedback screen's "What did you like?" list. */
-export const FEEDBACK_LIKES = ['On-time', 'Professional', 'Clean Work', 'Pricing'] as const;
+/** Chips in the feedback screen's "What did you like?" list — customer rating the worker. */
+export const CUSTOMER_LIKES = ['On-time', 'Professional', 'Clean Work', 'Fair Pricing'] as const;
+
+/** Chips in the feedback screen's "What did you like?" list — worker rating the customer. */
+export const WORKER_LIKES = ['Paid on time', 'Polite behaviour', 'Clear instructions', 'Easy to work with'] as const;
 
 /** Availability choices on the Join as Kaarigar form. */
 export const AVAILABILITY_OPTIONS = [

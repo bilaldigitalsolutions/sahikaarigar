@@ -19,6 +19,23 @@ import Passwordless from 'supertokens-node/recipe/passwordless';
 import Session from 'supertokens-node/recipe/session';
 import { middleware, errorHandler } from 'supertokens-node/framework/express';
 
+// -----------------------------------------------------------------------------
+// Suspension enforcement — users.is_active is checked on every authenticated
+// request. A suspended user (is_active = false) gets 403 { error: "Account
+// suspended" } and their existing SuperTokens sessions are revoked by the admin
+// suspension endpoint (see admin.js setUserActive).
+// -----------------------------------------------------------------------------
+async function requireActiveUser(req, res) {
+  const session = await Session.getSession(req, res, { sessionRequired: true });
+  const { authUserId, phone } = await resolveSession(session);
+  const user = await getOrCreateUserByAuthId(authUserId, phone);
+  if (!user.is_active) {
+    res.status(403).json({ error: 'Account suspended' });
+    return null;
+  }
+  return { session, authUserId, phone, user };
+}
+
 import { sendOtpSms, resolveSmsProvider, SUPPORTED_SMS_PROVIDERS } from './sms.js';
 import {
   getOrCreateUserByAuthId,
@@ -70,6 +87,7 @@ import {
   setUserFlagged,
   setWorkerApproval,
   setWorkerFlagged,
+  forceCloseHire,
 } from './admin.js';
 import {
   isValidPushToken,
@@ -327,10 +345,9 @@ async function resolveSession(session) {
 
 app.get('/me', async (req, res, next) => {
   try {
-    const session = await Session.getSession(req, res, { sessionRequired: true });
-    const { authUserId, phone } = await resolveSession(session);
-    const user = await getOrCreateUserByAuthId(authUserId, phone);
-    res.json({ ok: true, user });
+    const active = await requireActiveUser(req, res);
+    if (!active) return;
+    res.json({ ok: true, user: active.user });
   } catch (error) {
     next(error);
   }
@@ -341,9 +358,8 @@ app.get('/me', async (req, res, next) => {
 // empty token clears the row (e.g. after the user denies notifications).
 app.post('/me/push-token', async (req, res, next) => {
   try {
-    const session = await Session.getSession(req, res, { sessionRequired: true });
-    const { authUserId, phone } = await resolveSession(session);
-    const user = await getOrCreateUserByAuthId(authUserId, phone);
+    const active = await requireActiveUser(req, res);
+    if (!active) return;
     const token = typeof req.body?.token === 'string' ? req.body.token.trim() : '';
     if (token && !isValidPushToken(token)) {
       res.status(400).json({ ok: false, code: 'BAD_REQUEST', message: 'Invalid push token' });
@@ -358,9 +374,9 @@ app.post('/me/push-token', async (req, res, next) => {
 
 app.post('/register-worker', async (req, res, next) => {
   try {
-    const session = await Session.getSession(req, res, { sessionRequired: true });
-    const { authUserId, phone } = await resolveSession(session);
-    const user = await getOrCreateUserByAuthId(authUserId, phone, req.body?.name);
+    const active = await requireActiveUser(req, res);
+    if (!active) return;
+    const user = await getOrCreateUserByAuthId(active.authUserId, active.phone, req.body?.name);
     const profile = req.body?.profile ?? {};
     const images = await uploadWorkerImages(user.id, {
       aadhaarPhotoDataUrl: profile.aadhaarPhotoDataUrl,
@@ -385,10 +401,9 @@ app.post('/register-worker', async (req, res, next) => {
 // the /profile page — replaces the old Firebase `loginWithToken(token, name)`).
 app.post('/profile', async (req, res, next) => {
   try {
-    const session = await Session.getSession(req, res, { sessionRequired: true });
-    const { authUserId, phone } = await resolveSession(session);
-    const user = await getOrCreateUserByAuthId(authUserId, phone);
-    const updated = await updateUser(user.id, req.body ?? {});
+    const active = await requireActiveUser(req, res);
+    if (!active) return;
+    const updated = await updateUser(active.user.id, req.body ?? {});
     res.json({ ok: true, user: updated });
   } catch (error) {
     next(error);
@@ -401,10 +416,9 @@ app.post('/profile', async (req, res, next) => {
 // promises it ("Contact page se humse sampark karo" wala para ab live hai).
 app.delete('/account', async (req, res, next) => {
   try {
-    const session = await Session.getSession(req, res, { sessionRequired: true });
-    const { authUserId, phone } = await resolveSession(session);
-    const user = await getOrCreateUserByAuthId(authUserId, phone);
-    await deleteUserAccount({ userId: user.id, authUserId });
+    const active = await requireActiveUser(req, res);
+    if (!active) return;
+    await deleteUserAccount({ userId: active.user.id, authUserId: active.authUserId });
     try {
       await Session.revokeAllSessionsForUser(authUserId);
     } catch {
@@ -453,10 +467,9 @@ app.get('/workers/:id', async (req, res, next) => {
 // ---------------------------------------------------------------------------
 app.get('/hires', async (req, res, next) => {
   try {
-    const session = await Session.getSession(req, res, { sessionRequired: true });
-    const { authUserId, phone } = await resolveSession(session);
-    const user = await getOrCreateUserByAuthId(authUserId, phone);
-    const hires = await listHiresForUser(user.id);
+    const active = await requireActiveUser(req, res);
+    if (!active) return;
+    const hires = await listHiresForUser(active.user.id);
     res.json({ ok: true, ...hires });
   } catch (error) {
     next(error);
@@ -465,11 +478,10 @@ app.get('/hires', async (req, res, next) => {
 
 app.post('/hires', async (req, res, next) => {
   try {
-    const session = await Session.getSession(req, res, { sessionRequired: true });
-    const { authUserId, phone } = await resolveSession(session);
-    const user = await getOrCreateUserByAuthId(authUserId, phone, req.body?.name);
+    const active = await requireActiveUser(req, res);
+    if (!active) return;
     const hire = await createHireRequest({
-      employerId: user.id,
+      employerId: active.user.id,
       workerId: req.body?.workerId,
       description: req.body?.description,
       location: req.body?.location,
@@ -486,19 +498,18 @@ app.post('/hires', async (req, res, next) => {
 
 app.get('/hires/:id', async (req, res, next) => {
   try {
-    const session = await Session.getSession(req, res, { sessionRequired: true });
-    const { authUserId, phone } = await resolveSession(session);
-    const user = await getOrCreateUserByAuthId(authUserId, phone);
+    const active = await requireActiveUser(req, res);
+    if (!active) return;
     const hire = await getHireById(req.params.id);
     if (!hire) {
       res.status(404).json({ ok: false, code: 'NOT_FOUND', message: 'Hire request nahi mila' });
       return;
     }
-    // IDOR guard — a booking carries both parties' phone numbers and home
+    // IDOR guard - a booking carries both parties' phone numbers and home
     // location, so ONLY its two sides may read it. Any other signed-in user
     // (or a leaked/guessed id) gets a 403 instead of the payload.
-    const workerProfileId = await getWorkerProfileIdForUser(user.id);
-    const isEmployer = hire.employerId === user.id;
+    const workerProfileId = await getWorkerProfileIdForUser(active.user.id);
+    const isEmployer = hire.employerId === active.user.id;
     const isWorker = Boolean(workerProfileId) && hire.workerId === workerProfileId;
     if (!isEmployer && !isWorker) {
       res.status(403).json({ ok: false, code: 'FORBIDDEN', message: 'Ye booking aapki nahi hai' });
@@ -519,10 +530,9 @@ app.get('/hires/:id', async (req, res, next) => {
 // session can never read it).
 app.get('/hires/:id/start-otp', async (req, res, next) => {
   try {
-    const session = await Session.getSession(req, res, { sessionRequired: true });
-    const { authUserId, phone } = await resolveSession(session);
-    const user = await getOrCreateUserByAuthId(authUserId, phone);
-    const { otp } = await getHireStartOtp({ hireId: req.params.id, userId: user.id });
+    const active = await requireActiveUser(req, res);
+    if (!active) return;
+    const { otp } = await getHireStartOtp({ hireId: req.params.id, userId: active.user.id });
     res.json({ ok: true, otp });
   } catch (error) {
     console.warn(
@@ -557,12 +567,11 @@ app.patch('/hires/:id', async (req, res, next) => {
       });
       return;
     }
-    const session = await Session.getSession(req, res, { sessionRequired: true });
-    const { authUserId, phone } = await resolveSession(session);
-    const user = await getOrCreateUserByAuthId(authUserId, phone);
+    const active = await requireActiveUser(req, res);
+    if (!active) return;
     const hire = await hireAction({
       hireId: req.params.id,
-      userId: user.id,
+      userId: active.user.id,
       action: req.body?.action,
       lat: req.body?.lat,
       lng: req.body?.lng,
@@ -577,16 +586,15 @@ app.patch('/hires/:id', async (req, res, next) => {
 });
 
 // ---------------------------------------------------------------------------
-// Worker dashboard — the kaarigar's own side of the app. Session required.
+// Worker dashboard - the kaarigar's own side of the app. Session required.
 //   GET   /worker/dashboard     profile + availability + job buckets + stats
 //   PATCH /worker/availability  { availability: 'available' | 'busy' | 'offline' }
 // ---------------------------------------------------------------------------
 app.get('/worker/dashboard', async (req, res, next) => {
   try {
-    const session = await Session.getSession(req, res, { sessionRequired: true });
-    const { authUserId, phone } = await resolveSession(session);
-    const user = await getOrCreateUserByAuthId(authUserId, phone);
-    const dashboard = await getWorkerDashboard(user.id);
+    const active = await requireActiveUser(req, res);
+    if (!active) return;
+    const dashboard = await getWorkerDashboard(active.user.id);
 
     // Not a worker (yet) — an empty payload beats a 403 so the app can simply
     // hide the tab instead of showing an error.
@@ -614,10 +622,9 @@ app.get('/worker/dashboard', async (req, res, next) => {
 // (unlike /register-worker, which re-enters the verification queue on purpose).
 app.get('/worker/profile', async (req, res, next) => {
   try {
-    const session = await Session.getSession(req, res, { sessionRequired: true });
-    const { authUserId, phone } = await resolveSession(session);
-    const user = await getOrCreateUserByAuthId(authUserId, phone);
-    const worker = await getOwnWorkerProfile(user.id);
+    const active = await requireActiveUser(req, res);
+    if (!active) return;
+    const worker = await getOwnWorkerProfile(active.user.id);
     res.json({ ok: true, worker });
   } catch (error) {
     next(error);
@@ -626,10 +633,9 @@ app.get('/worker/profile', async (req, res, next) => {
 
 app.patch('/worker/profile', async (req, res, next) => {
   try {
-    const session = await Session.getSession(req, res, { sessionRequired: true });
-    const { authUserId, phone } = await resolveSession(session);
-    const user = await getOrCreateUserByAuthId(authUserId, phone);
-    const worker = await updateOwnWorkerProfile(user.id, req.body ?? {});
+    const active = await requireActiveUser(req, res);
+    if (!active) return;
+    const worker = await updateOwnWorkerProfile(active.user.id, req.body ?? {});
     res.json({ ok: true, worker });
   } catch (error) {
     next(error);
@@ -638,10 +644,9 @@ app.patch('/worker/profile', async (req, res, next) => {
 
 app.patch('/worker/availability', async (req, res, next) => {
   try {
-    const session = await Session.getSession(req, res, { sessionRequired: true });
-    const { authUserId, phone } = await resolveSession(session);
-    const user = await getOrCreateUserByAuthId(authUserId, phone);
-    const worker = await setWorkerAvailability(user.id, req.body?.availability);
+    const active = await requireActiveUser(req, res);
+    if (!active) return;
+    const worker = await setWorkerAvailability(active.user.id, req.body?.availability);
     res.json({ ok: true, worker });
   } catch (error) {
     next(error);
@@ -653,11 +658,10 @@ app.patch('/worker/availability', async (req, res, next) => {
 // ---------------------------------------------------------------------------
 app.post('/reviews', async (req, res, next) => {
   try {
-    const session = await Session.getSession(req, res, { sessionRequired: true });
-    const { authUserId, phone } = await resolveSession(session);
-    const user = await getOrCreateUserByAuthId(authUserId, phone);
+    const active = await requireActiveUser(req, res);
+    if (!active) return;
     const review = await createReview({
-      reviewerId: user.id,
+      reviewerId: active.user.id,
       hireRequestId: req.body?.hireRequestId,
       rating: req.body?.rating,
       comment: req.body?.comment,
@@ -673,11 +677,10 @@ app.post('/reviews', async (req, res, next) => {
 // Worker -> customer feedback. Separate from /reviews (customer -> worker).
 app.post('/customer-reviews', async (req, res, next) => {
   try {
-    const session = await Session.getSession(req, res, { sessionRequired: true });
-    const { authUserId, phone } = await resolveSession(session);
-    const user = await getOrCreateUserByAuthId(authUserId, phone);
+    const active = await requireActiveUser(req, res);
+    if (!active) return;
     const customerReview = await createCustomerReview({
-      reviewerId: user.id,
+      reviewerId: active.user.id,
       hireRequestId: req.body?.hireRequestId,
       rating: req.body?.rating,
       comment: req.body?.comment,
@@ -693,11 +696,10 @@ app.post('/customer-reviews', async (req, res, next) => {
 // ---------------------------------------------------------------------------
 app.post('/reports', async (req, res, next) => {
   try {
-    const session = await Session.getSession(req, res, { sessionRequired: true });
-    const { authUserId, phone } = await resolveSession(session);
-    const user = await getOrCreateUserByAuthId(authUserId, phone);
+    const active = await requireActiveUser(req, res);
+    if (!active) return;
     const report = await createReport({
-      reporter_id: user.id,
+      reporter_id: active.user.id,
       reported_id: req.body?.reported_id,
       reason: req.body?.reason,
       description: req.body?.description,
@@ -710,11 +712,10 @@ app.post('/reports', async (req, res, next) => {
 
 app.post('/feedback', async (req, res, next) => {
   try {
-    const session = await Session.getSession(req, res, { sessionRequired: true });
-    const { authUserId, phone } = await resolveSession(session);
-    const user = await getOrCreateUserByAuthId(authUserId, phone);
+    const active = await requireActiveUser(req, res);
+    if (!active) return;
     const feedback = await createPlatformFeedback({
-      userId: user.id,
+      userId: active.user.id,
       hireRequestId: req.body?.hireRequestId,
       rating: req.body?.rating,
       comment: req.body?.comment,
@@ -1105,10 +1106,10 @@ app.get('/admin/hires', async (req, res, next) => {
   }
 });
 
-// Admins can monitor hires but must never change their status: only the
-// assigned worker may accept/reject (PATCH /hires/:id with a user session) and
-// only the employer may complete/cancel. Keep an explicit 403 here so stale
-// clients get a clear answer instead of silently mutating data.
+// Admins can monitor hires but must never change their status via PATCH:
+// only the assigned worker may accept/reject and only the employer may
+// complete/cancel. The explicit 403 below keeps that rule for the PATCH verb.
+// Force-close (stuck jobs) is a separate, auditable admin action below.
 app.patch('/admin/hires/:id', async (req, res, next) => {
   try {
     const admin = await requireAdmin(req, res);
@@ -1119,6 +1120,23 @@ app.patch('/admin/hires/:id', async (req, res, next) => {
       message:
         'Admin hire status nahi badal sakta. Worker accept/reject karta hai aur employer complete/cancel.',
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Option C — admin force-close for stuck jobs. Auditable: records who closed
+// it, when, why, and the final status/amount.
+app.post('/admin/hires/:id/force-close', async (req, res, next) => {
+  try {
+    const admin = await requireAdmin(req, res);
+    if (!admin) return;
+    const result = await forceCloseHire(req.params.id, {
+      reason: req.body?.reason,
+      targetStatus: req.body?.target_status,
+      closedByAdminEmail: admin.email,
+    });
+    res.json({ ok: true, ...result });
   } catch (error) {
     next(error);
   }

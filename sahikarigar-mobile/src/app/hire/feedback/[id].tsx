@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 
 import { Avatar, Button, Checkbox, Screen, StarInput } from '@/components';
-import { FEEDBACK_LIKES, skillLabel } from '@/constants';
+import { CUSTOMER_LIKES, WORKER_LIKES, skillLabel } from '@/constants';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   ApiError,
@@ -410,7 +410,10 @@ export default function FeedbackScreen() {
                 <Text style={styles.requiredHint}>App rating is required</Text>
               ) : null}
               <Text style={[styles.cardTitle, styles.likesTitle]}>What did you like?</Text>
-              {FEEDBACK_LIKES.map((label) => (
+              {/* Role-specific feedback chips: customer rates worker, worker rates customer */}
+              {(
+                isWorkerViewer ? WORKER_LIKES : CUSTOMER_LIKES
+              ).map((label) => (
                 <Checkbox
                   key={label}
                   label={label}

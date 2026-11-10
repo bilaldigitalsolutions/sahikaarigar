@@ -364,9 +364,18 @@ function BookingBody({
   // Final bill = actual work time × hourly rate. While work is in progress,
   // `completedAt` is absent so the current clock is the end time. When the job
   // is completed, the server's stored total is authoritative.
+  // Billing rate is LOCKED AT BOOKING TIME: proposedRate always wins.
+  // The worker's current profile rate is only a fallback for legacy rows
+  // created before proposed_rate existed — changing a profile rate mid-hire
+  // never changes an agreed bill (mirrors the backend billing fix).
+  const proposedRateValue = Number(hire.proposedRate ?? 0);
   const workerRate = Number(hire.worker?.hourlyRate);
   const hourlyRate =
-    Number.isFinite(workerRate) && workerRate > 0 ? workerRate : Number(hire.proposedRate ?? 0);
+    Number.isFinite(proposedRateValue) && proposedRateValue > 0
+      ? proposedRateValue
+    : Number.isFinite(workerRate) && workerRate > 0
+      ? workerRate
+      : 0;
   const startedAtMs = hire.startedAt ? new Date(hire.startedAt).getTime() : NaN;
   const completedAtMs = hire.completedAt ? new Date(hire.completedAt).getTime() : NaN;
   const endMs = completed && Number.isFinite(completedAtMs) ? completedAtMs : nowMs;

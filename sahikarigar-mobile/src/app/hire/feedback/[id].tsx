@@ -244,9 +244,16 @@ export default function FeedbackScreen() {
 
   // The final bill comes from the API after completion. Older rows may not
   // have it, so derive the same value from the timestamps as a fallback.
+  // Billing rate is LOCKED AT BOOKING TIME: proposedRate wins over the
+  // worker's current profile rate (mirrors the backend billing fix).
+  const proposedRateValue = Number(hire?.proposedRate ?? 0);
   const workerRate = Number(hire?.worker?.hourlyRate);
   const hourlyRate =
-    Number.isFinite(workerRate) && workerRate > 0 ? workerRate : Number(hire?.proposedRate ?? 0);
+    Number.isFinite(proposedRateValue) && proposedRateValue > 0
+      ? proposedRateValue
+    : Number.isFinite(workerRate) && workerRate > 0
+      ? workerRate
+      : 0;
   const startedAtMs = hire?.startedAt ? new Date(hire.startedAt).getTime() : NaN;
   const completedAtMs = hire?.completedAt ? new Date(hire.completedAt).getTime() : NaN;
   const fallbackDurationMinutes =

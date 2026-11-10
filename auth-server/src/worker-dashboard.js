@@ -18,7 +18,7 @@ import {
   normalizeAadhaarNumber,
   uploadWorkerImages,
 } from './users.js';
-import { mapWorker, WORKER_PUBLIC_SELECT } from './workers.js';
+import { computeTrustScore, mapWorker, WORKER_PUBLIC_SELECT } from './workers.js';
 import { mapHire, HIRE_SELECT } from './hires.js';
 
 /**
@@ -64,6 +64,9 @@ export function mapOwnWorker(row) {
     aadhaarOnFile: Boolean(aadhaar),
     aadhaarMasked: aadhaar ? `XXXX XXXX ${String(aadhaar).slice(-4)}` : null,
     verificationStatus: row.verification_status ?? null,
+    // Computed live (see computeTrustScore in workers.js) — users.trust_score
+    // is a legacy column that is never written to.
+    trustScore: computeTrustScore(row),
   };
 }
 

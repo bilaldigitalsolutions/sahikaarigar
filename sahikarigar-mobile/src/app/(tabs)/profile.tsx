@@ -54,12 +54,6 @@ export default function ProfileScreen() {
     if (!user) return;
     try {
       const profile = await getWorkerProfile();
-      console.log(
-        '[Profile] worker profile fetched — isApproved:',
-        profile?.isApproved,
-        '| verificationStatus:',
-        profile?.verificationStatus,
-      );
       setWorkerProfile(profile);
     } catch (e) {
       console.error('[Profile] getWorkerProfile failed:', e);
@@ -230,8 +224,28 @@ export default function ProfileScreen() {
                   : 'Pending'
           }
         />
-        <InfoRow icon="star" label="Trust Score" value={String(user.trustScore ?? 0)} />
-        {user.role === 'employer' ? (
+        {user.role === 'worker' ? (
+          <>
+            <InfoRow
+              icon="star-half"
+              label={t('rating.workerLabel')}
+              value={formatRatingSummary(
+                {
+                  average: workerProfile?.ratingAverage ?? 0,
+                  count: workerProfile?.ratingCount ?? 0,
+                },
+                t,
+              )}
+            />
+            {/* Computed server-side from live profile data — the users.trust_score
+                column is legacy and always 0, so never read it here. */}
+            <InfoRow
+              icon="star"
+              label="Trust Score"
+              value={String(workerProfile?.trustScore ?? 0)}
+            />
+          </>
+        ) : user.role === 'employer' ? (
           <InfoRow
             icon="star-half"
             label={t('rating.customerLabel')}

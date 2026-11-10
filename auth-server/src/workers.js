@@ -50,6 +50,32 @@ export function getWorkerBadge(worker) {
   return 'Bronze';
 }
 
+/**
+ * Trust score — a 0–100 number shown on the worker's Profile screen.
+ *
+ * `users.trust_score` is a legacy column that is never written to, so the
+ * score is computed live from worker_profiles data instead:
+ *   base    rejected 0 · pending +10 · approved +40
+ *   rating  rating_average × 10, max +50 (only when at least one rating exists)
+ *   jobs    +1 per completed job, max +10
+ * A brand-new approved worker therefore shows 40 — never a misleading 0.
+ */
+export function computeTrustScore(row) {
+  if (!row) return 0;
+  let score = 0;
+  const status = String(row.verification_status ?? (row.is_approved ? 'approved' : 'pending'));
+  if (status === 'approved') score += 40;
+  else if (status !== 'rejected') score += 10;
+  const ratingAverage = Number(row.rating_average ?? 0);
+  const ratingCount = Number(row.rating_count ?? 0);
+  if (ratingAverage > 0 && ratingCount > 0) {
+    score += Math.min(50, ratingAverage * 10);
+  }
+  const completedJobs = Number(row.completed_jobs ?? row.total_jobs_completed ?? 0);
+  score += Math.min(10, Math.max(0, completedJobs));
+  return Math.min(100, Math.round(score));
+}
+
 export function mapWorker(row) {
   if (!row) return null;
 
@@ -80,6 +106,7 @@ export function mapWorker(row) {
     // clients only get area-level location. The owner's own coordinates are
     // added back by mapOwnWorker() in worker-dashboard.js.
     isApproved: row.is_approved ?? false,
+    trustScore: computeTrustScore(row),
     createdAt: row.created_at ?? null,
     user: mapPublicUser(row.user),
   };

@@ -227,6 +227,8 @@ export interface ApiWorker {
   aadhaarMasked?: string | null;
   /** Admin review state of the profile — owner's own profile only. */
   verificationStatus?: string | null;
+  /** Computed 0–100 trust score — owner's own profile only. */
+  trustScore?: number;
   user: ApiPublicUser | null;
 }
 

@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
 import { colors, spacing } from '@/theme';
 
@@ -12,6 +13,7 @@ export interface StarInputProps {
 
 /** Tappable star rating input (feedback form). */
 export function StarInput({ value, onChange, size = 30, count = 5 }: StarInputProps) {
+  const { t } = useTranslation();
   return (
     <View style={styles.row}>
       {Array.from({ length: count }, (_, i) => i + 1).map((star) => {
@@ -22,7 +24,7 @@ export function StarInput({ value, onChange, size = 30, count = 5 }: StarInputPr
             onPress={() => onChange(star)}
             hitSlop={8}
             accessibilityRole="button"
-            accessibilityLabel={`${star} star`}
+            accessibilityLabel={t('rating.starA11y', { star })}
           >
             <Ionicons
               name={active ? 'star' : 'star-outline'}

@@ -1,59 +1,30 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { Button, Card, Screen } from '@/components';
 import { colors, fontSize, fontWeight, radius, spacing } from '@/theme';
 
+/** Each entry holds an i18n key pair; the strings are translated at render time. */
 const EMPLOYER_FAQS: { q: string; a: string }[] = [
-  {
-    q: 'SahiKaarigar kaise kaam karta hai?',
-    a:
-      'App par apni requirement post karo — nearby verified workers milegi. Profile dekho, hire karo, aur kaam complete hone par worker ko direct cash ya UPI se payment karein.',
-  },
-  {
-    q: 'Kya worker verified hota hai?',
-    a:
-      'Haan, sabhi workers ka phone number aur ID verify hoti hai. Kaam complete hone ke baad rating aur review bhi milti hai, jo trust banati hai.',
-  },
-  {
-    q: 'Payment kaise karni hai?',
-    a:
-      'Payment direct hoti hai — worker ko kaam complete hone par cash ya UPI se payment karein. SahiKaarigar app mein koi in-app payment, escrow, ya wallet nahi hai. Platform fee ₹0 hai — koi commission nahi kाटा जाता.',
-  },
-  {
-    q: 'Mera phone number safe hai?',
-    a:
-      'Haan, aapka phone number kabhi worker ko directly nahi dikhaya jata. Sabhi communication app ke through hota hai jab tak hire confirm nahi ho jata.',
-  },
+  { q: 'faq.employerQ1', a: 'faq.employerA1' },
+  { q: 'faq.employerQ2', a: 'faq.employerA2' },
+  { q: 'faq.employerQ3', a: 'faq.employerA3' },
+  { q: 'faq.employerQ4', a: 'faq.employerA4' },
 ];
 
 const WORKER_FAQS: { q: string; a: string }[] = [
-  {
-    q: 'Registration kaise karoon?',
-    a:
-      'App download karke "Join as Kaarigar" par tap karo. Apna naam, phone, skill aur area bharo — OTP verify karke account chalu kar lo.',
-  },
-  {
-    q: 'Mujhe paise kaise milenge?',
-    a:
-      'Kaam complete hone ke baad client aapko direct cash ya UPI se payment karta hai. SahiKaarigar ka koi commission, wallet, ya payout system nahi hai. Platform fee ₹0 hai — aapko poora amount milta hai.',
-  },
-  {
-    q: 'Zyada jobs kaise milengi?',
-    a:
-      'Apni profile complete rakho, rating aur review achhe rakho, aur availability "Available" set karo — nearby employers ko aapki profile zyada dikhegi.',
-  },
-  {
-    q: 'Verification me kitna time lagta hai?',
-    a:
-      'OTP verification instant hai. ID proof aur skill verification mein aam taur par 24-48 ghante lagte hain — uske baad aap hire ho sakte hain.',
-  },
+  { q: 'faq.workerQ1', a: 'faq.workerA1' },
+  { q: 'faq.workerQ2', a: 'faq.workerA2' },
+  { q: 'faq.workerQ3', a: 'faq.workerA3' },
+  { q: 'faq.workerQ4', a: 'faq.workerA4' },
 ];
 
 type Tab = 'employer' | 'worker';
 
 export default function FAQScreen() {
+  const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>('employer');
   const [open, setOpen] = useState<Set<number>>(new Set());
 
@@ -73,24 +44,24 @@ export default function FAQScreen() {
   return (
     <Screen scroll>
       <View style={styles.headerWrap}>
-        <Text style={styles.header}>Frequently Asked Questions</Text>
+        <Text style={styles.header}>{t('faq.pageTitle')}</Text>
       </View>
 
       {/* Segmented control — two equal pill buttons inside one rounded track. */}
       <View style={styles.tabTrack}>
         {[
-          { value: 'employer' as Tab, label: 'For Employers' },
-          { value: 'worker' as Tab, label: 'For Workers' },
-        ].map((t) => {
-          const active = tab === t.value;
+          { value: 'employer' as Tab, label: t('faq.tabEmployers') },
+          { value: 'worker' as Tab, label: t('faq.tabWorkers') },
+        ].map((item) => {
+          const active = tab === item.value;
           return (
             <Pressable
-              key={t.value}
-              onPress={() => setTab(t.value)}
+              key={item.value}
+              onPress={() => setTab(item.value)}
               style={[styles.tabItem, active && styles.tabActive]}
               accessibilityState={{ selected: active }}
             >
-              <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{t.label}</Text>
+              <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{item.label}</Text>
             </Pressable>
           );
         })}
@@ -100,7 +71,7 @@ export default function FAQScreen() {
         {faqs.map((faq, i) => (
           <Card key={i} style={styles.faqCard}>
             <Pressable onPress={() => toggle(i)} style={styles.faqRow}>
-              <Text style={styles.faqQuestion}>{faq.q}</Text>
+              <Text style={styles.faqQuestion}>{t(faq.q)}</Text>
               <Ionicons
                 name={isOpen(i) ? 'chevron-up-outline' : 'chevron-down-outline'}
                 size={20}
@@ -110,7 +81,7 @@ export default function FAQScreen() {
             </Pressable>
             {isOpen(i) && (
               <View style={styles.faqAnswerWrap}>
-                <Text style={styles.faqAnswer}>{faq.a}</Text>
+                <Text style={styles.faqAnswer}>{t(faq.a)}</Text>
               </View>
             )}
           </Card>
@@ -119,7 +90,7 @@ export default function FAQScreen() {
 
       <View style={styles.contactWrap}>
         <Button
-          label="Still need help? Contact WhatsApp Support"
+          label={t('faq.contactWhatsApp')}
           variant="secondary"
           fullWidth
           onPress={() =>

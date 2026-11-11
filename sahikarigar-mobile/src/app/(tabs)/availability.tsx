@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Switch, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 
 import { Button, Card, Screen } from '@/components';
 import {
@@ -13,6 +14,7 @@ import {
 import { colors, fontSize, fontWeight, spacing } from '@/theme';
 
 export default function AvailabilityScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const [data, setData] = useState<ApiWorkerDashboard | null>(null);
   const [loading, setLoading] = useState(true);
@@ -26,7 +28,7 @@ export default function AvailabilityScreen() {
         if (active) setData(res);
       })
       .catch((e) => {
-        if (active) setError(e instanceof Error ? e.message : 'Could not load your profile.');
+        if (active) setError(e instanceof Error ? e.message : t('availability.couldNotLoadProfile'));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -47,7 +49,7 @@ export default function AvailabilityScreen() {
         prev ? { ...prev, worker: worker ?? { ...prev.worker!, availability: nextStatus } } : prev,
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not update availability.');
+      setError(e instanceof Error ? e.message : t('availability.updateFailed'));
     } finally {
       setBusy(false);
     }
@@ -66,13 +68,10 @@ export default function AvailabilityScreen() {
   if (!data?.isWorker || !data.worker) {
     return (
       <Screen scroll>
-        <Text style={styles.heading}>Availability</Text>
+        <Text style={styles.heading}>{t('common.availability')}</Text>
         <Card style={styles.card}>
-          <Text style={styles.emptyText}>
-            Aap abhi kaarigar nahi ho. Pehle profile register karo, phir yahan availability toggle
-            kar paoge.
-          </Text>
-          <Button label="Register as Kaarigar" onPress={() => router.push('/register-worker')} style={styles.btn} />
+          <Text style={styles.emptyText}>{t('availability.notWorkerEmpty')}</Text>
+          <Button label={t('availability.registerAsKaarigar')} onPress={() => router.push('/register-worker')} style={styles.btn} />
         </Card>
       </Screen>
     );
@@ -82,7 +81,7 @@ export default function AvailabilityScreen() {
 
   return (
     <Screen scroll>
-      <Text style={styles.heading}>Availability</Text>
+      <Text style={styles.heading}>{t('common.availability')}</Text>
 
       <Card style={styles.card}>
         <View style={styles.row}>
@@ -100,12 +99,10 @@ export default function AvailabilityScreen() {
           </View>
           <View style={styles.info}>
             <Text style={styles.title}>
-              {isAvailable ? 'Available for jobs' : 'Not accepting jobs'}
+              {isAvailable ? t('availability.availableTitle') : t('availability.notAvailableTitle')}
             </Text>
             <Text style={styles.subtitle}>
-              {isAvailable
-                ? 'Naye kaam ke requests aapko dikhenge.'
-                : 'Naye requests nahi aayenge jab tak available na ho.'}
+              {isAvailable ? t('availability.availableSub') : t('availability.notAvailableSub')}
             </Text>
           </View>
           <Switch
@@ -121,11 +118,11 @@ export default function AvailabilityScreen() {
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
       <Card style={styles.card}>
-        <Text style={styles.statsTitle}>Quick Stats</Text>
+        <Text style={styles.statsTitle}>{t('availability.quickStats')}</Text>
         <View style={styles.statsRow}>
-          <Stat label="Pending" value={data.stats?.pending ?? 0} />
-          <Stat label="Active" value={data.stats?.active ?? 0} />
-          <Stat label="Completed" value={data.stats?.completed ?? 0} />
+          <Stat label={t('common.pending')} value={data.stats?.pending ?? 0} />
+          <Stat label={t('common.active')} value={data.stats?.active ?? 0} />
+          <Stat label={t('common.completed')} value={data.stats?.completed ?? 0} />
         </View>
       </Card>
     </Screen>

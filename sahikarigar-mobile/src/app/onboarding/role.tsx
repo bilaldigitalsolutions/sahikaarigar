@@ -4,6 +4,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { BrandLogo, Screen } from '@/components';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMode } from '@/contexts/ModeContext';
@@ -11,6 +12,7 @@ import { setHasSeenOnboarding } from '@/lib/storage';
 import { colors, fontSize, fontWeight, radius, spacing } from '@/theme';
 export default function RoleStep() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { role, roleChosen, setRole } = useMode();
   const done = async (r: 'worker' | 'employer') => {
@@ -39,15 +41,14 @@ export default function RoleStep() {
       </Pressable>
       <View style={styles.head}>
         <BrandLogo size={44} showWordmark={false} />
-        <Text style={styles.title}>Aap Kaun Hain?</Text>
+        <Text style={styles.title}>{t('auth.onboardingRole')}</Text>
         <Text style={styles.sub}>
-          Choose karke app aapke liye set ho jayega. Aap baad me apna account settings se manage
-          kar sakte hain.
+          {t('onboarding.roleSub')}
         </Text>
       </View>
-      <RoleCard icon="construct-outline" title="Main Kaarigar Hoon" desc="Job requests receive karo, availability manage karo, kaam badhao." active={roleChosen && role === 'worker'} onPress={() => { void done('worker'); }} />
-      <RoleCard icon="home-outline" title="Mujhe Kaarigar Hire Karna Hai" desc="Verified kaarigar dhundho, hire karo, kaam karwao." active={roleChosen && role === 'employer'} onPress={() => { void done('employer'); }} />
-      <Text style={styles.note}>Note: Kaarigar banne ke liye chhota registration form bharna padega. Registration free hai.</Text>
+      <RoleCard icon="construct-outline" title={t('onboarding.workerCardTitle')} desc={t('onboarding.workerCardDesc')} active={roleChosen && role === 'worker'} onPress={() => { void done('worker'); }} />
+      <RoleCard icon="home-outline" title={t('onboarding.employerCardTitle')} desc={t('onboarding.employerCardDesc')} active={roleChosen && role === 'employer'} onPress={() => { void done('employer'); }} />
+      <Text style={styles.note}>{t('onboarding.roleNote')}</Text>
     </Screen>
   );
 }

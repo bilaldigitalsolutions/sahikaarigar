@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, Text, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
 import { colors, fontSize } from '@/theme';
 
@@ -11,6 +12,7 @@ export interface RatingProps {
 
 /** Five-star rating with an optional review count. */
 export function Rating({ value, count, size = 16 }: RatingProps) {
+  const { t } = useTranslation();
   const rounded = Math.round(value);
   return (
     <View style={styles.row}>
@@ -22,9 +24,9 @@ export function Rating({ value, count, size = 16 }: RatingProps) {
           color={colors.warning}
         />
       ))}
-      <Text style={styles.value}>{value > 0 ? value.toFixed(1) : 'Naya'}</Text>
+      <Text style={styles.value}>{value > 0 ? value.toFixed(1) : t('rating.new')}</Text>
       {count !== undefined && count > 0 ? (
-        <Text style={styles.count}>({count})</Text>
+        <Text style={styles.count}>{t('home.reviewsCount', { count })}</Text>
       ) : null}
     </View>
   );

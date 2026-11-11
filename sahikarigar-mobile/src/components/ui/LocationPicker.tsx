@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Keyboard,
@@ -52,11 +53,6 @@ export interface LocationPickerProps {
   trigger?: (open: () => void) => ReactNode;
 }
 
-const ERROR_MESSAGE = 'Location could not be loaded. Please check your internet connection.';
-/** Subtle grey hint shown when the live search API fails / is too slow and only
- *  local results remain — this is a graceful fallback, NOT an error. */
-const FALLBACK_HINT = 'Showing saved Hyderabad areas (Live search offline)';
-
 const LOCATION_DEBUG =
   (typeof __DEV__ !== 'undefined' && __DEV__) ||
   process.env.EXPO_PUBLIC_OLA_MAPS_DEBUG === '1';
@@ -83,6 +79,7 @@ export function LocationPicker({
   icon = 'location-outline',
   trigger,
 }: LocationPickerProps) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<PickerItem[]>([]);
@@ -209,7 +206,7 @@ export function LocationPicker({
           // Remote failed or timed out — keep local results, show fallback hint
           // so the user knows they are seeing saved Hyderabad areas.
           setResults(localResults);
-          setError(FALLBACK_HINT);
+          setError(t('map.liveSearchOffline'));
           return;
         }
 
@@ -286,7 +283,7 @@ export function LocationPicker({
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        setError(ERROR_MESSAGE);
+        setError(t('map.locationCouldNotBeLoaded'));
         setLoading(false);
         return;
       }
@@ -307,7 +304,7 @@ export function LocationPicker({
         });
       }
     } catch {
-      setError(ERROR_MESSAGE);
+      setError(t('map.locationCouldNotBeLoaded'));
     } finally {
       setLoading(false);
     }
@@ -342,7 +339,7 @@ export function LocationPicker({
                 <Ionicons name="search" size={18} color={colors.textSecondary} />
                 <TextInput
                   style={styles.searchInput}
-                  placeholder="Search area or locality"
+                  placeholder={t('map.search')}
                   placeholderTextColor={colors.muted}
                   value={query}
                   onChangeText={setQuery}
@@ -364,7 +361,7 @@ export function LocationPicker({
               {loading && query.trim().length > 0 && localResults.length === 0 ? (
                 <View style={styles.loadingBox}>
                   <ActivityIndicator size="small" color={colors.primaryDark} />
-                  <Text style={styles.loadingText}>Loading locations...</Text>
+                  <Text style={styles.loadingText}>{t('map.loadingLocations')}</Text>
                 </View>
               ) : null}
 
@@ -387,7 +384,7 @@ export function LocationPicker({
                 disabled={loading}
               >
                 <Ionicons name="locate" size={18} color={colors.primaryDark} />
-                <Text style={styles.currentLocationText}>Use current location</Text>
+                <Text style={styles.currentLocationText}>{t('map.useCurrentLocation')}</Text>
               </Pressable>
 
               <ScrollView
@@ -403,7 +400,7 @@ export function LocationPicker({
                   >
                     <Ionicons name="add-circle-outline" size={18} color={colors.primaryDark} />
                     <Text style={styles.optionText} numberOfLines={2}>
-                      Use “{query.trim()}”
+                      {t('map.useTypedArea', { query: query.trim() })}
                     </Text>
                   </Pressable>
                 ) : null}
@@ -422,12 +419,12 @@ export function LocationPicker({
                 ))}
 
                 {!loading && query.trim().length === 0 ? (
-                  <Text style={styles.emptyText}>Start typing to search for an area.</Text>
+                  <Text style={styles.emptyText}>{t('map.startTyping')}</Text>
                 ) : null}
 
                 {!loading && !error && results.length === 0 && query.trim().length > 0 && localResults.length === 0 ? (
                   <Text style={styles.footNote}>
-                    No results found. You can still type any area and tap “Use …”.
+                    {t('map.noResults')}
                   </Text>
                 ) : null}
               </ScrollView>

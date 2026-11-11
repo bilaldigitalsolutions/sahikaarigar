@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import {
@@ -35,6 +36,7 @@ import { validateAadhaar } from '@/utils';
  */
 export default function EditProfileScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { user, refreshUser } = useAuth();
   const isWorker = user?.role === 'worker';
 
@@ -116,8 +118,8 @@ export default function EditProfileScreen() {
       setOriginalArea(workerArea);
     } catch {
       Alert.alert(
-        'Worker profile details load nahi ho payi',
-        'Please refresh the screen to try again.',
+        t('profile.loadFailedTitle'),
+        t('profile.loadFailedMessage'),
       );
     } finally {
       setLoadingProfile(false);
@@ -135,31 +137,31 @@ export default function EditProfileScreen() {
     const finalArea = (values.area ?? '').trim();
 
     if (finalName.length < VALIDATION.NAME_MIN_LENGTH) {
-      setError('Enter your full name.');
+      setError(t('profile.nameError'));
       valid = false;
     }
     if (finalArea.length < 3) {
-      setError('Select your area from the picker below.');
+      setError(t('profile.areaError'));
       valid = false;
     }
 
     if (loadingProfile) {
-      setError('Aapke kaarigar details abhi load ho rahe hain — thodi der me phir save karo.');
+      setError(t('profile.stillLoading'));
       valid = false;
     } else if (values.skills.length === 0) {
-      setError('Select at least one skill.');
+      setError(t('profile.skillsError'));
       valid = false;
     } else {
       const exp = Math.round(Number(values.experience));
       if (!Number.isFinite(exp) || exp < VALIDATION.MIN_EXPERIENCE || exp > VALIDATION.MAX_EXPERIENCE) {
-        setError(`Enter experience between ${VALIDATION.MIN_EXPERIENCE} and ${VALIDATION.MAX_EXPERIENCE} years.`);
+        setError(t('profile.experienceError', { min: VALIDATION.MIN_EXPERIENCE, max: VALIDATION.MAX_EXPERIENCE }));
         valid = false;
       }
     }
     if (valid) {
       const rateValue = Number(values.rate);
       if (!Number.isFinite(rateValue) || rateValue < VALIDATION.MIN_RATE || rateValue > VALIDATION.MAX_RATE) {
-        setError(`Enter a charge between ₹${VALIDATION.MIN_RATE} and ₹${VALIDATION.MAX_RATE}.`);
+        setError(t('profile.rateRangeError', { min: VALIDATION.MIN_RATE, max: VALIDATION.MAX_RATE }));
         valid = false;
       }
     }
@@ -169,7 +171,7 @@ export default function EditProfileScreen() {
       if (digits) {
         const check = validateAadhaar(digits);
         if (!check.valid) {
-          setError(check.error ?? 'Kripya valid 12-digit Aadhaar number daalein.');
+          setError(check.error ?? t('profile.aadhaarInvalid'));
           valid = false;
         }
       }
@@ -205,7 +207,7 @@ export default function EditProfileScreen() {
       await loadProfile();
       setShowSuccess(true);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not save your profile.');
+      setError(e instanceof Error ? e.message : t('profile.saveFailed'));
     } finally {
       setBusy(false);
     }
@@ -232,15 +234,15 @@ export default function EditProfileScreen() {
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-            <Text style={styles.title}>Update your details</Text>
+            <Text style={styles.title}>{t('profile.updateDetails')}</Text>
             <Text style={styles.subtitle}>
-              Registration ki sabhi details yahan badal sakte ho. Number khud nahi badalta.
+              {t('profile.updateSub')}
             </Text>
 
             {loadingProfile && (
               <View style={styles.loaderRow}>
                 <ActivityIndicator size="large" color={colors.primaryDark} />
-                <Text style={styles.noticeText}>Loading your details…</Text>
+                <Text style={styles.noticeText}>{t('profile.loadingDetails')}</Text>
               </View>
             )}
 
@@ -258,7 +260,7 @@ export default function EditProfileScreen() {
                 {terms ? <Ionicons name="checkmark" size={15} color={colors.white} /> : null}
               </View>
               <Text style={styles.termsText}>
-                I agree to the{' '}
+                {t('auth.consentAgreePrefix')}{' '}
                 <Text
                   style={styles.link}
                   onPress={(e) => {
@@ -266,9 +268,9 @@ export default function EditProfileScreen() {
                     Linking.openURL(LEGAL_URLS.terms).catch(() => {});
                   }}
                 >
-                  Terms &amp; Conditions
+                  {t('auth.termsConditions')}
                 </Text>{' '}
-                and{' '}
+                {t('auth.consentAnd')}{' '}
                 <Text
                   style={styles.link}
                   onPress={(e) => {
@@ -276,13 +278,13 @@ export default function EditProfileScreen() {
                     Linking.openURL(LEGAL_URLS.privacy).catch(() => {});
                   }}
                 >
-                  Privacy Policy
+                  {t('auth.privacyPolicy')}
                 </Text>
               </Text>
             </Pressable>
 
             <Button
-              label="Update Profile"
+              label={t('profile.updateProfile')}
               onPress={onSave}
               loading={busy || loadingProfile}
               disabled={busy || loadingProfile}
@@ -290,7 +292,7 @@ export default function EditProfileScreen() {
               style={styles.mt}
             />
 
-            <Text style={styles.support}>Need help? Contact support • {SUPPORT_PHONE}</Text>
+            <Text style={styles.support}>{t('profile.needHelpPhone', { phone: SUPPORT_PHONE })}</Text>
           </ScrollView>
 
           {/* Modern success popup — shown after profile is saved. */}
@@ -300,12 +302,12 @@ export default function EditProfileScreen() {
                 <View style={styles.successIcon}>
                   <Ionicons name="checkmark-circle" size={48} color="#16A34A" />
                 </View>
-                <Text style={styles.successTitle}>Profile Saved!</Text>
+                <Text style={styles.successTitle}>{t('profile.savedTitle')}</Text>
                 <Text style={styles.successMessage}>
-                  Aapki details save ho gayi hain.
+                  {t('profile.savedMessage')}
                 </Text>
                 <Pressable style={styles.successBtn} onPress={dismissSuccess}>
-                  <Text style={styles.successBtnText}>OK</Text>
+                  <Text style={styles.successBtnText}>{t('common.ok')}</Text>
                 </Pressable>
               </View>
             </View>
@@ -327,14 +329,14 @@ export default function EditProfileScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <Text style={styles.title}>Update your details</Text>
+          <Text style={styles.title}>{t('profile.updateDetails')}</Text>
           <Text style={styles.subtitle}>
-            Number ke saath yeh sab details badal sakte hain. Number khud nahi badalta.
+            {t('profile.updateSubEmployer')}
           </Text>
 
           <Input
-            label="Full name"
-            placeholder="Enter your full name"
+            label={t('profile.fullName')}
+            placeholder={t('profile.fullNamePlaceholder')}
             value={name}
             onChangeText={(text) => {
               setName(text);
@@ -345,17 +347,17 @@ export default function EditProfileScreen() {
           />
 
           <Input
-            label="Phone number"
+            label={t('profile.phoneNumber')}
             value={user?.phone}
             editable={false}
-            hint="Verified number — yahan nahi badal sakte"
+            hint={t('profile.phoneVerified')}
             containerStyle={styles.mt}
           />
 
           <View style={styles.mt}>
-            <Text style={styles.label}>Area</Text>
+            <Text style={styles.label}>{t('profile.areaLabel')}</Text>
             <LocationPicker
-              placeholder="Search area — Madhapur, Kukatpally…"
+              placeholder={t('profile.areaSearchPlaceholder')}
               value={area}
               onSelect={(place: PlaceResult) => {
                 setArea(place.description);
@@ -367,8 +369,8 @@ export default function EditProfileScreen() {
           </View>
 
           <Input
-            label="Address / landmark"
-            placeholder="House no., street, landmark"
+            label={t('profile.address')}
+            placeholder={t('profile.addressPlaceholder')}
             value={address}
             onChangeText={(text) => {
               setAddress(text);
@@ -382,13 +384,13 @@ export default function EditProfileScreen() {
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
           <Button
-            label="Update Profile"
+            label={t('profile.updateProfile')}
             onPress={onSave}
             loading={busy}
             size="lg"
             style={styles.saveBtn}
           />
-          <Text style={styles.support}>Need help? Contact support • {SUPPORT_PHONE}</Text>
+          <Text style={styles.support}>{t('profile.needHelpPhone', { phone: SUPPORT_PHONE })}</Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </Screen>

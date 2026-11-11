@@ -10,6 +10,7 @@ import * as Font from 'expo-font';
 import { Ionicons } from '@expo/vector-icons';
 
 // Initialize i18n
+import { initLanguage } from '@/lib/i18n';
 import '@/lib/i18n';
 import { useTranslation } from 'react-i18next';
 
@@ -67,6 +68,12 @@ function RootNavigator() {
   // Vector icons (Ionicons) must be loaded via Font.loadAsync BEFORE any screen
   // renders, otherwise icons show as 'X' boxes.
   const [fontsLoaded, setFontsLoaded] = useState(false);
+
+  // Restore the language the user picked in Profile (falls back to the device
+  // language). i18next's changeLanguage re-renders every t() consumer.
+  useEffect(() => {
+    void initLanguage();
+  }, []);
 
   useEffect(() => {
     let active = true;

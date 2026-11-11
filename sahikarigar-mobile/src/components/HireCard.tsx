@@ -62,10 +62,10 @@ export function HireCard({ hire, perspective, onPress, notice }: HireCardProps) 
             {title}
           </Text>
           {workerBadge ? (
-            <Badge label={`${workerBadge} Worker`} tone={workerBadgeTone(workerBadge)} />
+            <Badge label={t('dashboard.badgeWorker', { badge: workerBadge })} tone={workerBadgeTone(workerBadge)} />
           ) : null}
         </View>
-        <Badge label={HIRE_STATUS_LABELS[hire.status]} tone={TONE[hire.status] ?? 'neutral'} />
+        <Badge label={t(HIRE_STATUS_LABELS[hire.status])} tone={TONE[hire.status] ?? 'neutral'} />
       </View>
 
       {notice ? (

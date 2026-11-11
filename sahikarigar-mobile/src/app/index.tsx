@@ -1,18 +1,20 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import { ActivityIndicator, Image, StyleSheet, Text, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
 import { useAuth } from '@/contexts/AuthContext';
 import { getHasSeenOnboarding, getLocation, getRole } from '@/lib/storage';
 import { colors, fontSize, fontWeight, spacing } from '@/theme';
 
-/** Tagline shown under the logo. */
-const TAGLINE = 'Trusted Kaarigar, Har Kaam Ke Liye';
-
 export default function LoadingScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { user, initializing } = useAuth();
   const routedRef = useRef(false);
+
+  // Tagline shown under the logo.
+  const TAGLINE = t('common.tagline');
 
   useEffect(() => {
     if (routedRef.current) return;

@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Linking, StyleSheet, Text, View } from 'react-native';
 import { BrandLogo, Button, Card, Screen } from '@/components';
 import { setLocation } from '@/lib/storage';
@@ -83,6 +84,7 @@ function describePlace(place: Location.LocationGeocodedAddress | undefined) {
 
 export default function LocationStep() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { refreshUser } = useAuth();
   const [state, setState] = useState<LocationState>({ kind: 'locating' });
   const [syncing, setSyncing] = useState(false);
@@ -223,19 +225,19 @@ export default function LocationStep() {
       <View style={styles.head}>
         <BrandLogo size={44} showWordmark={false} />
         <Text style={styles.title}>
-          {state.kind === 'ready' ? 'Location mil gayi!' : 'Aapki location'}
+          {state.kind === 'ready' ? t('onboarding.locationFoundTitle') : t('onboarding.locationTitle')}
         </Text>
         <Text style={styles.sub}>
-          Aas-paas ke kaarigar aur jobs dikhane ke liye hum aapki current location use karte hain.
+          {t('onboarding.locationSub')}
         </Text>
       </View>
 
       {state.kind === 'locating' ? (
         <Card style={styles.stateCard}>
           <ActivityIndicator color={colors.primaryDark} />
-          <Text style={styles.stateTitle}>Location dhoondhi ja rahi hai…</Text>
+          <Text style={styles.stateTitle}>{t('onboarding.locating')}</Text>
           <Text style={styles.stateText}>
-            GPS se exact address nikala ja raha hai. Isme 15 second tak lag sakte hain.
+            {t('onboarding.locatingSub')}
           </Text>
         </Card>
       ) : null}
@@ -247,7 +249,7 @@ export default function LocationStep() {
               <View style={styles.pinWrap}>
                 <Ionicons name="location" size={20} color={colors.primaryDark} />
               </View>
-              <Text style={styles.addressLabel}>Aapki current location</Text>
+              <Text style={styles.addressLabel}>{t('onboarding.currentLocationLabel')}</Text>
             </View>
             <Text style={styles.area}>{state.area}</Text>
             <Text style={styles.address}>{state.address}</Text>
@@ -256,7 +258,7 @@ export default function LocationStep() {
             </Text>
             {state.approximate ? (
               <Text style={styles.note}>
-                Yeh last known location hai — exact position ke liye Refresh dabayein.
+                {t('onboarding.approximateNote')}
               </Text>
             ) : null}
           </Card>
@@ -265,14 +267,14 @@ export default function LocationStep() {
             <Card style={styles.stateCard}>
               <ActivityIndicator color={colors.primaryDark} />
               <Text style={styles.stateTitle}>
-                Location save ho rahi hai…
+                {t('onboarding.saving')}
               </Text>
             </Card>
           ) : null}
 
-          <Button label="Aage badhein" onPress={goNext} size="lg" />
+          <Button label={t('onboarding.continueButton')} onPress={goNext} size="lg" />
           <Button
-            label="Refresh location"
+            label={t('onboarding.refreshLocation')}
             variant="secondary"
             onPress={() => void load()}
             style={styles.secondaryBtn}
@@ -283,37 +285,37 @@ export default function LocationStep() {
       {state.kind === 'denied' ? (
         <Card style={styles.stateCard}>
           <Ionicons name="location-outline" size={34} color={colors.primaryDark} />
-          <Text style={styles.stateTitle}>Location permission chahiye</Text>
+          <Text style={styles.stateTitle}>{t('onboarding.permissionTitle')}</Text>
           <Text style={styles.stateText}>
             {state.canAskAgain
-              ? 'Aas-paas ke kaarigar dikhane ke liye location permission on karein.'
-              : 'Aas-paas ke kaarigar dikhane ke liye Settings me location permission on karein.'}
+              ? t('onboarding.permissionAskSub')
+              : t('onboarding.permissionSettingsSub')}
           </Text>
           <Button
-            label={state.canAskAgain ? 'Permission do' : 'Settings kholein'}
+            label={state.canAskAgain ? t('onboarding.grantPermission') : t('onboarding.openSettings')}
             onPress={onPermissionAction}
             style={styles.actionBtn}
           />
           {state.canAskAgain ? (
             <Button
-              label="Settings kholein"
+              label={t('onboarding.openSettings')}
               variant="ghost"
               onPress={() => void Linking.openSettings().catch(() => {})}
             />
           ) : null}
-          <Button label="Skip karke aage badhein" variant="ghost" onPress={() => void skip()} />
+          <Button label={t('onboarding.skipButton')} variant="ghost" onPress={() => void skip()} />
         </Card>
       ) : null}
 
       {state.kind === 'error' ? (
         <Card style={styles.stateCard}>
           <Ionicons name="cloud-offline-outline" size={34} color={colors.textSecondary} />
-          <Text style={styles.stateTitle}>Location nahi mili</Text>
+          <Text style={styles.stateTitle}>{t('onboarding.errorTitle')}</Text>
           <Text style={styles.stateText}>
-            GPS signal nahi mil raha. Check karein ki location on hai, phir Retry karein.
+            {t('onboarding.errorSub')}
           </Text>
-          <Button label="Retry" onPress={() => void load()} style={styles.actionBtn} />
-          <Button label="Skip karke aage badhein" variant="ghost" onPress={() => void skip()} />
+          <Button label={t('common.retry')} onPress={() => void load()} style={styles.actionBtn} />
+          <Button label={t('onboarding.skipButton')} variant="ghost" onPress={() => void skip()} />
         </Card>
       ) : null}
     </Screen>

@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Alert,
@@ -56,14 +57,15 @@ function matchesArea(worker: ApiWorker, area: string): boolean {
   return candidates.some((label) => needle.includes(label) || label.includes(needle));
 }
 
-/** "2 km away" / "5.4 km away" — no trailing zero for whole kilometres. */
+/** Distance number fed to home.kmAway ("2" / "5.4") — no trailing zero for whole kilometres. */
 function formatDistance(km: number): string {
   const rounded = Math.round(km * 10) / 10;
-  return `${Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1)} km away`;
+  return Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1);
 }
 
 export function SearchScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { user } = useAuth();
   const params = useLocalSearchParams<{ skill?: string; area?: string }>();
 
@@ -115,7 +117,7 @@ export function SearchScreen() {
         resultCount: (result.workers ?? []).length,
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not load workers.');
+      setError(e instanceof Error ? e.message : t('search.loadFailed'));
       setWorkers([]);
     } finally {
       setLoading(false);
@@ -189,7 +191,9 @@ export function SearchScreen() {
     router.replace('/(tabs)');
   };
 
-  const resultLabel = skill ? skillLabel(skill).toLowerCase() : 'workers';
+  const resultLabel = skill
+    ? skillLabel(skill).toLowerCase()
+    : t('common.workers').toLowerCase();
   // Only fall back to sample profiles when browsing with no criteria at all.
   const hasCriteria =
     Boolean(query.trim()) ||
@@ -208,13 +212,13 @@ export function SearchScreen() {
       contentStyle={styles.content}
       header={
         <View>
-          <Header title="SahiKaarigar" onBack={goBack} />
+          <Header title={t('common.appName')} onBack={goBack} />
           <View style={styles.searchWrap}>
             <View style={styles.searchBar}>
               <Ionicons name="search" size={20} color={colors.primaryDark} />
               <TextInput
                 style={styles.searchInput}
-                placeholder="plumber in Hyderabad"
+                placeholder={t('search.queryPlaceholder')}
                 placeholderTextColor={colors.muted}
                 value={query}
                 onChangeText={setQuery}
@@ -230,11 +234,11 @@ export function SearchScreen() {
             {/* Skills dropdown — kaunsa kaam karnewala chahiye. */}
             <View style={styles.skillsWrap}>
               <Select
-                placeholder="All skills"
+                placeholder={t('search.allSkills')}
                 value={skill ?? ALL_SKILLS}
                 options={[
-                  { value: ALL_SKILLS, label: 'All skills' },
-                  ...SKILLS.map((s) => ({ value: s.id, label: s.label })),
+                  { value: ALL_SKILLS, label: t('search.allSkills') },
+                  ...SKILLS.map((s) => ({ value: s.id, label: skillLabel(s.id) })),
                 ]}
                 onChange={(v) => setSkill(v === ALL_SKILLS ? null : v)}
               />
@@ -243,7 +247,7 @@ export function SearchScreen() {
             {/* Area search — kis area ke kaarigar dikhane hain. */}
             <View style={styles.areaWrap}>
               <LocationPicker
-                placeholder="Search area — e.g. Madhapur, Kukatpally"
+                placeholder={t('search.areaPlaceholder')}
                 value={areaFilter}
                 onSelect={(p) => setAreaFilter(p.description)}
                 icon="location-outline"
@@ -266,7 +270,7 @@ export function SearchScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <Section title="Popular filters" />
+        <Section title={t('search.popularFilters')} />
       <View style={styles.chipWrap}>
         {POPULAR_FILTERS.map((f) => {
           const active = filters.includes(f.id);
@@ -281,7 +285,7 @@ export function SearchScreen() {
                 size={15}
                 color={active ? colors.white : colors.primaryDark}
               />
-              <Text style={[styles.filterText, active && styles.filterTextActive]}>{f.label}</Text>
+              <Text style={[styles.filterText, active && styles.filterTextActive]}>{t(f.key)}</Text>
             </Pressable>
           );
         })}
@@ -303,9 +307,9 @@ export function SearchScreen() {
       ) : null}
 
       <View style={styles.sectionRow}>
-        <Text style={styles.sectionTitle}>Categories filter</Text>
+        <Text style={styles.sectionTitle}>{t('search.categoriesFilter')}</Text>
         <Pressable onPress={() => setSkill(null)} hitSlop={8}>
-          <Text style={styles.seeAll}>See all</Text>
+          <Text style={styles.seeAll}>{t('home.seeAll')}</Text>
         </Pressable>
       </View>
       <ScrollView
@@ -327,7 +331,7 @@ export function SearchScreen() {
                 color={active ? colors.white : colors.primaryDark}
               />
               <Text style={[styles.categoryText, active && styles.categoryTextActive]}>
-                {s.label}
+                {skillLabel(s.id)}
               </Text>
             </Pressable>
           );
@@ -335,25 +339,24 @@ export function SearchScreen() {
       </ScrollView>
 
       <View style={styles.priceHeader}>
-        <Text style={styles.sectionTitle}>Price range</Text>
+        <Text style={styles.sectionTitle}>{t('search.priceRange')}</Text>
         <Text style={styles.priceValue}>
-          ₹0 — ₹{maxPrice}
-          {maxPrice >= PRICE_MAX ? '+' : ''}
+          {t('search.priceRangeValue', { max: maxPrice, plus: maxPrice >= PRICE_MAX ? '+' : '' })}
         </Text>
       </View>
       <Text style={styles.priceSort}>
-        Sorted by:{' '}
+        {t('search.sortedBy')}{' '}
         {filters.includes('top')
-          ? 'Top Rated'
+          ? t('home.topRated')
           : customerLat != null && customerLng != null
-            ? 'Nearest first'
-            : 'Best match'}
+            ? t('search.nearestFirst')
+            : t('search.bestMatch')}
       </Text>
       <Slider min={0} max={PRICE_MAX} step={50} value={maxPrice} onChange={setMaxPrice} />
 
       <View style={styles.sectionRow}>
         <Text style={styles.sectionTitle}>
-          Results ({list.length} {resultLabel})
+          {t('search.resultsCount', { count: list.length, type: resultLabel })}
         </Text>
         <Pressable onPress={() => toggleFilter('top')} hitSlop={8}>
           <Ionicons name="options-outline" size={20} color={colors.textSecondary} />
@@ -365,21 +368,19 @@ export function SearchScreen() {
       ) : error ? (
         <View style={styles.emptyBox}>
           <Ionicons name="cloud-offline-outline" size={40} color={colors.muted} />
-          <Text style={styles.emptyTitle}>Something went wrong</Text>
+          <Text style={styles.emptyTitle}>{t('common.somethingWentWrong')}</Text>
           <Text style={styles.emptyText}>{error}</Text>
         </View>
       ) : list.length === 0 ? (
         <View style={styles.emptyBox}>
           <Ionicons name="search-outline" size={40} color={colors.muted} />
-          <Text style={styles.emptyTitle}>No workers found</Text>
-          <Text style={styles.emptyText}>Try another skill or price range.</Text>
+          <Text style={styles.emptyTitle}>{t('search.noWorkersFound')}</Text>
+          <Text style={styles.emptyText}>{t('search.tryAnotherHint')}</Text>
         </View>
       ) : (
         <>
           {usingDemo ? (
-            <Text style={styles.demoNote}>
-              Showing sample profiles — new workers appear here once approved.
-            </Text>
+            <Text style={styles.demoNote}>{t('search.demoNote')}</Text>
           ) : null}
           {list.map((w) => (
             <WorkerRow
@@ -389,10 +390,7 @@ export function SearchScreen() {
               userLng={customerLng}
               onPress={() =>
                 w.id.startsWith('demo-')
-                  ? Alert.alert(
-                      'Sample profile',
-                      'Real worker profiles will appear here once approved.',
-                    )
+                  ? Alert.alert(t('search.sampleProfileTitle'), t('search.sampleProfileBody'))
                   : router.push({ pathname: '/worker/[id]', params: { id: w.id } })
               }
             />
@@ -420,8 +418,9 @@ function WorkerRow({
   userLng: number | null;
   onPress: () => void;
 }) {
+  const { t } = useTranslation();
   const user = worker.user;
-  const name = user?.name ?? 'Kaarigar';
+  const name = user?.name ?? t('common.kaarigar');
   const areaId = user?.locationArea ?? worker.serviceAreas[0];
   const distance =
     userLat != null && userLng != null && worker.lat != null && worker.lng != null
@@ -437,32 +436,39 @@ function WorkerRow({
           {name}
         </Text>
         <Text style={styles.resultSkill} numberOfLines={1}>
-          {(worker.skills ?? []).map(skillLabel).join(' • ') || 'Kaarigar'}
+          {(worker.skills ?? []).map(skillLabel).join(' • ') || t('common.kaarigar')}
         </Text>
         <Text style={styles.resultMeta} numberOfLines={1}>
-          ★ {worker.ratingAverage.toFixed(1)} ({worker.ratingCount})
+          {t('search.ratingMeta', {
+            average: worker.ratingAverage.toFixed(1),
+            count: worker.ratingCount,
+          })}
           {areaId ? ` • ${areaLabel(areaId)}` : ''}
         </Text>
         <View style={styles.resultTagRow}>
           {distance != null ? (
             <View style={styles.distancePill}>
               <Ionicons name="navigate-outline" size={12} color={colors.primaryDark} />
-              <Text style={styles.distanceText}>{formatDistance(distance)}</Text>
+              <Text style={styles.distanceText}>
+                {t('home.kmAway', { distance: formatDistance(distance) })}
+              </Text>
             </View>
           ) : null}
           {worker.availability === 'available' ? (
             <View style={styles.availablePill}>
               <Ionicons name="checkmark-circle" size={13} color={colors.primaryDark} />
-              <Text style={styles.availableText}>Available Now</Text>
+              <Text style={styles.availableText}>{t('home.availableNow')}</Text>
             </View>
           ) : null}
         </View>
         {farAway ? (
-          <Text style={styles.farWarning}>Door hai, thoda time lagega.</Text>
+          <Text style={styles.farWarning}>{t('search.farAwayWarning')}</Text>
         ) : null}
       </View>
       <View style={styles.fromPill}>
-        <Text style={styles.fromText}>From {formatCurrency(worker.hourlyRate)}</Text>
+        <Text style={styles.fromText}>
+          {t('search.fromPrice', { price: formatCurrency(worker.hourlyRate) })}
+        </Text>
       </View>
     </Pressable>
   );

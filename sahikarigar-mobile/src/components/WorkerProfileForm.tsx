@@ -556,7 +556,7 @@ export function WorkerProfileForm({
         <Select
           placeholder="Select availability"
           value={values.availability}
-          options={AVAILABILITY_OPTIONS.map((a) => ({ value: a.value, label: a.label }))}
+          options={AVAILABILITY_OPTIONS.map((a) => ({ value: a.value, label: t(a.key) }))}
           onChange={(v) => onChange({ availability: v })}
         />
       </View>

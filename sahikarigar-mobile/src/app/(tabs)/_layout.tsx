@@ -2,6 +2,7 @@ import { Redirect, Tabs } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Image, Text, type ColorValue, type ImageSourcePropType } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 
 import { useAuth } from '@/contexts/AuthContext';
 import { useMode } from '@/contexts/ModeContext';
@@ -76,6 +77,7 @@ function TabIcon({
 }
 
 export default function TabsLayout() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { role, ready } = useMode();
   const insets = useSafeAreaInsets();
@@ -153,7 +155,7 @@ export default function TabsLayout() {
         <Tabs.Screen
           name="index"
           options={{
-            title: 'Home',
+            title: t('home.title'),
             tabBarIcon: ({ color }) => (
               <TabIcon
                 name="home"
@@ -168,7 +170,7 @@ export default function TabsLayout() {
         <Tabs.Screen
           name="hires"
           options={{
-            title: 'My Hires',
+            title: t('dashboard.myHires'),
             tabBarIcon: ({ color }) => (
               <TabIcon
                 name="briefcase"
@@ -187,7 +189,7 @@ export default function TabsLayout() {
         <Tabs.Screen
           name="index"
           options={{
-            title: 'Dashboard',
+            title: t('dashboard.dashboard'),
             tabBarIcon: ({ color }) => (
               <TabIcon
                 name="home"
@@ -202,7 +204,7 @@ export default function TabsLayout() {
         <Tabs.Screen
           name="jobs"
           options={{
-            title: 'My Work',
+            title: t('dashboard.myWork'),
             tabBarIcon: ({ color }) => (
               <TabIcon
                 name="briefcase"
@@ -218,7 +220,7 @@ export default function TabsLayout() {
         <Tabs.Screen
           name="availability"
           options={{
-            title: 'Availability',
+            title: t('common.availability'),
             tabBarIcon: ({ color }) => (
               <TabIcon
                 name="calendar"
@@ -233,7 +235,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
+          title: t('common.profile'),
           tabBarIcon: ({ color }) => (
             <TabIcon
               name="person"

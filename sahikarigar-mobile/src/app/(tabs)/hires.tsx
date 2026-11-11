@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -31,6 +32,7 @@ const ACTION_STATUSES = ['arrived'] as const;
 type Perspective = 'employer' | 'worker';
 
 export default function HiresScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { user } = useAuth();
   const [tab, setTab] = useState<Perspective>('employer');
@@ -44,7 +46,7 @@ export default function HiresScreen() {
     try {
       setData(await listHires());
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not load your bookings.');
+      setError(e instanceof Error ? e.message : t('hire.couldNotLoadBookings'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -82,10 +84,11 @@ export default function HiresScreen() {
   /** Jobs where the employer still has to share the start-work OTP. */
   const awaitingOtp = activeHires.filter(needsAction);
 
+  // Section titles are i18n keys (dashboard.*, hire.*) — translated at render.
   const sections = useMemo(
     () => [
-      { key: 'active', title: 'Active Jobs', data: activeHires },
-      { key: 'history', title: 'Previous History', data: historyHires },
+      { key: 'active', title: 'dashboard.activeJobs', data: activeHires },
+      { key: 'history', title: 'hire.previousHistory', data: historyHires },
     ],
     [activeHires, historyHires],
   );
@@ -93,31 +96,29 @@ export default function HiresScreen() {
   return (
     <Screen scroll={false} padded={false}>
       <View style={styles.header}>
-        <Text style={styles.heading}>My Hires</Text>
+        <Text style={styles.heading}>{t('dashboard.myHires')}</Text>
         <Text style={styles.subheading}>
-          {activeHires.length} active • {historyHires.length} in history
+          {t('hire.hiresSummary', { active: activeHires.length, history: historyHires.length })}
         </Text>
       </View>
 
       {!user ? (
         <View style={styles.guestBox}>
-          <Text style={styles.guestTitle}>Login karke apni bookings dekho</Text>
-          <Text style={styles.guestText}>
-            Guest mode me browse kar sakte ho — bookings dekhne ke liye login zaroori hai.
-          </Text>
-          <Button label="Login / Sign up" onPress={() => router.push('/(auth)/login')} />
+          <Text style={styles.guestTitle}>{t('hire.guestTitle')}</Text>
+          <Text style={styles.guestText}>{t('hire.guestSub')}</Text>
+          <Button label={t('auth.loginOrSignUp')} onPress={() => router.push('/(auth)/login')} />
         </View>
       ) : null}
 
       {isWorker ? (
         <View style={styles.segment}>
           <Segment
-            label="As Employer"
+            label={t('hire.asEmployer')}
             active={perspective === 'employer'}
             onPress={() => setTab('employer')}
           />
           <Segment
-            label="As Kaarigar"
+            label={t('hire.asKaarigar')}
             active={perspective === 'worker'}
             onPress={() => setTab('worker')}
           />
@@ -139,11 +140,9 @@ export default function HiresScreen() {
           <Ionicons name="key" size={18} color={colors.white} />
           <View style={styles.actionTextWrap}>
             <Text style={styles.actionTitle}>
-              {awaitingOtp.length === 1
-                ? 'Kaarigar pahunch gaya — OTP share karo'
-                : `${awaitingOtp.length} kaarigar pahunch gaye — OTP share karo`}
+              {t('hire.arrivedOtpTitle', { count: awaitingOtp.length })}
             </Text>
-            <Text style={styles.actionSub}>Tap karke OTP dekhein aur worker ko dijiye</Text>
+            <Text style={styles.actionSub}>{t('hire.arrivedOtpSub')}</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={colors.white} />
         </Pressable>
@@ -170,7 +169,7 @@ export default function HiresScreen() {
           }
           renderSectionHeader={({ section }) => (
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>{section.title}</Text>
+              <Text style={styles.sectionTitle}>{t(section.title)}</Text>
               <Text style={styles.sectionCount}>{section.data.length}</Text>
             </View>
           )}
@@ -180,7 +179,7 @@ export default function HiresScreen() {
               perspective={perspective}
               notice={
                 perspective === 'employer' && needsAction(item)
-                  ? { label: 'OTP Ready — tap to show' }
+                  ? { label: t('hire.otpReadyNotice') }
                   : undefined
               }
               onPress={() =>
@@ -192,17 +191,17 @@ export default function HiresScreen() {
             error ? (
               <EmptyState
                 icon="cloud-offline-outline"
-                title="Something went wrong"
+                title={t('common.somethingWentWrong')}
                 subtitle={error}
               />
             ) : (
               <EmptyState
                 icon="briefcase-outline"
-                title="No bookings yet"
+                title={t('hire.noBookingsYet')}
                 subtitle={
                   perspective === 'employer'
-                    ? 'Hire a worker to get started.'
-                    : 'Bookings you receive will show up here.'
+                    ? t('hire.emptyEmployerSub')
+                    : t('hire.emptyWorkerSub')
                 }
               />
             )

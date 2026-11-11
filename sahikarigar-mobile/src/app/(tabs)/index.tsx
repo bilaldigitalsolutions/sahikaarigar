@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, BackHandler, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import {
@@ -30,6 +31,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const { user, refreshUser } = useAuth();
   const { role } = useMode();
+  const { t } = useTranslation();
   const [workers, setWorkers] = useState<ApiWorker[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -136,7 +138,9 @@ export default function HomeScreen() {
     .sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')))
     .slice(0, 4);
   const area = user?.locationArea ? areaLabel(user.locationArea) : null;
-  const locationText = area ? `${area}, ${user?.locationCity ?? 'Hyderabad'}` : 'Hyderabad';
+  const locationText = area
+    ? `${area}, ${user?.locationCity ?? t('common.defaultCity')}`
+    : t('common.defaultCity');
   const openSearch = () => router.push('/(tabs)/search');
 
   const onSelectArea = async (place: PlaceResult) => {
@@ -174,18 +178,18 @@ export default function HomeScreen() {
         <View style={styles.brandRow}>
           <View style={styles.brandLeft}>
             {!user ? (
-              <Pressable onPress={() => router.replace('/onboarding/role' as never)} hitSlop={10} accessibilityLabel="Back">
+              <Pressable onPress={() => router.replace('/onboarding/role' as never)} hitSlop={10} accessibilityLabel={t('common.back')}>
                 <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
               </Pressable>
             ) : router.canGoBack() ? (
-              <Pressable onPress={() => router.back()} hitSlop={10} accessibilityLabel="Back">
+              <Pressable onPress={() => router.back()} hitSlop={10} accessibilityLabel={t('common.back')}>
                 <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
               </Pressable>
             ) : null}
             <BrandLogo size={30} />
           </View>
           <LocationPicker
-            placeholder="Select area"
+            placeholder={t('map.selectArea')}
             value={locationText}
             onSelect={onSelectArea}
             trigger={(open) => (
@@ -203,7 +207,7 @@ export default function HomeScreen() {
         <Pressable style={styles.searchBar} onPress={openSearch}>
           <Ionicons name="search" size={20} color={colors.textSecondary} />
           <Text style={styles.searchPlaceholder} numberOfLines={1}>
-            Search for plumbers, electricians, cleaning...
+            {t('home.searchPlaceholder')}
           </Text>
         </Pressable>
       </View>
@@ -217,11 +221,11 @@ export default function HomeScreen() {
       >
         <Pressable style={styles.mapBar} onPress={() => router.push('/map')}>
           <Ionicons name="map-outline" size={18} color={colors.primaryDark} />
-          <Text style={styles.mapBarText}>View service areas on the map</Text>
+          <Text style={styles.mapBarText}>{t('home.viewServiceAreas')}</Text>
           <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
         </Pressable>
 
-        <Text style={styles.sectionTitle}>Services</Text>
+        <Text style={styles.sectionTitle}>{t('home.services')}</Text>
         <View style={styles.servicesRow}>
           {HOME_SERVICES.map((s) => (
             <Pressable
@@ -237,19 +241,21 @@ export default function HomeScreen() {
                 />
               </View>
               <Text style={styles.serviceLabel} numberOfLines={1}>
-                {s.label}
+                {skillLabel(s.id)}
               </Text>
               {counts[s.id] != null ? (
-                <Text style={styles.serviceCount}>{counts[s.id]} workers</Text>
+                <Text style={styles.serviceCount}>
+                  {t('home.workersCount', { count: counts[s.id] })}
+                </Text>
               ) : null}
             </Pressable>
           ))}
         </View>
 
         <View style={styles.sectionRow}>
-          <Text style={styles.sectionTitle}>Naye Kaarigar ✨</Text>
+          <Text style={styles.sectionTitle}>{t('home.newWorkers')}</Text>
           <Pressable onPress={openSearch} hitSlop={8}>
-            <Text style={styles.seeAll}>See all ›</Text>
+            <Text style={styles.seeAll}>{t('home.seeAll')} ›</Text>
           </Pressable>
         </View>
 
@@ -258,7 +264,7 @@ export default function HomeScreen() {
         ) : recentWorkers.length === 0 ? (
           <View style={styles.emptyBox}>
             <Ionicons name="search-outline" size={36} color={colors.muted} />
-            <Text style={styles.emptyText}>No workers available right now.</Text>
+            <Text style={styles.emptyText}>{t('home.noWorkers')}</Text>
           </View>
         ) : (
           recentWorkers.map((worker) => (
@@ -292,8 +298,9 @@ function HomeWorkerCard({
   onPress: () => void;
   onBook: () => void;
 }) {
+  const { t } = useTranslation();
   const user = worker.user;
-  const name = user?.name ?? 'Kaarigar';
+  const name = user?.name ?? t('common.kaarigar');
   const primarySkill = worker.skills[0];
   const areaId = user?.locationArea ?? worker.serviceAreas[0];
 
@@ -312,24 +319,26 @@ function HomeWorkerCard({
         {primarySkill ? (
           <View style={styles.skillPill}>
             <Text style={styles.skillPillText}>
-              {skillLabel(primarySkill)} • {worker.experience} yrs exp
+              {skillLabel(primarySkill)} • {t('home.yrsExp', { count: worker.experience })}
             </Text>
           </View>
         ) : null}
         <View style={styles.ratingRow}>
           <Rating value={worker.ratingAverage} size={13} />
-          <Text style={styles.reviewCount}>({worker.ratingCount} reviews)</Text>
+          <Text style={styles.reviewCount}>
+            {t('home.reviewsCount', { count: worker.ratingCount })}
+          </Text>
         </View>
         <View style={styles.metaRow}>
           <Ionicons name="location-outline" size={13} color={colors.textSecondary} />
           <Text style={styles.metaText} numberOfLines={1}>
-            {distance != null ? `${distance} km away` : 'Hyderabad'}
+            {distance != null ? t('home.kmAway', { distance }) : t('common.defaultCity')}
             {areaId ? ` • ${areaLabel(areaId)}` : ''}
           </Text>
         </View>
       </View>
       <Pressable style={styles.bookBtn} onPress={onBook}>
-        <Text style={styles.bookBtnText}>Hire</Text>
+        <Text style={styles.bookBtnText}>{t('home.hire')}</Text>
       </Pressable>
     </Pressable>
   );
@@ -349,6 +358,7 @@ function WorkerHomeScreen({
   onRefresh: () => void;
 }) {
   const router = useRouter();
+  const { t } = useTranslation();
   const [refreshing, setRefreshing] = useState(false);
   const isApproved = dashboard?.worker?.isApproved ?? false;
   const stats = dashboard?.stats;
@@ -371,15 +381,13 @@ function WorkerHomeScreen({
   if (!isApproved) {
     return (
       <Screen scroll>
-        <Text style={styles.heading}>Kaarigar Dashboard</Text>
+        <Text style={styles.heading}>{t('dashboard.title')}</Text>
         <View style={styles.pendingCard}>
           <View style={styles.pendingIcon}>
             <Ionicons name="hourglass-outline" size={32} color={colors.warning} />
           </View>
-          <Text style={styles.pendingTitle}>Verification Pending</Text>
-          <Text style={styles.pendingText}>
-            Aapka profile verification ke under hai. Approve hone par aapko jobs milna shuru honge.
-          </Text>
+          <Text style={styles.pendingTitle}>{t('dashboard.verificationPending')}</Text>
+          <Text style={styles.pendingText}>{t('dashboard.verificationSub')}</Text>
           {loadingExtra ? (
             <ActivityIndicator
               color={colors.warning}
@@ -407,7 +415,7 @@ function WorkerHomeScreen({
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.heading}>Kaarigar Dashboard</Text>
+        <Text style={styles.heading}>{t('dashboard.title')}</Text>
 
         {loadingExtra && !dashboard ? (
           <View style={styles.center}>
@@ -418,36 +426,41 @@ function WorkerHomeScreen({
             {/* Performance Score + badge */}
             <View style={styles.performanceCard}>
               <View style={styles.performanceInfo}>
-                <Text style={styles.performanceLabel}>Performance Score</Text>
-                <Text style={styles.performanceValue}>{performanceScore}% On-Time</Text>
+                <Text style={styles.performanceLabel}>{t('dashboard.performanceScore')}</Text>
+                <Text style={styles.performanceValue}>
+                  {t('dashboard.performanceValue', { percent: performanceScore })}
+                </Text>
                 <Text style={styles.performanceMeta}>
                   {totalJobs > 0
-                    ? `${onTimeJobs} of ${totalJobs} completed jobs arrived on time`
-                    : 'Complete your first job to start building your score.'}
+                    ? t('dashboard.onTimeMeta', { onTime: onTimeJobs, total: totalJobs })
+                    : t('dashboard.noJobsScoreHint')}
                 </Text>
               </View>
-              <Badge label={`${workerBadge} Worker`} tone={workerBadgeTone(workerBadge)} />
+              <Badge
+                label={t('dashboard.badgeWorker', { badge: workerBadge })}
+                tone={workerBadgeTone(workerBadge)}
+              />
             </View>
 
             {/* Dashboard Cards */}
             <View style={styles.cardsRow}>
               <DashboardCard
                 icon="paper-plane"
-                label="New Requests"
+                label={t('dashboard.newRequests')}
                 count={stats?.pending ?? 0}
                 color={colors.primary}
                 onPress={() => router.push('/(tabs)/jobs')}
               />
               <DashboardCard
                 icon="briefcase"
-                label="Active Jobs"
+                label={t('dashboard.activeJobs')}
                 count={stats?.active ?? 0}
                 color={colors.warning}
                 onPress={() => router.push('/(tabs)/my-jobs' as any)}
               />
               <DashboardCard
                 icon="checkmark-circle"
-                label="Completed"
+                label={t('dashboard.completed')}
                 count={stats?.completed ?? 0}
                 color={colors.success}
                 onPress={() => router.push('/(tabs)/my-jobs' as any)}
@@ -455,13 +468,13 @@ function WorkerHomeScreen({
             </View>
 
             {/* New Job Requests */}
-            <Text style={styles.sectionTitle}>New Job Requests</Text>
+            <Text style={styles.sectionTitle}>{t('dashboard.newJobRequests')}</Text>
             {loadingExtra ? (
               <ActivityIndicator color={colors.primaryDark} style={styles.loader} />
             ) : newRequests.length === 0 ? (
               <View style={styles.emptyBox}>
                 <Ionicons name="briefcase-outline" size={36} color={colors.muted} />
-                <Text style={styles.emptyText}>No new job requests right now.</Text>
+                <Text style={styles.emptyText}>{t('dashboard.noNewRequests')}</Text>
               </View>
             ) : (
               newRequests.map((hire) => (
@@ -477,12 +490,14 @@ function WorkerHomeScreen({
             )}
 
             {/* My Active Jobs */}
-            <Text style={[styles.sectionTitle, { marginTop: spacing.lg }]}>My Active Jobs</Text>
+            <Text style={[styles.sectionTitle, { marginTop: spacing.lg }]}>
+              {t('dashboard.myActiveJobs')}
+            </Text>
             {dashboard ? (
               (dashboard.active ?? []).length === 0 ? (
                 <View style={styles.emptyBox}>
                   <Ionicons name="checkmark-circle-outline" size={36} color={colors.muted} />
-                  <Text style={styles.emptyText}>No active jobs right now.</Text>
+                  <Text style={styles.emptyText}>{t('dashboard.noActiveJobs')}</Text>
                 </View>
               ) : (
                 (dashboard.active ?? []).map((hire: any) => (

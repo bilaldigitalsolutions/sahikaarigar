@@ -1,4 +1,6 @@
 // App Constants
+import i18n from '@/lib/i18n';
+
 import type { HireStatus } from '@/types';
 
 export const APP_NAME = 'Sahi Kaarigar';
@@ -24,9 +26,29 @@ export const SKILLS = [
 
 export type SkillId = (typeof SKILLS)[number]['id'];
 
-/** Human label for a skill id (falls back to the raw id). */
+/** i18n key (common.*) for every skill id — labels follow the app language. */
+const SKILL_I18N_KEYS: Record<string, string> = {
+  electrician: 'Electrician',
+  plumber: 'Plumber',
+  painter: 'Painter',
+  carpenter: 'Carpenter',
+  'ac repair': 'ACRepair',
+  cleaning: 'Cleaning',
+  driver: 'Driver',
+  mason: 'Mason',
+  welder: 'Welder',
+  mechanic: 'Mechanic',
+  gardener: 'Gardener',
+  cook: 'Cook',
+  flooring: 'Flooring',
+  others: 'Others',
+};
+
+/** Translated human label for a skill id (falls back to the raw id). */
 export function skillLabel(id: string): string {
-  return SKILLS.find((s) => s.id === id)?.label ?? id;
+  const key = SKILL_I18N_KEYS[id];
+  if (!key) return id;
+  return i18n.t(`common.${key}`) as string;
 }
 
 /** Emoji icon for a skill id (falls back to a generic wrench). */
@@ -75,16 +97,16 @@ export const HIRE_STATUS = {
   IN_PROGRESS: 'in_progress',
 } as const;
 
-/** User-facing label for a hire status. */
+/** i18n keys (common.*) for each hire status — translate at render with t(). */
 export const HIRE_STATUS_LABELS: Record<HireStatus, string> = {
-  pending: 'Pending',
-  accepted: 'Accepted',
-  rejected: 'Rejected',
-  completed: 'Completed',
-  cancelled: 'Cancelled',
-  en_route: 'On the way',
-  arrived: 'Arrived',
-  in_progress: 'In progress',
+  pending: 'common.pending',
+  accepted: 'common.accepted',
+  rejected: 'common.rejected',
+  completed: 'common.completed',
+  cancelled: 'common.cancelled',
+  en_route: 'common.enRoute',
+  arrived: 'common.arrived',
+  in_progress: 'common.inProgress',
 };
 
 // Availability Status
@@ -156,12 +178,12 @@ export const HOME_SERVICES = [
   { id: 'cleaning', label: 'Cleaning' },
 ] as const;
 
-/** Quick filter pills on the Search screen. */
+/** Quick filter pills on the Search screen. `key` is the i18n key to render. */
 export const POPULAR_FILTERS = [
-  { id: 'near', label: 'Near Me', icon: 'location-outline' },
-  { id: 'top', label: 'Top Rated', icon: 'star-outline' },
-  { id: 'under300', label: 'Under ₹300', icon: 'pricetag-outline' },
-  { id: 'available', label: 'Available Now', icon: 'time-outline' },
+  { id: 'near', label: 'Near Me', icon: 'location-outline', key: 'home.nearMe' },
+  { id: 'top', label: 'Top Rated', icon: 'star-outline', key: 'home.topRated' },
+  { id: 'under300', label: 'Under ₹300', icon: 'pricetag-outline', key: 'home.under300' },
+  { id: 'available', label: 'Available Now', icon: 'time-outline', key: 'home.availableNow' },
 ] as const;
 
 export type PopularFilterId = (typeof POPULAR_FILTERS)[number]['id'];
@@ -173,17 +195,27 @@ export const RECENT_SEARCHES = [
   'plumber in Banjara Hills',
 ] as const;
 
-/** Chips in the feedback screen's "What did you like?" list — customer rating the worker. */
-export const CUSTOMER_LIKES = ['On-time', 'Professional', 'Clean Work', 'Fair Pricing'] as const;
+/** i18n keys (feedback.*) for the "What did you like?" chips — customer rating the worker. */
+export const CUSTOMER_LIKES = [
+  'feedback.likeOnTime',
+  'feedback.likeProfessional',
+  'feedback.likeCleanWork',
+  'feedback.likeFairPricing',
+] as const;
 
-/** Chips in the feedback screen's "What did you like?" list — worker rating the customer. */
-export const WORKER_LIKES = ['Paid on time', 'Polite behaviour', 'Clear instructions', 'Easy to work with'] as const;
+/** i18n keys (feedback.*) for the like chips — worker rating the customer. */
+export const WORKER_LIKES = [
+  'feedback.likePaidOnTime',
+  'feedback.likePoliteBehaviour',
+  'feedback.likeClearInstructions',
+  'feedback.likeEasyToWorkWith',
+] as const;
 
-/** Availability choices on the Join as Kaarigar form. */
+/** Availability choices on the Join as Kaarigar form. `key` is the i18n key to render. */
 export const AVAILABILITY_OPTIONS = [
-  { value: 'full-time', label: 'Full-time • Mon to Sat, 9am–6pm' },
-  { value: 'part-time', label: 'Part-time • Flexible hours' },
-  { value: 'weekends', label: 'Weekends only' },
+  { value: 'full-time', label: 'Full-time • Mon to Sat, 9am–6pm', key: 'profile.availFullTime' },
+  { value: 'part-time', label: 'Part-time • Flexible hours', key: 'profile.availPartTime' },
+  { value: 'weekends', label: 'Weekends only', key: 'profile.availWeekends' },
 ] as const;
 
 /** Live legal pages (served by the website) — opened in the phone's browser. */

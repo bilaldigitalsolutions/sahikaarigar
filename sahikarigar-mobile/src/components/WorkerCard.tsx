@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, Text, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
 import { Avatar, Badge, Card, Rating } from '@/components/ui';
 import { areaLabel, skillLabel } from '@/constants';
@@ -13,8 +14,9 @@ export interface WorkerCardProps {
 }
 
 export function WorkerCard({ worker, onPress }: WorkerCardProps) {
+  const { t } = useTranslation();
   const user = worker.user;
-  const name = user?.name ?? 'Kaarigar';
+  const name = user?.name ?? t('common.kaarigar');
   const area = user?.locationArea ?? worker.serviceAreas[0];
 
   return (
@@ -31,14 +33,14 @@ export function WorkerCard({ worker, onPress }: WorkerCardProps) {
             ) : null}
           </View>
           <Text style={styles.skills} numberOfLines={1}>
-            {(worker.skills ?? []).map(skillLabel).join(' • ') || 'Kaarigar'}
+            {(worker.skills ?? []).map(skillLabel).join(' • ') || t('common.kaarigar')}
           </Text>
           <Rating value={worker.ratingAverage} count={worker.ratingCount} />
         </View>
       </View>
 
       <View style={styles.footer}>
-        <Badge label={`${formatCurrency(worker.hourlyRate)}/hr`} tone="primary" />
+        <Badge label={`${formatCurrency(worker.hourlyRate)}${t('hireDetail.ratePerHourShort')}`} tone="primary" />
         {area ? <Text style={styles.area}>{areaLabel(area)}</Text> : null}
       </View>
     </Card>

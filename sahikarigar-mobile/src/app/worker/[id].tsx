@@ -21,6 +21,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
 import { Avatar, Badge, Header, Rating, Screen } from '@/components';
 import { areaLabel, skillIconName, skillLabel, skillServices } from '@/constants';
@@ -40,12 +41,13 @@ import {
 type Tab = 'about' | 'services' | 'reviews';
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'about', label: 'About' },
-  { id: 'services', label: 'Services' },
-  { id: 'reviews', label: 'Reviews' },
+  { id: 'about', label: 'common.about' },
+  { id: 'services', label: 'common.services' },
+  { id: 'reviews', label: 'common.reviews' },
 ];
 
 export default function WorkerDetailScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { user } = useAuth();
   const params = useLocalSearchParams<{ id: string }>();
@@ -72,7 +74,7 @@ export default function WorkerDetailScreen() {
         }
       })
       .catch((e) => {
-        if (active) setError(e instanceof Error ? e.message : 'Could not load this worker.');
+        if (active) setError(e instanceof Error ? e.message : t('workerScreen.loadFailed'));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -82,7 +84,7 @@ export default function WorkerDetailScreen() {
     };
   }, [id]);
 
-  const name = worker?.user?.name ?? 'Kaarigar';
+  const name = worker?.user?.name ?? t('common.kaarigar');
   const workerUser = worker?.user;
   const workerBadge = getWorkerBadge(worker);
 
@@ -96,8 +98,8 @@ export default function WorkerDetailScreen() {
     // GET /hires/:id se milta hai, booking accept hone ke baad). Sirf yahi
     // prompt dikhao: number chahiye toh login karke hire karo.
     Alert.alert(
-      'Number hire ke baad milega',
-      'Login karo aur kaarigar ko hire karo — number sirf booking accept hone ke baad dikhta hai.',
+      t('workerScreen.numberAfterHireTitle'),
+      t('workerScreen.numberAfterHireMessage'),
     );
   };
 
@@ -111,7 +113,7 @@ export default function WorkerDetailScreen() {
   };
 
   return (
-    <Screen padded={false} edges={['bottom']} header={<Header title="Worker Profile" showBack={false} />}>
+    <Screen padded={false} edges={['bottom']} header={<Header title={t('workerScreen.title')} showBack={false} />}>
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator color={colors.primaryDark} />
@@ -119,7 +121,7 @@ export default function WorkerDetailScreen() {
       ) : error || !worker ? (
         <View style={styles.center}>
           <Ionicons name="alert-circle-outline" size={48} color={colors.muted} />
-          <Text style={styles.errorText}>{error ?? 'Worker not found.'}</Text>
+          <Text style={styles.errorText}>{error ?? t('workerScreen.notFound')}</Text>
         </View>
       ) : (
         <>
@@ -142,7 +144,7 @@ export default function WorkerDetailScreen() {
                 {workerUser?.isVerified ? (
                   <View style={styles.verifiedBadge}>
                     <Ionicons name="checkmark-circle" size={14} color={colors.white} />
-                    <Text style={styles.verifiedBadgeText}>Verified</Text>
+                    <Text style={styles.verifiedBadgeText}>{t('common.verified')}</Text>
                   </View>
                 ) : null}
               </View>
@@ -151,15 +153,20 @@ export default function WorkerDetailScreen() {
                 <Ionicons name="star" size={16} color={colors.star} />
                 <Text style={styles.ratingValue}>{(worker.ratingAverage ?? 0).toFixed(1)}</Text>
                 <Text style={styles.ratingMeta}>
-                  ({worker.ratingCount} {worker.ratingCount === 1 ? 'review' : 'reviews'})
+                  {t('home.reviewsCount', { count: worker.ratingCount })}
                 </Text>
               </View>
 
               <View style={styles.badgeRow}>
-                <Badge label={`${workerBadge} Worker`} tone={workerBadgeTone(workerBadge)} />
+                <Badge
+                  label={t('workerScreen.badgeWorkerLabel', { badge: workerBadge })}
+                  tone={workerBadgeTone(workerBadge)}
+                />
                 {worker.totalJobsCompleted > 0 ? (
                   <Badge
-                    label={`${Math.round(worker.systemRatingScore ?? 0)}% On-Time`}
+                    label={t('workerScreen.onTimePercent', {
+                      percent: Math.round(worker.systemRatingScore ?? 0),
+                    })}
                     tone="success"
                   />
                 ) : null}
@@ -169,13 +176,13 @@ export default function WorkerDetailScreen() {
                 <View style={styles.statPill}>
                   <Ionicons name="briefcase-outline" size={14} color={colors.primaryDark} />
                   <Text style={styles.statPillText}>
-                    {worker.experience} {worker.experience === 1 ? 'yr' : 'yrs'} experience
+                    {t('workerScreen.experienceYears', { count: worker.experience })}
                   </Text>
                 </View>
                 <View style={styles.statPill}>
                   <Ionicons name="checkmark-done-outline" size={14} color={colors.primaryDark} />
                   <Text style={styles.statPillText}>
-                    {worker.completedJobs} jobs done
+                    {t('workerScreen.jobsDone', { count: worker.completedJobs })}
                   </Text>
                 </View>
               </View>
@@ -192,27 +199,31 @@ export default function WorkerDetailScreen() {
                     ? areaLabel(workerUser.locationArea)
                     : worker.serviceAreas?.[0]
                       ? areaLabel(worker.serviceAreas[0])
-                      : 'Hyderabad'}
+                      : t('common.defaultCity')}
                   {workerUser?.locationCity ? `, ${workerUser.locationCity}` : ''}
                 </Text>
                 <Text style={styles.locationMeta}>
-                  {distance != null ? `${distance} km from you` : 'Serves all Hyderabad areas'}
+                  {distance != null
+                    ? t('workerScreen.kmFromYou', { distance })
+                    : t('workerScreen.servesAllAreas')}
                 </Text>
               </View>
             </View>
 
             {/* ---------------- Tabs ---------------- */}
             <View style={styles.tabTrack}>
-              {TABS.map((t) => {
-                const active = tab === t.id;
+              {TABS.map((tabItem) => {
+                const active = tab === tabItem.id;
                 return (
                   <Pressable
-                    key={t.id}
+                    key={tabItem.id}
                     style={[styles.tabPill, active && styles.tabPillActive]}
-                    onPress={() => setTab(t.id)}
+                    onPress={() => setTab(tabItem.id)}
                     accessibilityState={{ selected: active }}
                   >
-                    <Text style={[styles.tabText, active && styles.tabTextActive]}>{t.label}</Text>
+                    <Text style={[styles.tabText, active && styles.tabTextActive]}>
+                      {t(tabItem.label)}
+                    </Text>
                   </Pressable>
                 );
               })}
@@ -221,12 +232,12 @@ export default function WorkerDetailScreen() {
             {/* ---------------- About ---------------- */}
             {tab === 'about' ? (
               <View style={styles.sectionCard}>
-                <Text style={styles.sectionTitle}>About</Text>
+                <Text style={styles.sectionTitle}>{t('common.about')}</Text>
                 <Text style={styles.aboutText}>
-                  {worker.description || 'This worker has not added a description yet.'}
+                  {worker.description || t('workerScreen.noDescription')}
                 </Text>
 
-                <Text style={[styles.sectionTitle, styles.sectionGap]}>Skills</Text>
+                <Text style={[styles.sectionTitle, styles.sectionGap]}>{t('common.skills')}</Text>
                 <View style={styles.skillWrap}>
                   {(worker.skills?.length ?? 0) > 0 ? (
                     worker.skills.map((s) => (
@@ -240,11 +251,13 @@ export default function WorkerDetailScreen() {
                       </View>
                     ))
                   ) : (
-                    <Text style={styles.emptyText}>No skills added yet.</Text>
+                    <Text style={styles.emptyText}>{t('workerScreen.noSkills')}</Text>
                   )}
                 </View>
 
-                <Text style={[styles.sectionTitle, styles.sectionGap]}>Availability</Text>
+                <Text style={[styles.sectionTitle, styles.sectionGap]}>
+                  {t('common.availability')}
+                </Text>
                 <View style={styles.availabilityRow}>
                   <View
                     style={[
@@ -254,10 +267,10 @@ export default function WorkerDetailScreen() {
                   />
                   <Text style={styles.availabilityText}>
                     {worker.availability === 'available'
-                      ? 'Available for new work'
+                      ? t('workerScreen.statusAvailable')
                       : worker.availability === 'busy'
-                        ? 'Currently busy'
-                        : 'Currently offline'}
+                        ? t('workerScreen.statusBusy')
+                        : t('workerScreen.statusOffline')}
                   </Text>
                 </View>
               </View>
@@ -266,7 +279,7 @@ export default function WorkerDetailScreen() {
             {/* ---------------- Services ---------------- */}
             {tab === 'services' ? (
               <View style={styles.sectionCard}>
-                <Text style={styles.sectionTitle}>Services &amp; Pricing</Text>
+                <Text style={styles.sectionTitle}>{t('workerScreen.servicesPricing')}</Text>
                 {worker.skills.flatMap((s) => skillServices(s)).slice(0, 6).length > 0 ? (
                   worker.skills
                     .flatMap((s) => skillServices(s))
@@ -289,7 +302,7 @@ export default function WorkerDetailScreen() {
                     ))
                 ) : (
                   <Text style={styles.emptyText}>
-                    No service list yet — rate is {formatCurrency(worker.hourlyRate)} per hour.
+                    {t('workerScreen.noServiceList', { rate: formatCurrency(worker.hourlyRate) })}
                   </Text>
                 )}
               </View>
@@ -300,13 +313,15 @@ export default function WorkerDetailScreen() {
               <View style={styles.sectionCard}>
                 <View style={styles.reviewsHead}>
                   <Text style={styles.sectionTitle}>
-                    Reviews{worker.ratingCount > 0 ? ` (${worker.ratingCount})` : ''}
+                    {t('workerScreen.reviewsTitle', {
+                      count: worker.ratingCount > 0 ? ` (${worker.ratingCount})` : '',
+                    })}
                   </Text>
                   {worker.ratingCount > 0 ? (
                     <Rating value={worker.ratingAverage} size={14} />
                   ) : (
                     <Pressable onPress={openGoogleReviews} hitSlop={8}>
-                      <Text style={styles.googleLink}>See on Google ›</Text>
+                      <Text style={styles.googleLink}>{t('workerScreen.seeOnGoogle')}</Text>
                     </Pressable>
                   )}
                 </View>
@@ -316,13 +331,13 @@ export default function WorkerDetailScreen() {
                     <View key={review.id} style={styles.reviewCard}>
                       <Avatar
                         uri={review.reviewer?.avatar ?? null}
-                        name={review.reviewer?.name ?? 'User'}
+                        name={review.reviewer?.name ?? t('common.user')}
                         size={40}
                       />
                       <View style={styles.reviewBody}>
                         <View style={styles.reviewTop}>
                           <Text style={styles.reviewer} numberOfLines={1}>
-                            {review.reviewer?.name ?? 'User'}
+                            {review.reviewer?.name ?? t('common.user')}
                           </Text>
                           <Text style={styles.reviewDate}>
                             {formatRelativeDate(review.createdAt)}
@@ -336,15 +351,13 @@ export default function WorkerDetailScreen() {
                     </View>
                   ))
                 ) : (
-                  <Text style={styles.emptyText}>
-                    Abhi koi review nahi hai. Pehla kaam aap karwao! 😊
-                  </Text>
+                  <Text style={styles.emptyText}>{t('workerScreen.noReviewsYet')}</Text>
                 )}
 
                 {reviews.length > 0 ? (
                   <Pressable style={styles.googleBtn} onPress={openGoogleReviews}>
                     <Ionicons name="logo-google" size={18} color={colors.primaryDark} />
-                    <Text style={styles.googleBtnText}>See reviews on Google</Text>
+                    <Text style={styles.googleBtnText}>{t('workerScreen.seeReviewsOnGoogle')}</Text>
                     <Ionicons name="open-outline" size={16} color={colors.primaryDark} />
                   </Pressable>
                 ) : null}
@@ -356,11 +369,11 @@ export default function WorkerDetailScreen() {
           <View style={styles.bottomBar}>
             <Pressable style={styles.callBtn} onPress={onCall}>
               <Ionicons name="call" size={18} color={colors.primaryDark} />
-              <Text style={styles.callText}>Call</Text>
+              <Text style={styles.callText}>{t('common.call')}</Text>
             </Pressable>
             <Pressable style={styles.bookNowBtn} onPress={bookNow}>
               <Ionicons name="calendar" size={18} color={colors.white} />
-              <Text style={styles.bookNowText}>Book Now</Text>
+              <Text style={styles.bookNowText}>{t('workerScreen.bookNow')}</Text>
             </Pressable>
           </View>
         </>

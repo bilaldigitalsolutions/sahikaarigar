@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -36,6 +37,7 @@ import { validateAadhaar } from '@/utils';
  */
 export default function RegisterWorkerScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { user, refreshUser } = useAuth();
 
   const [values, setValues] = useState<WorkerProfileFormValues>({
@@ -101,48 +103,48 @@ export default function RegisterWorkerScreen() {
 
   const onSubmit = async () => {
     if (!user) {
-      Alert.alert('Verify your number', 'Please verify your mobile number first, then submit.', [
-        { text: 'Verify now', onPress: () => router.push('/(auth)/login') },
-        { text: 'Cancel', style: 'cancel' },
+      Alert.alert(t('profile.verifyNumberTitle'), t('profile.verifyNumberMessage'), [
+        { text: t('profile.verifyNow'), onPress: () => router.push('/(auth)/login') },
+        { text: t('common.cancel'), style: 'cancel' },
       ]);
       return;
     }
     if (values.name.trim().length < VALIDATION.NAME_MIN_LENGTH) {
-      setError('Enter your full name.');
+      setError(t('profile.nameError'));
       return;
     }
     if (selectedSkills.length === 0) {
-      setError('Select at least one skill.');
+      setError(t('profile.skillsError'));
       return;
     }
     if (!experienceValid) {
-      setError(`Enter experience between ${VALIDATION.MIN_EXPERIENCE} and ${VALIDATION.MAX_EXPERIENCE} years.`);
+      setError(t('profile.experienceError', { min: VALIDATION.MIN_EXPERIENCE, max: VALIDATION.MAX_EXPERIENCE }));
       return;
     }
     if (!values.area) {
-      setError('Select your area.');
+      setError(t('profile.areaError'));
       return;
     }
     // Aadhaar is mandatory: exactly 12 digits AND a valid UIDAI Verhoeff
     // checksum. An empty field is no longer accepted.
     if (!aadhaarDigits) {
-      setError('Aadhaar number is required.');
+      setError(t('profile.aadhaarRequired'));
       return;
     }
     if (!aadhaarValid) {
-      setError(aadhaarCheck.error ?? 'Kripya valid 12-digit Aadhaar number daalein.');
+      setError(aadhaarCheck.error ?? t('profile.aadhaarInvalid'));
       return;
     }
     if (!values.aadhaarPhotoUri || !values.aadhaarPhotoDataUrl) {
-      setError('Aadhaar photo is required.');
+      setError(t('profile.aadhaarPhotoRequired'));
       return;
     }
     if (!rateValid) {
-      setError(`Enter a charge between ₹${VALIDATION.MIN_RATE} and ₹${VALIDATION.MAX_RATE}.`);
+      setError(t('profile.rateRangeError', { min: VALIDATION.MIN_RATE, max: VALIDATION.MAX_RATE }));
       return;
     }
     if (!terms) {
-      setError('Please accept the Terms & Privacy Policy.');
+      setError(t('profile.termsRequired'));
       return;
     }
 
@@ -170,15 +172,15 @@ export default function RegisterWorkerScreen() {
         },
       });
       await refreshUser();
-      Alert.alert('Thank you!', 'Your application has been received. An admin will review it.', [
+      Alert.alert(t('profile.applicationThanks'), t('profile.applicationReceived'), [
         // Land on the worker dashboard — refreshUser() already flipped the
         // backend role to 'worker' (the worker_profiles row just got written),
         // so the tabs guard lets it through and the dashboard shows
         // "Verification Pending" until the admin approves the profile.
-        { text: 'OK', onPress: () => router.replace('/(tabs)') },
+        { text: t('common.ok'), onPress: () => router.replace('/(tabs)') },
       ]);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not submit your application. Please try again.');
+      setError(e instanceof Error ? e.message : t('profile.submitFailed'));
     } finally {
       setBusy(false);
     }
@@ -213,16 +215,16 @@ export default function RegisterWorkerScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <Text style={styles.title}>Join as Kaarigar</Text>
+          <Text style={styles.title}>{t('profile.joiningAs')}</Text>
           <Text style={styles.subtitle}>
-            Create your profile and start receiving jobs • 100% Free to register
+            {t('profile.createProfile')}
           </Text>
 
           {user ? (
             <View style={styles.noticeBox}>
               <Ionicons name="checkmark-circle" size={18} color={colors.primaryDark} />
               <Text style={styles.noticeText}>
-                Mobile number verified{user.phone ? ` (+91 ${user.phone})` : ''}
+                {t('profile.mobileVerified')}{user.phone ? ` (+91 ${user.phone})` : ''}
               </Text>
             </View>
           ) : null}
@@ -239,7 +241,7 @@ export default function RegisterWorkerScreen() {
               {terms ? <Ionicons name="checkmark" size={15} color={colors.white} /> : null}
             </View>
             <Text style={styles.termsText}>
-              I agree to the{' '}
+              {t('auth.consentAgreePrefix')}{' '}
               <Text
                 style={styles.link}
                 onPress={(e) => {
@@ -247,9 +249,9 @@ export default function RegisterWorkerScreen() {
                   Linking.openURL(LEGAL_URLS.terms).catch(() => {});
                 }}
               >
-                Terms &amp; Conditions
+                {t('auth.termsConditions')}
               </Text>{' '}
-              and{' '}
+              {t('auth.consentAnd')}{' '}
               <Text
                 style={styles.link}
                 onPress={(e) => {
@@ -257,13 +259,13 @@ export default function RegisterWorkerScreen() {
                   Linking.openURL(LEGAL_URLS.privacy).catch(() => {});
                 }}
               >
-                Privacy Policy
+                {t('auth.privacyPolicy')}
               </Text>
             </Text>
           </Pressable>
 
           <Button
-            label="Submit Application"
+            label={t('profile.submitApplication')}
             onPress={onSubmit}
             loading={busy}
             disabled={submitDisabled}
@@ -271,7 +273,7 @@ export default function RegisterWorkerScreen() {
             style={styles.mt}
           />
 
-          <Text style={styles.support}>Need help? Contact support • {SUPPORT_PHONE}</Text>
+          <Text style={styles.support}>{t('profile.needHelpPhone', { phone: SUPPORT_PHONE })}</Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </Screen>

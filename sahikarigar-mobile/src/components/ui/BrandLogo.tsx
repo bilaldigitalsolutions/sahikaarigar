@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, Text, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
 import { colors, fontWeight, spacing } from '@/theme';
 
@@ -21,6 +22,7 @@ export function BrandLogo({
   size = 30,
   textColor = colors.textPrimary,
 }: BrandLogoProps) {
+  const { t } = useTranslation();
   return (
     <View style={styles.row}>
       <View
@@ -38,7 +40,7 @@ export function BrandLogo({
       </View>
       {showWordmark ? (
         <Text style={[styles.wordmark, { fontSize: size * 0.72, color: textColor }]}>
-          Sahi Kaarigar
+          {t('common.appName')}
         </Text>
       ) : null}
     </View>

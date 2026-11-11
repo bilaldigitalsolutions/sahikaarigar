@@ -1,4 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -14,6 +15,7 @@ export default function VerifyScreen() {
   const { role, roleChosen, ready } = useMode();
   const params = useLocalSearchParams<{ skill?: string; area?: string; next?: string }>();
   const { confirmOtp, resend, busy, pendingPhone, devOtp } = useAuth();
+  const { t } = useTranslation();
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   /** Explicit consent to data processing (DPDP requirement). */
@@ -21,11 +23,11 @@ export default function VerifyScreen() {
 
   const onVerify = async () => {
     if (code.trim().length !== 6) {
-      setError('Enter the 6-digit OTP.');
+      setError(t('auth.enterOtp'));
       return;
     }
     if (!consentGiven) {
-      setError('Please agree to the terms and privacy policy to continue.');
+      setError(t('auth.consentRequired'));
       return;
     }
     setError(null);
@@ -34,7 +36,7 @@ export default function VerifyScreen() {
       // when the worker_profiles row exists (upsertWorkerProfile flips it), so
       // routing can trust it instead of guessing client-side.
       const me = await confirmOtp(code.trim());
-      if (!me?.id) throw new Error('User not found');
+      if (!me?.id) throw new Error(t('auth.userNotFound'));
       // Signup lifecycle event — through the SINGLE shared PostHog client, with
       // the freshly issued user id as the analytics distinct_id.
       setAnalyticsUserId(me.id);
@@ -71,7 +73,7 @@ export default function VerifyScreen() {
       // Employer mode — the kaarigar home / search.
       router.replace('/(tabs)');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'OTP verification failed. Please try again.');
+      setError(e instanceof Error ? e.message : t('auth.otpVerificationFailed'));
     }
   };
 
@@ -80,7 +82,7 @@ export default function VerifyScreen() {
     try {
       await resend();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not resend the OTP.');
+      setError(e instanceof Error ? e.message : t('auth.couldNotResendOtp'));
     }
   };
 
@@ -91,17 +93,17 @@ export default function VerifyScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <View style={styles.header}>
-          <Text style={styles.title}>Enter OTP</Text>
+          <Text style={styles.title}>{t('auth.otpScreen')}</Text>
           <Text style={styles.subtitle}>
             {pendingPhone
-              ? `Code sent to ${formatPhone(pendingPhone)}`
-              : 'Enter the code sent to your number'}
+              ? t('auth.otpSent', { phone: formatPhone(pendingPhone) })
+              : t('auth.otpSentDefault')}
           </Text>
         </View>
 
         <Input
-          label="6-digit OTP"
-          placeholder="123456"
+          label={t('auth.otp6DigitLabel')}
+          placeholder={t('auth.otpPlaceholder')}
           keyboardType="number-pad"
           maxLength={6}
           value={code}
@@ -119,19 +121,16 @@ export default function VerifyScreen() {
 
         {devOtp ? (
           <View style={styles.devBox}>
-            <Text style={styles.devTitle}>Development OTP</Text>
+            <Text style={styles.devTitle}>{t('auth.devOtp')}</Text>
             <Text style={styles.devCode}>{devOtp}</Text>
             <Pressable style={styles.autofill} onPress={() => setCode(devOtp)}>
-              <Text style={styles.autofillText}>Tap to autofill</Text>
+              <Text style={styles.autofillText}>{t('auth.devOtpTap')}</Text>
             </Pressable>
-            <Text style={styles.devHint}>
-              SMS is not configured on the server, so the code is shown here.
-            </Text>
+            <Text style={styles.devHint}>{t('auth.devOtpHint')}</Text>
           </View>
         ) : (
           <Text style={styles.smsHint}>
-            Didn&apos;t receive the code? Tap “Resend OTP”. While the server runs with the console
-            SMS provider, the OTP is printed on the server console.
+            {t('auth.didntReceiveCode')} {t('auth.tapResend')}. {t('auth.smsNote')}
           </Text>
         )}
 
@@ -142,25 +141,23 @@ export default function VerifyScreen() {
             onPress={() => setConsentGiven(!consentGiven)}
           />
           <Text style={styles.consentText} numberOfLines={3}>
-            By verifying, you agree to our{' '}
+            {t('auth.consentPrefix')}{' '}
             <Text style={styles.consentLink} onPress={() => Linking.openURL('https://sahi-kaarigar.web.app/privacy')}>
-              Privacy Policy
+              {t('auth.privacyPolicy')}
             </Text>{' '}
-            and consent to us collecting, storing, and using your phone number,
-            name, and location for service delivery. Aadhaar is encrypted and
-            never shared with third parties.
+            {t('auth.consentSuffix')}
           </Text>
         </View>
 
         <Button
-          label="Verify"
+          label={t('auth.loginButton')}
           onPress={onVerify}
           loading={busy}
           size="lg"
           disabled={!consentGiven}
         />
-        <Button label="Resend OTP" onPress={onResend} variant="ghost" disabled={busy} />
-        <Button label="Change number" onPress={() => router.back()} variant="ghost" disabled={busy} />
+        <Button label={t('auth.resendOtp')} onPress={onResend} variant="ghost" disabled={busy} />
+        <Button label={t('auth.changeNumber')} onPress={() => router.back()} variant="ghost" disabled={busy} />
       </KeyboardAvoidingView>
     </Screen>
   );

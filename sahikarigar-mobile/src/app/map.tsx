@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import { Platform, StyleSheet, Text, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
 import { Button, Card, Header, Screen } from '@/components';
 import { areaLabel } from '@/constants';
@@ -43,6 +44,7 @@ if (NATIVE_MAP_AVAILABLE) {
 }
 
 export default function MapScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { user } = useAuth();
 
@@ -60,7 +62,7 @@ export default function MapScreen() {
   };
 
   return (
-    <Screen padded={false} edges={['bottom']} header={<Header title="Map" showBack={false} />}>
+    <Screen padded={false} edges={['bottom']} header={<Header title={t('map.title')} showBack={false} />}>
       {canRenderMap && MapView && Camera ? (
         <View style={styles.mapWrap}>
           <MapView
@@ -75,9 +77,9 @@ export default function MapScreen() {
           <View style={styles.overlay}>
             <Ionicons name="location" size={16} color={colors.primaryDark} />
             <View style={styles.overlayText}>
-              <Text style={styles.overlayLabel}>Showing</Text>
+              <Text style={styles.overlayLabel}>{t('map.showing')}</Text>
               <Text style={styles.overlayValue} numberOfLines={1}>
-                {area ?? 'Hyderabad'}
+                {area ?? t('common.defaultCity')}
               </Text>
             </View>
           </View>
@@ -88,20 +90,15 @@ export default function MapScreen() {
             <View style={styles.fallbackIcon}>
               <Ionicons name="map-outline" size={30} color={colors.primaryDark} />
             </View>
-            <Text style={styles.fallbackTitle}>Map needs a development build</Text>
-            <Text style={styles.fallbackText}>
-              The Mappls native map can’t run inside Expo Go or the browser. Build the app once to
-              see the live map:
-            </Text>
+            <Text style={styles.fallbackTitle}>{t('map.needsDevBuild')}</Text>
+            <Text style={styles.fallbackText}>{t('map.needsDevBuildSub')}</Text>
             <View style={styles.codeBox}>
               <Text style={styles.code}>npx expo prebuild --platform android</Text>
               <Text style={styles.code}>npx expo run:android</Text>
             </View>
-            <Text style={styles.fallbackText}>
-              The area search picker works everywhere and is unaffected.
-            </Text>
+            <Text style={styles.fallbackText}>{t('map.pickerUnaffected')}</Text>
             <Button
-              label="Go back"
+              label={t('common.back')}
               variant="secondary"
               onPress={goBack}
               style={styles.backBtn}

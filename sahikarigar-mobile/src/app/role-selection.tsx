@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
 import { BrandLogo, Screen } from '@/components';
 import { useAuth } from '@/contexts/AuthContext';
@@ -16,6 +17,7 @@ import { colors, fontSize, fontWeight, radius, spacing } from '@/theme';
  * form; the backend then promotes `users.role` to 'worker' automatically.
  */
 export default function RoleSelectionScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const params = useLocalSearchParams<{ skill?: string; area?: string }>();
   const { user } = useAuth();
@@ -58,32 +60,27 @@ export default function RoleSelectionScreen() {
     <Screen scroll>
       <View style={styles.header}>
         <BrandLogo size={44} showWordmark={false} />
-        <Text style={styles.title}>Aap kaun hain?</Text>
-        <Text style={styles.subtitle}>
-          Choose karke app aapke liye set ho jayega. Aap baad me Profile se switch kar sakte hain.
-        </Text>
+        <Text style={styles.title}>{t('auth.roleSelection')}</Text>
+        <Text style={styles.subtitle}>{t('onboarding.roleSub')}</Text>
       </View>
 
       <RoleCard
         icon="construct-outline"
-        title="Main Kaarigar Hoon"
-        desc="Naye job requests receive karo, apni availability manage karo aur kaam badhao."
+        title={t('onboarding.workerCardTitle')}
+        desc={t('onboarding.workerCardDesc')}
         active={roleChosen && role === 'worker'}
         onPress={chooseWorker}
       />
 
       <RoleCard
         icon="home-outline"
-        title="Mujhe Kaam Karwana Hai"
-        desc="Verified kaarigar dhundho, unhe hire karo aur apna kaam karwao."
+        title={t('onboarding.employerCardTitle')}
+        desc={t('onboarding.employerCardDesc')}
         active={roleChosen && role === 'employer'}
         onPress={chooseEmployer}
       />
 
-      <Text style={styles.note}>
-        Note: Kaarigar banne ke liye ek chhota registration form bharna padega (skills, photos,
-        rate). Registration free hai.
-      </Text>
+      <Text style={styles.note}>{t('onboarding.roleNote')}</Text>
     </Screen>
   );
 }

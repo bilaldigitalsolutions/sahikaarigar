@@ -9,20 +9,21 @@ import { LEGAL_URLS, areaLabel } from '@/constants';
 import { useAuth } from '@/contexts/AuthContext';
 import { getLocation } from '@/lib/storage';
 import { getWorkerProfile } from '@/lib/api';
+import { setAppLanguage, type SupportedLanguage } from '@/lib/i18n';
 import { colors, fontSize, fontWeight, radius, shadows, spacing } from '@/theme';
 import { formatPhone, formatRatingSummary } from '@/utils';
 import { deleteUserAccount } from '@/lib/api';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 const ROLE_LABEL: Record<string, string> = {
-  worker: 'Kaarigar',
-  employer: 'Employer',
-  admin: 'Admin',
+  worker: 'common.kaarigar',
+  employer: 'common.employer',
+  admin: 'common.admin',
 };
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { user, signOut, refreshUser } = useAuth();
   const [savedArea, setSavedArea] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
@@ -95,14 +96,14 @@ export default function ProfileScreen() {
   if (!user) {
     return (
       <Screen scroll>
-        <Text style={styles.heading}>Profile</Text>
+        <Text style={styles.heading}>{t('common.profile')}</Text>
         <Card style={styles.card}>
-          <Text style={styles.ctaTitle}>Login karke profile dekho</Text>
+          <Text style={styles.ctaTitle}>{t('profile.guestCtaTitle')}</Text>
           <Text style={styles.ctaText}>
-            Guest mode me browse kar sakte ho — profile, bookings aur hire ke liye login zaroori hai.
-            {savedArea ? ` Saved area: ${savedArea}.` : ''}
+            {t('profile.guestCtaText')}
+            {savedArea ? ` ${t('profile.savedArea', { area: savedArea })}` : ''}
           </Text>
-          <Button label="Login / Sign up" onPress={() => router.push('/(auth)/login')} style={styles.ctaBtn} />
+          <Button label={t('auth.loginOrSignUp')} onPress={() => router.push('/(auth)/login')} style={styles.ctaBtn} />
         </Card>
       </Screen>
     );
@@ -125,20 +126,20 @@ export default function ProfileScreen() {
    *  send the user back to login. */
   const onDeleteAccount = () => {
     Alert.alert(
-      'Delete Account',
-      'Are you sure you want to delete your account? This will permanently delete all your data.',
+      t('profile.deleteAccount'),
+      t('profile.deleteAccountMessage'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('profile.delete'),
           style: 'destructive',
           onPress: async () => {
             try {
               await deleteUserAccount();
             } catch (e) {
               Alert.alert(
-                'Delete failed',
-                e instanceof Error ? e.message : 'Could not delete your account. Please try again.',
+                t('profile.deleteFailedTitle'),
+                e instanceof Error ? e.message : t('profile.deleteFailedMessage'),
               );
               return;
             }
@@ -154,12 +155,12 @@ export default function ProfileScreen() {
   return (
     <Screen scroll>
       <View style={styles.headerRow}>
-        <Text style={styles.heading}>Profile</Text>
+        <Text style={styles.heading}>{t('common.profile')}</Text>
         <Pressable
           onPress={refreshProfile}
           disabled={refreshing}
           hitSlop={10}
-          accessibilityLabel="Refresh profile"
+          accessibilityLabel={t('profile.refresh')}
         >
           <Ionicons
             name={refreshing ? 'sync-outline' : 'refresh-outline'}
@@ -171,12 +172,12 @@ export default function ProfileScreen() {
 
       {needsName ? (
         <Card style={styles.card}>
-          <Text style={styles.ctaTitle}>Profile complete karo</Text>
+          <Text style={styles.ctaTitle}>{t('profile.completeTitle')}</Text>
           <Text style={styles.ctaText}>
-            Aapka naam missing hai — kaarigar aur employer dono ko aapka naam dikhna chahiye.
+            {t('profile.completeText')}
           </Text>
           <Button
-            label="Add your name"
+            label={t('profile.addName')}
             onPress={() => router.push('/edit-profile')}
             style={styles.ctaBtn}
           />
@@ -193,14 +194,14 @@ export default function ProfileScreen() {
                 onPress={() => router.push('/edit-profile')}
                 accessibilityRole="button"
               >
-                <Text style={styles.namePromptText}>Apna naam add karo</Text>
-                <Text style={styles.namePromptSub}>Tap to complete your profile ›</Text>
+                <Text style={styles.namePromptText}>{t('profile.addName')}</Text>
+                <Text style={styles.namePromptSub}>{t('profile.tapToComplete')} ›</Text>
               </Pressable>
             ) : (
               <Text style={styles.name}>{user.name}</Text>
             )}
             <Text style={styles.phone}>{formatPhone(user.phone)}</Text>
-            <Badge label={ROLE_LABEL[user.role] ?? user.role} tone="primary" style={styles.badge} />
+            <Badge label={t(ROLE_LABEL[user.role] ?? 'common.user')} tone="primary" style={styles.badge} />
           </View>
         </View>
       </Card>
@@ -208,20 +209,20 @@ export default function ProfileScreen() {
       <Card style={styles.card}>
         <InfoRow
           icon="location-outline"
-          label="Area"
-          value={user.locationArea ? areaLabel(user.locationArea) : 'Not set'}
+          label={t('common.area')}
+          value={user.locationArea ? areaLabel(user.locationArea) : t('profile.notSet')}
         />
         <InfoRow
           icon="shield-checkmark"
-          label="Verification"
+          label={t('common.verification')}
           value={
             workerProfile?.isApproved
-              ? 'Approved'
+              ? t('common.approved')
               : workerProfile?.verificationStatus
                 ? String(workerProfile.verificationStatus)
                 : user.isVerified
-                  ? 'Verified'
-                  : 'Pending'
+                  ? t('common.verified')
+                  : t('common.pending')
           }
         />
         {user.role === 'worker' ? (
@@ -241,7 +242,7 @@ export default function ProfileScreen() {
                 column is legacy and always 0, so never read it here. */}
             <InfoRow
               icon="star"
-              label="Trust Score"
+              label={t('profile.trustScore')}
               value={String(workerProfile?.trustScore ?? 0)}
             />
           </>
@@ -259,12 +260,12 @@ export default function ProfileScreen() {
 
       {user.role === 'employer' ? (
         <Card style={styles.card}>
-          <Text style={styles.ctaTitle}>Are you a worker?</Text>
+          <Text style={styles.ctaTitle}>{t('profile.areYouWorker')}</Text>
           <Text style={styles.ctaText}>
-            Add your skills and area to start receiving jobs from customers. Registration is free.
+            {t('profile.areYouWorkerText')}
           </Text>
           <Button
-            label="Join as Kaarigar"
+            label={t('profile.joiningAs')}
             onPress={() => router.push('/register-worker')}
             style={styles.ctaBtn}
           />
@@ -272,94 +273,120 @@ export default function ProfileScreen() {
       ) : null}
 
       <Card style={styles.card}>
-        <Text style={styles.ctaTitle}>Your details</Text>
+        <Text style={styles.ctaTitle}>{t('profile.yourDetails')}</Text>
         <Text style={styles.ctaText}>
-          Name, area, city aur address yahan se update kar sakte hain.
+          {t('profile.detailsSub')}
         </Text>
         <Button
-          label="Edit Profile"
+          label={t('profile.editProfile')}
           variant="secondary"
           onPress={() => router.push('/edit-profile')}
           style={styles.ctaBtn}
         />
       </Card>
 
+      {/* Language — English / Telugu toggle. The choice persists and re-renders
+          every translated screen instantly (i18next changeLanguage). */}
+      <Card style={styles.card}>
+        <Text style={styles.ctaTitle}>{t('language.label')}</Text>
+        <View style={styles.langRow}>
+          {(['en', 'te'] as const).map((lang) => {
+            const selected = i18n.language.startsWith(lang);
+            return (
+              <Pressable
+                key={lang}
+                style={[styles.langBtn, selected && styles.langBtnActive]}
+                onPress={() => void setAppLanguage(lang as SupportedLanguage)}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+              >
+                <Text
+                  style={[styles.langBtnText, selected && styles.langBtnTextActive]}
+                >
+                  {t(`language.${lang}`)}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </Card>
+
       <Button
-        label="Sign Out"
+        label={t('common.signOut')}
         variant="secondary"
         onPress={onSignOut}
         style={styles.signOut}
       />
 
       <Button
-        label="Delete Account"
+        label={t('profile.deleteAccount')}
         variant="danger"
         onPress={onDeleteAccount}
         style={styles.deleteBtn}
       />
 
       <Text style={styles.legalNote}>
-        Terms &amp; Privacy hamari website par hain — tap karo:
+        {t('profile.legalNote')}
       </Text>
       <View style={styles.legalRow}>
         <Text
           style={styles.legalLink}
           onPress={() => Linking.openURL(LEGAL_URLS.terms).catch(() => {})}
         >
-          Terms
+          {t('profile.termsLink')}
         </Text>
         <Text style={styles.legalDot}>•</Text>
         <Text
           style={styles.legalLink}
           onPress={() => Linking.openURL(LEGAL_URLS.privacy).catch(() => {})}
         >
-          Privacy
+          {t('profile.privacyLink')}
         </Text>
       </View>
 
       <Text style={styles.helpNote}>
-        Meri Zimmedari: Aapka complaint resolve ho, par agar koi problem aaye toh daye zaroor bataye.
+        {t('profile.responsibilityNote')}
       </Text>
       <Card style={styles.helpCard}>
-        <Text style={styles.helpTitle}>Grievance Officer</Text>
+        <Text style={styles.helpTitle}>{t('profile.grievanceOfficer')}</Text>
         <View style={styles.helpBody}>
           <View style={styles.helpRow}>
-            <Text style={styles.helpKey}>Name:</Text>
+            <Text style={styles.helpKey}>{t('common.name')}:</Text>
             <Text style={styles.helpValue}>Mohammad Bilal</Text>
           </View>
           <View style={styles.helpRow}>
-            <Text style={styles.helpKey}>Email:</Text>
+            <Text style={styles.helpKey}>{t('common.email')}:</Text>
             <Text style={styles.helpValue}>grievance@sahikaarigar.com</Text>
           </View>
           <View style={styles.helpRow}>
-            <Text style={styles.helpKey}>Phone:</Text>
+            <Text style={styles.helpKey}>{t('common.phone')}:</Text>
             <Text style={styles.helpValue}>+91 9949363310</Text>
           </View>
           <View style={styles.helpRow}>
-            <Text style={styles.helpKey}>Address:</Text>
+            <Text style={styles.helpKey}>{t('common.address')}:</Text>
             <Text style={styles.helpValue}>Hyderabad, Telangana</Text>
           </View>
           <View style={styles.helpRow}>
-            <Text style={styles.helpKey}>Response Time:</Text>
-            <Text style={styles.helpValue}>48 hours</Text>
+            <Text style={styles.helpKey}>{t('profile.responseTime')}:</Text>
+            <Text style={styles.helpValue}>{t('profile.responseTimeValue')}</Text>
           </View>
         </View>
       </Card>
 
       <Card style={styles.helpCard}>
-        <Text style={styles.helpTitle}>Help &amp; Support</Text>
+        <Text style={styles.helpTitle}>{t('profile.helpSupport')}</Text>
         <Pressable style={styles.helpOption} onPress={onHelpSheetOpen}>
           <Ionicons name="logo-whatsapp" size={20} color={colors.primaryDark} />
           <View style={styles.helpOptionText}>
-            <Text style={styles.helpOptionLabel}>WhatsApp Support</Text>
-            <Text style={styles.helpOptionDesc}>Support ASAP</Text>
+            <Text style={styles.helpOptionLabel}>{t('profile.whatsappSupport')}</Text>
+            <Text style={styles.helpOptionDesc}>{t('profile.supportAsap')}</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
         </Pressable>
         <Pressable style={styles.helpOption} onPress={onHelpSheetOpen}>
           <Ionicons name="call" size={20} color={colors.primaryDark} />
           <View style={styles.helpOptionText}>
-            <Text style={styles.helpOptionLabel}>Call Support</Text>
+            <Text style={styles.helpOptionLabel}>{t('profile.callSupport')}</Text>
             <Text style={styles.helpOptionDesc}>+91 9949363310</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
@@ -367,7 +394,7 @@ export default function ProfileScreen() {
         <Pressable style={styles.helpOption} onPress={onHelpSheetOpen}>
           <Ionicons name="mail" size={20} color={colors.primaryDark} />
           <View style={styles.helpOptionText}>
-            <Text style={styles.helpOptionLabel}>Email Support</Text>
+            <Text style={styles.helpOptionLabel}>{t('profile.emailSupport')}</Text>
             <Text style={styles.helpOptionDesc}>support@sahikaarigar.com</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
@@ -375,8 +402,8 @@ export default function ProfileScreen() {
         <Pressable style={styles.helpOption} onPress={() => router.push('/help/faq' as any)}>
           <Ionicons name="help-circle" size={20} color={colors.primaryDark} />
           <View style={styles.helpOptionText}>
-            <Text style={styles.helpOptionLabel}>FAQs</Text>
-            <Text style={styles.helpOptionDesc}>Frequently asked questions</Text>
+            <Text style={styles.helpOptionLabel}>{t('profile.faqs')}</Text>
+            <Text style={styles.helpOptionDesc}>{t('profile.faqsSub')}</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
         </Pressable>
@@ -390,25 +417,24 @@ export default function ProfileScreen() {
 
       <Modal visible={showHelp} transparent animationType="fade" onRequestClose={onHelpSheetClose}>
         <View style={styles.helpOverlay}>
-          <Pressable style={styles.helpOverlayTouchable} onPress={onHelpSheetClose} accessibilityLabel="Close Help & Support">
+          <Pressable style={styles.helpOverlayTouchable} onPress={onHelpSheetClose} accessibilityLabel={t('profile.closeHelpSupport')}>
             <Pressable style={styles.helpModal} onPress={() => {}}>
               <View style={styles.helpModalHeader}>
                 <View style={styles.helpModalIconBox}>
                   <Ionicons name="help-circle" size={20} color={colors.primaryDark} />
                 </View>
-                <Text style={styles.helpModalTitle}>Help &amp; Support</Text>
+                <Text style={styles.helpModalTitle}>{t('profile.helpSupport')}</Text>
                 <Pressable
                   onPress={onHelpSheetClose}
                   hitSlop={12}
-                  accessibilityLabel="Close"
+                  accessibilityLabel={t('common.close')}
                   style={styles.helpModalClose}
                 >
                   <Ionicons name="close" size={22} color={colors.textSecondary} />
                 </Pressable>
               </View>
               <Text style={styles.helpModalMessage}>
-                Hum aapki madad ke liye hazir hain. WhatsApp par message karo, seedha call karo ya
-                email likh do — support team turant reply karegi.
+                {t('profile.helpModalMessage')}
               </Text>
               <View style={styles.helpModalButtons}>
                 <Pressable
@@ -417,8 +443,8 @@ export default function ProfileScreen() {
                 >
                   <Ionicons name="logo-whatsapp" size={20} color={colors.primaryDark} />
                   <View style={styles.helpModalButtonLabel}>
-                    <Text style={styles.helpModalButtonText}>WhatsApp</Text>
-                    <Text style={styles.helpModalButtonDesc}>Reply in minutes</Text>
+                    <Text style={styles.helpModalButtonText}>{t('profile.whatsapp')}</Text>
+                    <Text style={styles.helpModalButtonDesc}>{t('profile.replyInMinutes')}</Text>
                   </View>
                 </Pressable>
                 <Pressable
@@ -427,7 +453,7 @@ export default function ProfileScreen() {
                 >
                   <Ionicons name="call" size={20} color={colors.primaryDark} />
                   <View style={styles.helpModalButtonLabel}>
-                    <Text style={styles.helpModalButtonText}>Call</Text>
+                    <Text style={styles.helpModalButtonText}>{t('common.call')}</Text>
                     <Text style={styles.helpModalButtonDesc}>+91 99493 63310</Text>
                   </View>
                 </Pressable>
@@ -439,7 +465,7 @@ export default function ProfileScreen() {
                 >
                   <Ionicons name="mail" size={20} color={colors.primaryDark} />
                   <View style={styles.helpModalButtonLabel}>
-                    <Text style={styles.helpModalButtonText}>Email</Text>
+                    <Text style={styles.helpModalButtonText}>{t('common.email')}</Text>
                     <Text style={styles.helpModalButtonDesc}>support@sahikaarigar.com</Text>
                   </View>
                 </Pressable>
@@ -525,6 +551,32 @@ const styles = StyleSheet.create({
   ctaTitle: { fontSize: fontSize.body, fontWeight: fontWeight.semibold, color: colors.textPrimary },
   ctaText: { fontSize: fontSize.caption, color: colors.textSecondary, marginTop: spacing.xs },
   ctaBtn: { marginTop: spacing.md },
+  langRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  langBtn: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+  },
+  langBtnActive: {
+    backgroundColor: colors.primaryDark,
+    borderColor: colors.primaryDark,
+  },
+  langBtnText: {
+    fontSize: fontSize.small,
+    fontWeight: fontWeight.medium,
+    color: colors.textPrimary,
+  },
+  langBtnTextActive: {
+    color: '#FFFFFF',
+    fontWeight: fontWeight.semibold,
+  },
   signOut: { marginTop: spacing.sm },
   legalNote: {
     fontSize: fontSize.caption,

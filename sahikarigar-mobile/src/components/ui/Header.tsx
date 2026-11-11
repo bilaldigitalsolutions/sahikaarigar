@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -34,6 +35,7 @@ export function Header({
   right,
   bordered = true,
 }: HeaderProps) {
+  const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -60,7 +62,7 @@ export function Header({
             onPress={goBack}
             hitSlop={12}
             accessibilityRole="button"
-            accessibilityLabel="Back"
+            accessibilityLabel={t('common.back')}
             style={styles.iconBtn}
           >
             <Ionicons name="chevron-back" size={26} color={colors.textPrimary} />

@@ -10,6 +10,7 @@
 import * as Notifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Animated, Easing, Pressable, StyleSheet, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -23,6 +24,7 @@ const AUTO_HIDE_MS = 5000;
 
 export function TopNotificationBanner() {
   const router = useRouter();
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
 
   const [payload, setPayload] = useState<AppBannerPayload | null>(null);
@@ -93,14 +95,14 @@ export function TopNotificationBanner() {
       {/* Condensed Rapido-style card: rate on top, location underneath. */}
       <Pressable style={styles.info} onPress={onPress}>
         <Text style={styles.price} numberOfLines={1}>
-          {payload.price || payload.title || 'Nayi Kaam ki Request 🛠️'}
+          {payload.price || payload.title || t('common.newJobRequestTitle')}
         </Text>
         <Text style={styles.location} numberOfLines={1}>
-          {payload.location || payload.body || 'Nayi kaam ki request aayi hai'}
+          {payload.location || payload.body || t('common.newJobRequestSub')}
         </Text>
       </Pressable>
-      <Pressable style={styles.viewBtn} onPress={onPress} hitSlop={8} accessibilityLabel="View job requests">
-        <Text style={styles.viewBtnText}>View</Text>
+      <Pressable style={styles.viewBtn} onPress={onPress} hitSlop={8} accessibilityLabel={t('common.viewJobRequests')}>
+        <Text style={styles.viewBtnText}>{t('common.view')}</Text>
       </Pressable>
     </Animated.View>
   );

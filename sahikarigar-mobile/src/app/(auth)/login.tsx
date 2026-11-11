@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -23,6 +24,7 @@ export default function LoginScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ skill?: string; area?: string; next?: string }>();
   const { signIn, busy, user } = useAuth();
+  const { t } = useTranslation();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -51,8 +53,8 @@ export default function LoginScreen() {
     if (!phoneReady) {
       setError(
         isFakePhoneSequence(normalized)
-          ? 'Ye fake/test number allow nahi hai — apna asli mobile number daalo.'
-          : 'Enter a valid 10-digit mobile number (starting with 6, 7, 8 or 9).',
+          ? t('auth.fakePhoneNotAllowed')
+          : t('auth.invalidPhone'),
       );
       return;
     }
@@ -61,7 +63,7 @@ export default function LoginScreen() {
       await signIn(normalized, name.trim());
       router.push({ pathname: '/(auth)/verify', params: searchParams });
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Something went wrong. Please try again.');
+      setError(e instanceof Error ? e.message : t('common.somethingWentWrongTryAgain'));
     }
   };
 
@@ -80,21 +82,21 @@ export default function LoginScreen() {
           onPress={() => (router.canGoBack() ? router.back() : router.replace('/welcome'))}
           hitSlop={10}
           accessibilityRole="button"
-          accessibilityLabel="Back"
+          accessibilityLabel={t('common.back')}
         >
           <Ionicons name="chevron-back" size={26} color={colors.textPrimary} />
         </Pressable>
 
         <View style={styles.hero}>
           <BrandLogo size={56} showWordmark={false} />
-          <Text style={styles.title}>Sahi Kaarigar</Text>
-          <Text style={styles.subtitle}>Talk directly with verified workers in Hyderabad</Text>
+          <Text style={styles.title}>{t('common.appName')}</Text>
+          <Text style={styles.subtitle}>{t('auth.loginSubtitle')}</Text>
         </View>
 
         <View style={styles.form}>
           <Input
-            label="Your name"
-            placeholder="e.g. Bilal"
+            label={t('auth.yourName')}
+            placeholder={t('auth.namePlaceholder')}
             value={name}
             onChangeText={(text) => {
               setName(text);
@@ -107,14 +109,14 @@ export default function LoginScreen() {
             returnKeyType="next"
           />
           <Input
-            label="Mobile Number"
-            placeholder="9876543210"
+            label={t('auth.mobileNumber')}
+            placeholder={t('auth.mobilePlaceholder')}
             keyboardType="number-pad"
             maxLength={10}
             value={phone}
             onChangeText={setPhone}
             error={error ?? undefined}
-            hint="A 6-digit OTP will be sent to your number"
+            hint={t('auth.otpWillBeSent')}
             returnKeyType="done"
             onSubmitEditing={onSubmit}
             autoComplete="off"
@@ -132,27 +134,27 @@ export default function LoginScreen() {
               onPress={() => setConsentGiven(!consentGiven)}
             />
             <Text style={styles.consentText} numberOfLines={3}>
-              I agree to the{' '}
+              {t('auth.consentAgreePrefix')}{' '}
               <Text
                 style={styles.consentLink}
                 onPress={() => Linking.openURL(PRIVACY_POLICY_URL).catch(() => {})}
                 accessibilityRole="link"
               >
-                Terms & Conditions
+                {t('auth.termsConditions')}
               </Text>{' '}
-              and{' '}
+              {t('auth.consentAnd')}{' '}
               <Text
                 style={styles.consentLink}
                 onPress={() => Linking.openURL(PRIVACY_POLICY_URL).catch(() => {})}
                 accessibilityRole="link"
               >
-                Privacy Policy
+                {t('auth.privacyPolicy')}
               </Text>
             </Text>
           </View>
 
           <Button
-            label="Continue"
+            label={t('common.continue')}
             onPress={onSubmit}
             loading={busy}
             size="lg"

@@ -1,4 +1,5 @@
 import { useFocusEffect, useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
@@ -19,13 +20,15 @@ const OPEN_STATUSES = ['pending', 'accepted', 'en_route', 'arrived', 'in_progres
 
 type StatusFilter = 'all' | 'active' | 'history';
 
+/** label holds an i18n key (common.*) — translate at render with t(). */
 const STATUS_FILTERS: { id: StatusFilter; label: string }[] = [
-  { id: 'all', label: 'All' },
-  { id: 'active', label: 'Active' },
-  { id: 'history', label: 'History' },
+  { id: 'all', label: 'common.all' },
+  { id: 'active', label: 'common.active' },
+  { id: 'history', label: 'common.history' },
 ];
 
 export default function MyJobsScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const [filter, setFilter] = useState<StatusFilter>('all');
   const [jobs, setJobs] = useState<ApiHire[]>([]);
@@ -39,7 +42,7 @@ export default function MyJobsScreen() {
       const data = await listHires();
       setJobs(data.asWorker ?? []);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not load your jobs.');
+      setError(e instanceof Error ? e.message : t('dashboard.couldNotLoadJobs'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -69,7 +72,7 @@ export default function MyJobsScreen() {
   return (
     <Screen scroll={false} padded={false}>
       <View style={styles.header}>
-        <Text style={styles.heading}>My Jobs</Text>
+        <Text style={styles.heading}>{t('dashboard.myJobs')}</Text>
       </View>
 
       <View style={styles.filters}>
@@ -82,7 +85,7 @@ export default function MyJobsScreen() {
             accessibilityState={{ selected: filter === f.id }}
           >
             <Text style={[styles.filterText, filter === f.id && styles.filterTextActive]}>
-              {f.label}
+              {t(f.label)}
             </Text>
           </Pressable>
         ))}
@@ -118,14 +121,14 @@ export default function MyJobsScreen() {
           ListEmptyComponent={
             <EmptyState
               icon={error ? 'cloud-offline-outline' : 'briefcase-outline'}
-              title={error ? 'Something went wrong' : 'No jobs yet'}
+              title={error ? t('common.somethingWentWrong') : t('dashboard.noJobsYet')}
               subtitle={
                 error ??
                 (filter === 'history'
-                  ? 'Completed aur cancelled jobs yahan aayenge.'
+                  ? t('dashboard.historyEmptySub')
                   : filter === 'active'
-                    ? 'Abhi koi active job nahi hai.'
-                    : 'Aapke accept kiye hue jobs yahan dikhenge.')
+                    ? t('dashboard.noActiveJobs')
+                    : t('dashboard.allEmptySub'))
               }
             />
           }

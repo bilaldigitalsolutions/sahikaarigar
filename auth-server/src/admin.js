@@ -4,7 +4,8 @@
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import Session from 'supertokens-node/recipe/session';
-import { db, decryptAadhaarNumber } from './users.js';
+import { db, decryptAadhaarNumber, normalizeIndianPhone, isValidIndianPhone } from './users.js';
+import { isValidPushToken, sendExpoPushMany } from './push.js';
 
 const ADMIN_SESSION_TTL_SECONDS = 4 * 60 * 60;
 
@@ -594,6 +595,133 @@ export async function forceCloseHire(
     forceClosedBy: data.force_closed_by,
     forceClosedAt: data.force_closed_at,
     forceClosedReason: data.force_closed_reason,
+  };
+}
+
+// =============================================================================
+// Admin broadcast push — Notifications tab
+// =============================================================================
+// ONE custom push to every registered device, optionally filtered by role.
+// Suspended users (is_active = false) are never included, and admins are
+// excluded — broadcasts are for customers and kaarigars. Only users who
+// allowed notifications (a push_token exists on their users row) are reached.
+
+const BROADCAST_AUDIENCES = ['all', 'workers', 'customers'];
+
+/**
+ * Validate + normalise the audience query/body param.
+ * @returns {'all'|'workers'|'customers'|null}
+ */
+export function normalizeBroadcastAudience(value) {
+  const audience = String(value ?? '').trim().toLowerCase();
+  return BROADCAST_AUDIENCES.includes(audience) ? audience : null;
+}
+
+/** Users that should receive a broadcast push for the given audience. */
+async function broadcastRecipients(audience) {
+  let query = db
+    .from('users')
+    .select('id, name, role, push_token')
+    .not('push_token', 'is', null)
+    .eq('is_active', true)
+    .neq('role', 'admin');
+  if (audience === 'workers') query = query.eq('role', 'worker');
+  if (audience === 'customers') query = query.eq('role', 'employer');
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+/** How many devices a broadcast would reach — powers the panel's live counter. */
+export async function countBroadcastRecipients(audience) {
+  const rows = await broadcastRecipients(audience);
+  return { count: rows.filter((row) => isValidPushToken(row.push_token)).length };
+}
+
+/**
+ * Send a broadcast, or (with `testPhone`) send ONLY to that one user's device
+ * so the admin can preview the copy on their own phone before going live.
+ *
+ * @returns {Promise<{test: boolean, audience: string|null, matched: number,
+ *                     sent: number, failed: number}>}
+ */
+export async function sendBroadcastNotification({
+  title,
+  body,
+  audience,
+  testPhone,
+  adminEmail,
+}) {
+  const cleanTitle = String(title ?? '').trim();
+  const cleanBody = String(body ?? '').trim();
+  if (cleanTitle.length < 3 || cleanTitle.length > 60) {
+    throw new Error('Title 3 se 60 characters ka hona chahiye');
+  }
+  if (cleanBody.length < 5 || cleanBody.length > 200) {
+    throw new Error('Message 5 se 200 characters ka hona chahiye');
+  }
+
+  const phoneDigits = String(testPhone ?? '').trim();
+  let resolvedAudience = null;
+  const messages = [];
+
+  if (phoneDigits) {
+    const normalized = normalizeIndianPhone(phoneDigits);
+    if (!isValidIndianPhone(normalized)) {
+      throw new Error('Test phone 10-digit Indian number hona chahiye');
+    }
+    const { data: user, error } = await db
+      .from('users')
+      .select('id, name, phone, push_token')
+      .eq('phone', normalized)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!user) throw new Error('Is number ka koi user nahi mila');
+    if (!isValidPushToken(user.push_token)) {
+      throw new Error(
+        'Is user ne app mein notifications allow nahi kiye — koi device registered nahi hai',
+      );
+    }
+    messages.push({
+      to: user.push_token,
+      title: cleanTitle,
+      body: cleanBody,
+      data: { type: 'admin_broadcast', test: true },
+    });
+  } else {
+    resolvedAudience = normalizeBroadcastAudience(audience);
+    if (!resolvedAudience) {
+      throw new Error('audience galat hai (all | workers | customers)');
+    }
+    const rows = await broadcastRecipients(resolvedAudience);
+    for (const row of rows) {
+      if (isValidPushToken(row.push_token)) {
+        messages.push({
+          to: row.push_token,
+          title: cleanTitle,
+          body: cleanBody,
+          data: { type: 'admin_broadcast' },
+        });
+      }
+    }
+    if (messages.length === 0) {
+      throw new Error('Is audience mein koi registered device nahi mila');
+    }
+  }
+
+  const { sent, failed } = await sendExpoPushMany(messages);
+  console.log(
+    `[admin-broadcast] ${adminEmail ?? 'admin'} -> sent ${sent}, failed ${failed}, mode=${
+      phoneDigits ? 'TEST' : `audience=${resolvedAudience}`
+    }`,
+  );
+
+  return {
+    test: Boolean(phoneDigits),
+    audience: phoneDigits ? null : resolvedAudience,
+    matched: messages.length,
+    sent,
+    failed,
   };
 }
 

@@ -88,6 +88,9 @@ import {
   setWorkerApproval,
   setWorkerFlagged,
   forceCloseHire,
+  sendBroadcastNotification,
+  countBroadcastRecipients,
+  normalizeBroadcastAudience,
 } from './admin.js';
 import {
   isValidPushToken,
@@ -1025,6 +1028,45 @@ app.post('/admin/send-profile-reminders', async (req, res, next) => {
     const admin = await requireAdmin(req, res);
     if (!admin) return;
     const result = await sendProfileCompletionReminders({ limit: req.body?.limit });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /admin/broadcast/preview?audience=all|workers|customers
+// Live device count — the Notifications tab shows this in its confirm dialog.
+app.get('/admin/broadcast/preview', async (req, res, next) => {
+  try {
+    const admin = await requireAdmin(req, res);
+    if (!admin) return;
+    const audience = normalizeBroadcastAudience(req.query.audience);
+    if (!audience) {
+      return res
+        .status(400)
+        .json({ ok: false, message: 'audience galat hai (all | workers | customers)' });
+    }
+    const result = await countBroadcastRecipients(audience);
+    res.json({ ok: true, audience, count: result.count });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /admin/broadcast  body: { title, body, audience, testPhone? }
+// With testPhone set, ONLY that user's device receives the message (preview
+// mode). Without it, the message goes to every device in the audience.
+app.post('/admin/broadcast', async (req, res, next) => {
+  try {
+    const admin = await requireAdmin(req, res);
+    if (!admin) return;
+    const result = await sendBroadcastNotification({
+      title: req.body?.title,
+      body: req.body?.body,
+      audience: req.body?.audience,
+      testPhone: req.body?.testPhone,
+      adminEmail: admin.email,
+    });
     res.json({ ok: true, ...result });
   } catch (error) {
     next(error);

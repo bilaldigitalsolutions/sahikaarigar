@@ -9,6 +9,7 @@ const LINKS = [
   { href: '/admin/workers', label: 'Worker verification' },
   { href: '/admin/users', label: 'Users' },
   { href: '/admin/hires', label: 'Hire requests' },
+  { href: '/admin/notifications', label: 'Notifications' },
 ] as const;
 
 export function AdminNavigation() {

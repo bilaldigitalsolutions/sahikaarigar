@@ -623,6 +623,41 @@ export function setAdminUserFlagged(
   });
 }
 
+// -----------------------------------------------------------------------------
+// Admin broadcast push (Notifications tab)
+// -----------------------------------------------------------------------------
+
+export interface AdminBroadcastResult {
+  ok: boolean;
+  test?: boolean;
+  audience?: string | null;
+  /** Devices the message was attempted on. */
+  matched?: number;
+  sent?: number;
+  failed?: number;
+}
+
+/** Live device count for an audience — shown before sending (confirm dialog). */
+export async function getAdminBroadcastPreview(audience: string): Promise<number> {
+  const data = await adminApiFetch<{ ok: boolean; count: number }>(
+    `/admin/broadcast/preview?audience=${encodeURIComponent(audience)}`,
+  );
+  return data.count;
+}
+
+/** Send a broadcast push (or a test send when `testPhone` is set). */
+export function sendAdminBroadcast(payload: {
+  title: string;
+  body: string;
+  audience?: string;
+  testPhone?: string;
+}): Promise<AdminBroadcastResult> {
+  return adminApiFetch('/admin/broadcast', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
 /** Trust & Penalty — admin flag / unflag for a kaarigar profile (record-only). */
 export function setAdminWorkerFlagged(
   id: string,

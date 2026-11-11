@@ -22,6 +22,10 @@ keystores/
 # APK-build helper credentials kept locally only (never commit).
 apk-s/Import .env
 apk-s/client_secret_*.json
+# Store-upload artifacts (APK/AAB bundles) aur local duplicate/experiment
+# folder — inhe kabhi commit mat karna (bloat + accidental-leak risk).
+apk-s/
+sahikaarigar/
 # Build artifacts & dependencies (root-level). Pehle se tracked purane
 # auth-server/node_modules ko git rm --cached karne ki zaroorat hai - alag task.
 node_modules/

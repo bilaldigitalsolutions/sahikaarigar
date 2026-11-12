@@ -140,7 +140,7 @@ export function WorkerProfileForm({
     const asset = res.assets[0];
     // Reject photos larger than 5MB to avoid OOM from base64 encoding in state.
     if (asset.fileSize && asset.fileSize > 5 * 1024 * 1024) {
-      Alert.alert('Photo 5MB se badi hai', 'Kripya 5MB tak ki chhoti photo chunein.');
+      Alert.alert(t('profile.photoTooLargeTitle'), t('profile.photoTooLargeMsg'));
       return;
     }
     onChange({
@@ -163,7 +163,7 @@ export function WorkerProfileForm({
     const asset = res.assets[0];
     // Keep the same 5MB limit as the backend's decodeImageDataUrl().
     if (asset.fileSize && asset.fileSize > 5 * 1024 * 1024) {
-      Alert.alert('Photo 5MB se badi hai', 'Kripya 5MB tak ki chhoti photo chunein.');
+      Alert.alert(t('profile.photoTooLargeTitle'), t('profile.photoTooLargeMsg'));
       return;
     }
     onChange({
@@ -190,7 +190,7 @@ export function WorkerProfileForm({
 
     const oversized = res.assets.filter((a) => a.fileSize && a.fileSize > 5 * 1024 * 1024);
     if (oversized.length > 0) {
-      Alert.alert('Photo 5MB se badi hai', 'Kripya 5MB tak ki chhoti photos chunein.');
+      Alert.alert(t('profile.photoTooLargeTitle'), t('profile.photoTooLargeMsg'));
       return;
     }
 
@@ -225,8 +225,8 @@ export function WorkerProfileForm({
     <View>
       {/* ---- Full Name ---- */}
       <Input
-        label="Full Name"
-        placeholder="Enter your full name"
+        label={t('profile.fullName')}
+        placeholder={t('profile.fullNamePlaceholder')}
         value={values.name}
         onChangeText={(text) => onChange({ name: text })}
         containerStyle={styles.mt}
@@ -234,7 +234,7 @@ export function WorkerProfileForm({
 
       {/* ---- Phone (read-only) ---- */}
       <View style={styles.mt}>
-        <Text style={styles.label}>Phone Number</Text>
+        <Text style={styles.label}>{t('profile.phoneNumber')}</Text>
         <View style={styles.phoneField}>
           <Text style={styles.phonePrefix}>+91 🇮🇳</Text>
           <TextInput
@@ -245,7 +245,7 @@ export function WorkerProfileForm({
             editable={false}
             keyboardType="phone-pad"
             maxLength={10}
-            placeholder="98765 43210"
+            placeholder={t('auth.mobilePlaceholder')}
             placeholderTextColor={colors.muted}
           />
         </View>
@@ -253,12 +253,12 @@ export function WorkerProfileForm({
 
       {/* ---- Skills (multi-select dropdown) ---- */}
       <View style={styles.mt}>
-        <Text style={styles.label}>Skills</Text>
+        <Text style={styles.label}>{t('profile.skills')}</Text>
         <Pressable
           style={styles.dropdownField}
           onPress={() => setSkillsOpen(true)}
           accessibilityRole="button"
-          accessibilityLabel="Select skills"
+          accessibilityLabel={t('profile.selectSkillsA11y')}
         >
           <Ionicons name="construct-outline" size={18} color={colors.textSecondary} />
           <Text
@@ -269,8 +269,8 @@ export function WorkerProfileForm({
             numberOfLines={1}
           >
             {values.skills.length > 0
-              ? `${values.skills.length} skill${values.skills.length === 1 ? '' : 's'} selected`
-              : 'Select your skills'}
+              ? t('profile.skillsSelectedCount', { count: values.skills.length })
+              : t('profile.selectYourSkills')}
           </Text>
           <Ionicons name="chevron-down" size={18} color={colors.textSecondary} />
         </Pressable>
@@ -284,7 +284,7 @@ export function WorkerProfileForm({
                   onPress={() => removeSkill(id)}
                   hitSlop={8}
                   accessibilityRole="button"
-                  accessibilityLabel={`Remove ${skillLabel(id)}`}
+                  accessibilityLabel={t('profile.removeSkillA11y', { skill: skillLabel(id) })}
                 >
                   <Ionicons name="close-circle" size={16} color={colors.primaryDark} />
                 </Pressable>
@@ -310,14 +310,14 @@ export function WorkerProfileForm({
           <Pressable style={styles.modalSheet} onPress={() => {}}>
             <View style={styles.modalHeader}>
               <View style={styles.modalHeaderText}>
-                <Text style={styles.modalTitle}>Select Skills</Text>
-                <Text style={styles.modalSubtitle}>Choose all the work you can do</Text>
+                <Text style={styles.modalTitle}>{t('profile.selectSkillsTitle')}</Text>
+                <Text style={styles.modalSubtitle}>{t('profile.selectSkillsSubtitle')}</Text>
               </View>
               <Pressable
                 onPress={() => setSkillsOpen(false)}
                 hitSlop={10}
                 accessibilityRole="button"
-                accessibilityLabel="Close skills"
+                accessibilityLabel={t('profile.closeSkillsA11y')}
               >
                 <Ionicons name="close" size={22} color={colors.textSecondary} />
               </Pressable>
@@ -362,7 +362,7 @@ export function WorkerProfileForm({
               accessibilityRole="button"
             >
               <Text style={styles.modalDoneText}>
-                Done ({values.skills.length} selected)
+                {t('profile.doneSelectedCount', { count: values.skills.length })}
               </Text>
             </Pressable>
           </Pressable>
@@ -371,8 +371,8 @@ export function WorkerProfileForm({
 
       {/* ---- Experience ---- */}
       <Input
-        label="Experience (Years)"
-        placeholder="e.g. 3 years"
+        label={t('profile.experience')}
+        placeholder={t('profile.experiencePlaceholder')}
         keyboardType="number-pad"
         maxLength={2}
         autoComplete="off"
@@ -385,9 +385,9 @@ export function WorkerProfileForm({
 
       {/* ---- Location ---- */}
       <View style={styles.mt}>
-        <Text style={styles.label}>Location</Text>
+        <Text style={styles.label}>{t('profile.areaLabel')}</Text>
         <LocationPicker
-          placeholder="Search your area"
+          placeholder={t('auth.onboardingLocationSub')}
           value={values.area}
           onSelect={(place: PlaceResult) =>
             onChange({
@@ -402,7 +402,7 @@ export function WorkerProfileForm({
 
       {/* ---- Aadhaar ---- */}
       <View style={styles.mt}>
-        <Text style={styles.label}>Aadhaar Number (required)</Text>
+        <Text style={styles.label}>{t('profile.applyAadhaar')}</Text>
         <View style={[styles.phoneField, aadhaarLocked && styles.fieldLocked]}>
           <Ionicons name="shield-checkmark-outline" size={18} color={colors.textSecondary} />
           <TextInput
@@ -413,23 +413,23 @@ export function WorkerProfileForm({
             onChangeText={(text) => onChange({ aadhaar: formatAadhaar(text) })}
             keyboardType="number-pad"
             maxLength={14}
-            placeholder="XXXX XXXX XXXX"
+            placeholder={t('profile.aadhaarPlaceholder')}
             placeholderTextColor={colors.muted}
           />
         </View>
         {aadhaarLocked ? (
           <Text style={styles.hint}>
-            Aadhaar number submit ho chuka hai — verification ke liye use change nahi hota sakta.
+            {t('profile.aadhaarLocked')}
           </Text>
         ) : !aadhaarValid ? (
           <Text style={styles.fieldError}>
             {aadhaarDigits.length === 0
-              ? 'Aadhaar number zaroori hai — 12 digits daalein.'
-              : (aadhaarCheck.error ?? 'Kripya valid 12-digit Aadhaar number daalein.')}
+              ? t('profile.aadhaarRequired')
+              : t('profile.aadhaarInvalid')}
           </Text>
         ) : (
           <Text style={styles.hint}>
-            Aadhaar number admin verification ke liye zaroori hai. UIDAI checksum galat number pakad leta hai.
+            {t('profile.aadhaarAdmin')}
           </Text>
         )}
       </View>
@@ -437,12 +437,12 @@ export function WorkerProfileForm({
       {/* ---- Aadhaar photo (registration only) ---- */}
       {requireAadhaarPhoto ? (
         <View style={styles.mt}>
-          <Text style={styles.label}>Aadhaar Photo (required)</Text>
+          <Text style={styles.label}>{t('profile.aadhaarPhoto')}</Text>
           <Pressable
             style={[styles.uploadBox, styles.aadhaarUploadBox]}
             onPress={pickAadhaarPhoto}
             accessibilityRole="button"
-            accessibilityLabel="Upload Aadhaar photo"
+            accessibilityLabel={t('profile.uploadAadhaarPhotoA11y')}
           >
             {values.aadhaarPhotoUri ? (
               <Image
@@ -453,22 +453,22 @@ export function WorkerProfileForm({
             ) : (
               <>
                 <Ionicons name="card-outline" size={24} color={colors.primaryDark} />
-                <Text style={styles.uploadTitle}>Upload Aadhaar Photo</Text>
-                <Text style={styles.uploadHint}>JPG/PNG, max 5MB</Text>
+                <Text style={styles.uploadTitle}>{t('profile.uploadAadhaarPhoto')}</Text>
+                <Text style={styles.uploadHint}>{t('profile.aadhaarPhotoHint5MB')}</Text>
               </>
             )}
           </Pressable>
           {values.aadhaarPhotoUri ? (
             <Pressable style={styles.removeRow} onPress={removeAadhaarPhoto}>
               <Ionicons name="trash-outline" size={13} color={colors.danger} />
-              <Text style={styles.removeText}>Remove Aadhaar photo</Text>
+              <Text style={styles.removeText}>{t('profile.removeAadhaarPhoto')}</Text>
             </Pressable>
           ) : null}
           {aadhaarPhotoMissing ? (
-            <Text style={styles.fieldError}>Aadhaar photo upload karna zaroori hai.</Text>
+            <Text style={styles.fieldError}>{t('profile.aadhaarPhotoRequired')}</Text>
           ) : (
             <Text style={styles.hint}>
-              Aadhaar card ki saaf photo upload karein — sirf admin verification ke liye.
+              {t('profile.aadhaarPhotoHint')}
             </Text>
           )}
         </View>
@@ -477,7 +477,7 @@ export function WorkerProfileForm({
       {/* ---- Photos ---- */}
       <View style={[styles.mt, styles.uploadRow]}>
         <View style={styles.uploadCol}>
-          <Text style={styles.label}>Profile Photo</Text>
+          <Text style={styles.label}>{t('profile.profilePhoto')}</Text>
           <Pressable style={styles.uploadBox} onPress={pickProfilePhoto}>
             {profilePreview ? (
               <Image
@@ -488,35 +488,35 @@ export function WorkerProfileForm({
             ) : (
               <>
                 <Ionicons name="cloud-upload-outline" size={22} color={colors.primaryDark} />
-                <Text style={styles.uploadTitle}>Upload Profile Photo</Text>
-                <Text style={styles.uploadHint}>JPG/PNG, max 2MB</Text>
+                <Text style={styles.uploadTitle}>{t('profile.uploadProfilePhoto')}</Text>
+                <Text style={styles.uploadHint}>{t('profile.profilePhotoHint')}</Text>
               </>
             )}
           </Pressable>
           {profilePreview ? (
             <Pressable style={styles.removeRow} onPress={removeProfilePhoto}>
               <Ionicons name="trash-outline" size={13} color={colors.danger} />
-              <Text style={styles.removeText}>Remove photo</Text>
+              <Text style={styles.removeText}>{t('profile.removePhoto')}</Text>
             </Pressable>
           ) : null}
         </View>
 
         <View style={styles.uploadCol}>
-          <Text style={styles.label}>Work Photos</Text>
+          <Text style={styles.label}>{t('profile.workPhotos')}</Text>
           <Pressable style={styles.uploadBox} onPress={pickWorkPhotos}>
             {totalWorkPhotos > 0 ? (
               <Text style={styles.uploadTitle}>
-                {totalWorkPhotos} photo{totalWorkPhotos > 1 ? 's' : ''} selected
+                {t('profile.photosSelectedCount', { count: totalWorkPhotos })}
               </Text>
             ) : (
               <>
                 <Ionicons name="images-outline" size={22} color={colors.primaryDark} />
-                <Text style={styles.uploadTitle}>+ Add Photos (up to {MAX_WORK_PHOTOS})</Text>
-                <Text style={styles.uploadHint}>Show your previous work</Text>
+                <Text style={styles.uploadTitle}>{t('profile.addWorkPhotos', { max: MAX_WORK_PHOTOS })}</Text>
+                <Text style={styles.uploadHint}>{t('profile.workPhotosHint')}</Text>
               </>
             )}
           </Pressable>
-          <Text style={styles.hint}>Ye photos isi application ke saath review ke liye dikhai jayengi.</Text>
+          <Text style={styles.hint}>{t('profile.workPhotosReview')}</Text>
         </View>
       </View>
 
@@ -529,7 +529,7 @@ export function WorkerProfileForm({
               <Pressable
                 style={styles.thumbRemove}
                 onPress={() => removeWorkPhoto(index)}
-                accessibilityLabel="Remove photo"
+                accessibilityLabel={t('profile.removePhoto')}
               >
                 <Ionicons name="close" size={12} color={colors.white} />
               </Pressable>
@@ -541,7 +541,7 @@ export function WorkerProfileForm({
               <Pressable
                 style={styles.thumbRemove}
                 onPress={() => removeWorkPhoto(values.workPhotoUrls.length + index)}
-                accessibilityLabel="Remove photo"
+                accessibilityLabel={t('profile.removePhoto')}
               >
                 <Ionicons name="close" size={12} color={colors.white} />
               </Pressable>
@@ -552,9 +552,9 @@ export function WorkerProfileForm({
 
       {/* ---- Availability ---- */}
       <View style={styles.mt}>
-        <Text style={styles.label}>Availability</Text>
+        <Text style={styles.label}>{t('profile.availability')}</Text>
         <Select
-          placeholder="Select availability"
+          placeholder={t('profile.availabilityPlaceholder')}
           value={values.availability}
           options={AVAILABILITY_OPTIONS.map((a) => ({ value: a.value, label: t(a.key) }))}
           onChange={(v) => onChange({ availability: v })}
@@ -563,8 +563,8 @@ export function WorkerProfileForm({
 
       {/* ---- Expected Charge ---- */}
       <Input
-        label="Expected Charge (₹ per hour)"
-        placeholder="300"
+        label={t('profile.rateLabel')}
+        placeholder={t('profile.ratePlaceholder')}
         keyboardType="number-pad"
         maxLength={5}
         // Disable Android autofill so the OS does not inject the user's phone
@@ -574,7 +574,7 @@ export function WorkerProfileForm({
         importantForAutofill="no"
         value={values.rate}
         onChangeText={(text) => onChange({ rate: text })}
-        hint={`Hourly rate — ₹${VALIDATION.MIN_RATE} se ₹${VALIDATION.MAX_RATE} tak.`}
+        hint={t('profile.rateHint', { min: VALIDATION.MIN_RATE, max: VALIDATION.MAX_RATE })}
         containerStyle={styles.mt}
       />
       <View style={styles.rateHintRow}>

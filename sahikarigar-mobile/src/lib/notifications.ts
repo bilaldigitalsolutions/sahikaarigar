@@ -18,6 +18,8 @@ import { Alert, AppState, Linking, Platform } from 'react-native';
 
 import { savePushToken, getHire } from './api';
 
+import i18n from '@/lib/i18n';
+
 import { formatCurrency } from '../utils';
 
 /** AsyncStorage flag: the one-time in-app permission rationale was shown. */
@@ -76,12 +78,12 @@ export async function promptForNotificationPermissionOnce(): Promise<void> {
     const needsSettings = permission.status === 'denied' || !permission.canAskAgain;
 
     Alert.alert(
-      'Notifications on karein?',
-      'Nayi job requests aur booking updates ka notification turant milega. Aap ise kabhi bhi Settings se band kar sakte hain.',
+      i18n.t('notifications.enableTitle'),
+      i18n.t('notifications.enableBody'),
       [
-        { text: 'Not now', style: 'cancel' },
+        { text: i18n.t('notifications.notNow'), style: 'cancel' },
         {
-          text: needsSettings ? 'Open settings' : 'Enable',
+          text: needsSettings ? i18n.t('onboarding.openSettings') : i18n.t('notifications.enable'),
           onPress: () => {
             void (async () => {
               try {
@@ -206,7 +208,7 @@ export function emitAppBanner(payload: AppBannerPayload): void {
 
 function bannerPayloadOf(content: Notifications.NotificationContent): AppBannerPayload {
   return {
-    title: content.title ?? 'Nayi Kaam ki Request 🛠️',
+    title: content.title ?? i18n.t('common.newJobRequestTitle'),
     body: content.body ?? '',
   };
 }

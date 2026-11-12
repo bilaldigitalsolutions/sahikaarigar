@@ -171,7 +171,7 @@ export default function EditProfileScreen() {
       if (digits) {
         const check = validateAadhaar(digits);
         if (!check.valid) {
-          setError(check.error ?? t('profile.aadhaarInvalid'));
+          setError(t('profile.aadhaarInvalid'));
           valid = false;
         }
       }

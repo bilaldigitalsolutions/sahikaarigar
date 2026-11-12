@@ -39,7 +39,7 @@ export function HireCard({ hire, perspective, onPress, notice }: HireCardProps) 
   const { t } = useTranslation();
   const counterparty =
     perspective === 'employer' ? hire.worker?.user?.name : hire.employer?.name;
-  const title = counterparty ?? 'Booking';
+  const title = counterparty ?? t('common.booking');
   const workerBadge = hire.worker ? getWorkerBadge(hire.worker) : null;
   const trust =
     perspective === 'worker'
@@ -91,7 +91,7 @@ export function HireCard({ hire, perspective, onPress, notice }: HireCardProps) 
       <View style={styles.footer}>
         <Text style={styles.meta}>{formatCurrency(hire.proposedRate)}</Text>
         <Text style={styles.meta}>{hire.location}</Text>
-        <Text style={styles.meta}>{formatRelativeDate(hire.createdAt)}</Text>
+        <Text style={styles.meta}>{formatRelativeDate(hire.createdAt, t)}</Text>
       </View>
     </Card>
   );

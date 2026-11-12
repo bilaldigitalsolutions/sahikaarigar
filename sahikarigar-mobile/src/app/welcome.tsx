@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { BrandLogo, Button, Card, LocationPicker, Rating, Screen, Select } from '@/components';
 import { SKILLS } from '@/constants';
 import { useAuth } from '@/contexts/AuthContext';
+import { setAppLanguage, type SupportedLanguage } from '@/lib/i18n';
 import { colors, fontSize, fontWeight, radius, spacing } from '@/theme';
 
 const TRUST = [
@@ -50,7 +51,7 @@ const REVIEWS = [
 ] as const;
 
 export default function WelcomeScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const router = useRouter();
   const { user } = useAuth();
   const [service, setService] = useState<string | null>(null);
@@ -112,6 +113,27 @@ export default function WelcomeScreen() {
         </Pressable>
       </View>
 
+      {/* Language toggle — first screen, so users pick their language before
+          anything else. Same persisting switch as the Profile card. */}
+      <View style={styles.langRow}>
+        {(['en', 'te'] as const).map((lang) => {
+          const selected = i18n.language.startsWith(lang);
+          return (
+            <Pressable
+              key={lang}
+              style={[styles.langBtn, selected && styles.langBtnActive]}
+              onPress={() => void setAppLanguage(lang as SupportedLanguage)}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+            >
+              <Text style={[styles.langBtnText, selected && styles.langBtnTextActive]}>
+                {t(`language.${lang}`)}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
       {/* Hero */}
       <View style={styles.hero}>
         <View style={styles.badgeRow}>
@@ -161,7 +183,7 @@ export default function WelcomeScreen() {
             <Pressable key={s.id} style={styles.categoryCard} onPress={() => goBrowse(s.id)}>
               <Text style={styles.categoryIcon}>{s.icon}</Text>
               <View style={styles.categoryInfo}>
-                <Text style={styles.categoryLabel}>{s.label}</Text>
+                <Text style={styles.categoryLabel}>{t('common.' + s.label.replace(/\s/g, ''))}</Text>
                 <Text style={styles.categorySub}>{t('common.workers')}</Text>
               </View>
             </Pressable>
@@ -233,6 +255,33 @@ const styles = StyleSheet.create({
     fontSize: fontSize.caption,
     fontWeight: fontWeight.bold,
     color: colors.white,
+  },
+  langRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    marginTop: spacing.xs,
+  },
+  langBtn: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.pill,
+    paddingVertical: 6,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.card,
+  },
+  langBtnActive: {
+    backgroundColor: colors.primaryDark,
+    borderColor: colors.primaryDark,
+  },
+  langBtnText: {
+    fontSize: fontSize.caption,
+    fontWeight: fontWeight.medium,
+    color: colors.textPrimary,
+  },
+  langBtnTextActive: {
+    color: colors.white,
+    fontWeight: fontWeight.bold,
   },
   hero: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
   badgeRow: {

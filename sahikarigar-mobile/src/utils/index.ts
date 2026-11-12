@@ -87,8 +87,10 @@ export function formatRatingSummary(
   return t('rating.summary', { average: average.toFixed(1), count });
 }
 
-/** Format a date relative to now (e.g. "3 hr ago"). */
-export function formatRelativeDate(date: Date | string): string {
+/** Format a date relative to now (e.g. "3 hr ago").
+ *  `t` is optional — pass it so the label follows the active language;
+ *  without it the label falls back to English. */
+export function formatRelativeDate(date: Date | string, t?: TFunction): string {
   const now = new Date();
   const past = new Date(date);
   const diffMs = now.getTime() - past.getTime();
@@ -98,13 +100,13 @@ export function formatRelativeDate(date: Date | string): string {
   const diffDays = Math.floor(diffHours / 24);
 
   if (diffSeconds < 60) {
-    return 'Just now';
+    return t ? t('common.justNow') : 'Just now';
   } else if (diffMinutes < 60) {
-    return `${diffMinutes} min ago`;
+    return t ? t('common.minutesAgo', { count: diffMinutes }) : `${diffMinutes} min ago`;
   } else if (diffHours < 24) {
-    return `${diffHours} hr ago`;
+    return t ? t('common.hoursAgo', { count: diffHours }) : `${diffHours} hr ago`;
   } else if (diffDays < 7) {
-    return `${diffDays} days ago`;
+    return t ? t('common.daysAgo', { count: diffDays }) : `${diffDays} days ago`;
   }
   return past.toLocaleDateString('en-IN', {
     day: 'numeric',

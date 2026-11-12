@@ -40,6 +40,7 @@ import {
  */
 export default function WorkerJobsScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const [data, setData] = useState<ApiWorkerDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -52,7 +53,7 @@ export default function WorkerJobsScreen() {
     try {
       setData(await getWorkerDashboard());
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not load your work dashboard.');
+      setError(e instanceof Error ? e.message : t('dashboard.couldNotLoadJobs'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -86,7 +87,7 @@ export default function WorkerJobsScreen() {
           : prev,
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not update availability.');
+      setError(e instanceof Error ? e.message : t('dashboard.couldNotUpdateAvailability'));
     } finally {
       setBusy(null);
     }
@@ -99,14 +100,14 @@ export default function WorkerJobsScreen() {
       await hireAction(hireId, action);
       await load();
     } catch (e) {
-      const message = e instanceof Error ? e.message : 'Could not update the request.';
+      const message = e instanceof Error ? e.message : t('dashboard.couldNotUpdateRequest');
       setError(message);
       // Edge case: the worker accepted another request from a second device
       // (or the dashboard JSON is a moment stale) — the server answers with
       // 400 "You already have an active job…". Show a clean alert and refresh
       // so the busy banner / disabled buttons line up again.
       if (/already have an active job/i.test(message)) {
-        Alert.alert('Request accept nahi hui', 'Aapke paas pehle se ek active job hai.');
+        Alert.alert(t('dashboard.duplicateActiveJobTitle'), t('dashboard.duplicateActiveJobMsg'));
         await load();
       }
     } finally {
@@ -128,13 +129,13 @@ export default function WorkerJobsScreen() {
   if (!data?.isWorker || !data.worker) {
     return (
       <Screen scroll>
-        <Text style={styles.heading}>My Work</Text>
+        <Text style={styles.heading}>{t('dashboard.myWork')}</Text>
         <EmptyState
           icon="briefcase-outline"
-          title="Aap abhi kaarigar nahi ho"
-          subtitle="Skills aur area add karo — phir yahan naye kaam ke requests aayenge."
+          title={t('dashboard.notWorkerTitle')}
+          subtitle={t('dashboard.notWorkerSub')}
         />
-        <Button label="Join as Kaarigar" onPress={() => router.push('/register-worker')} />
+        <Button label={t('profile.joiningAs')} onPress={() => router.push('/register-worker')} />
       </Screen>
     );
   }
@@ -163,9 +164,9 @@ export default function WorkerJobsScreen() {
           />
         }
       >
-        <Text style={styles.heading}>My Work</Text>
+        <Text style={styles.heading}>{t('dashboard.myWork')}</Text>
         <Text style={styles.sub}>
-          {formatCurrency(worker.hourlyRate)}/hr · {worker.experience} yrs experience
+          {formatCurrency(worker.hourlyRate)}{t('hireDetail.ratePerHourShort')} · {t('workerScreen.experienceYears', { count: worker.experience })}
         </Text>
 
         {/* Availability switch */}
@@ -180,12 +181,12 @@ export default function WorkerJobsScreen() {
             </View>
             <View style={styles.availText}>
               <Text style={styles.availTitle}>
-                {isAvailable ? 'Available for work' : 'Not taking work'}
+                {isAvailable ? t('availability.availableTitle') : t('availability.notAvailableTitle')}
               </Text>
               <Text style={styles.availSub}>
                 {isAvailable
-                  ? 'Customers can send you booking requests.'
-                  : 'Aap naye booking requests nahi paoge.'}
+                  ? t('availability.availableSub')
+                  : t('availability.notAvailableSub')}
               </Text>
             </View>
             <Switch
@@ -202,8 +203,7 @@ export default function WorkerJobsScreen() {
           <Card style={[styles.card, styles.approvalCard]}>
             <Ionicons name="hourglass-outline" size={20} color={colors.warning} />
             <Text style={styles.approvalText}>
-              Aapka profile admin approval ka intezaar kar raha hai. Approve hone tak aap search
-              results me nahi dikhoge.
+              {t('dashboard.adminApprovalPending')}
             </Text>
           </Card>
         ) : null}
@@ -212,18 +212,18 @@ export default function WorkerJobsScreen() {
         <View style={styles.statsGrid}>
           <StatTile
             icon="mail-unread-outline"
-            label="New requests"
+            label={t('dashboard.newRequests')}
             value={String(stats?.pending ?? 0)}
           />
-          <StatTile icon="construct-outline" label="In progress" value={String(stats?.active ?? 0)} />
+          <StatTile icon="construct-outline" label={t('common.inProgress')} value={String(stats?.active ?? 0)} />
           <StatTile
             icon="checkmark-done-outline"
-            label="Jobs done"
+            label={t('dashboard.jobsDone')}
             value={String(stats?.lifetimeJobs ?? 0)}
           />
           <StatTile
             icon="cash-outline"
-            label="Est. earnings"
+            label={t('dashboard.estEarnings')}
             value={formatCurrency(stats?.estimatedEarnings ?? 0)}
           />
         </View>
@@ -232,23 +232,22 @@ export default function WorkerJobsScreen() {
           <View style={styles.ratingRow}>
             <Ionicons name="star" size={16} color={colors.warning} />
             <Text style={styles.ratingText}>
-              {stats.ratingAverage.toFixed(1)} · {stats.ratingCount}{' '}
-              {stats.ratingCount === 1 ? 'review' : 'reviews'}
+              {stats.ratingAverage.toFixed(1)} · {t('dashboard.reviewCount', { count: stats.ratingCount })}
             </Text>
           </View>
         ) : null}
 
         <Card style={styles.performanceCard}>
           <View style={styles.performanceInfo}>
-            <Text style={styles.performanceLabel}>Performance Score</Text>
-            <Text style={styles.performanceValue}>{performanceScore}% On-Time</Text>
+            <Text style={styles.performanceLabel}>{t('dashboard.performanceScore')}</Text>
+            <Text style={styles.performanceValue}>{t('dashboard.performanceValue', { percent: performanceScore })}</Text>
             <Text style={styles.performanceMeta}>
               {stats && stats.totalJobsCompleted > 0
-                ? `${stats.onTimeJobs} of ${stats.totalJobsCompleted} completed jobs arrived on time`
-                : 'Complete your first job to start building your score.'}
+                ? t('dashboard.onTimeMeta', { onTime: stats.onTimeJobs, total: stats.totalJobsCompleted })
+                : t('dashboard.noJobsScoreHint')}
             </Text>
           </View>
-          <Badge label={`${workerBadge} Worker`} tone={workerBadgeTone(workerBadge)} />
+          <Badge label={t('dashboard.badgeWorker', { badge: workerBadge })} tone={workerBadgeTone(workerBadge)} />
         </Card>
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -257,16 +256,14 @@ export default function WorkerJobsScreen() {
         {isWorkerBusy ? (
           <View style={styles.busyBanner}>
             <Ionicons name="information-circle" size={20} color={colors.textPrimary} />
-            <Text style={styles.busyBannerText}>
-              Aap abhi ek kaam par hain. Naya kaam accept karne ke liye pehle use complete karein.
-            </Text>
+            <Text style={styles.busyBannerText}>{t('dashboard.busyOneJobBanner')}</Text>
           </View>
         ) : null}
 
         <Section
-          title="New requests"
+          title={t('dashboard.newRequests')}
           count={data.requests.length}
-          empty="Abhi koi naya request nahi hai. Available raho — customers aapko dhundhenge."
+          empty={t('dashboard.noNewRequestsHint')}
         >
           {data.requests.map((hire) => (
             <RequestCard
@@ -283,9 +280,9 @@ export default function WorkerJobsScreen() {
         </Section>
 
         <Section
-          title="In progress"
+          title={t('common.inProgress')}
           count={data.active.length}
-          empty="Koi kaam chal raha ho to yahan dikhega."
+          empty={t('dashboard.activeJobsEmptySub')}
         >
           {data.active.map((hire) => (
             <JobRow
@@ -297,9 +294,9 @@ export default function WorkerJobsScreen() {
         </Section>
 
         <Section
-          title="Recently completed"
+          title={t('dashboard.recentlyCompleted')}
           count={data.completed.length}
-          empty="Complete hue kaam yahan aayenge."
+          empty={t('dashboard.completedEmptySub')}
         >
           {data.completed.map((hire) => (
             <JobRow
@@ -389,16 +386,16 @@ function RequestCard({
 }) {
   const { t } = useTranslation();
   const price = formatCurrency(hire.proposedRate);
-  const time = formatRelativeDate(hire.createdAt);
+  const time = formatRelativeDate(hire.createdAt, t);
 
   // Pickup = the kaarigar's own service area; drop = the customer's address.
   const workerUser = hire.worker?.user ?? null;
-  const pickupMain = workerUser?.locationArea ?? 'Your Area';
-  const pickupSub = workerUser?.locationCity ?? 'Your service location';
+  const pickupMain = workerUser?.locationArea ?? t('dashboard.yourArea');
+  const pickupSub = workerUser?.locationCity ?? t('dashboard.yourServiceLocation');
 
   const dropParts = hire.location.split(',').map((part) => part.trim()).filter(Boolean);
-  const dropMain = dropParts[0] ?? 'Customer Location';
-  const dropSub = dropParts.slice(1).join(', ') || 'Tap to see the full address';
+  const dropMain = dropParts[0] ?? t('dashboard.customerLocation');
+  const dropSub = dropParts.slice(1).join(', ') || t('dashboard.tapFullAddress');
 
   return (
     <View style={styles.requestCard}>
@@ -413,7 +410,7 @@ function RequestCard({
           <Ionicons name="person-circle-outline" size={17} color={colors.textSecondary} />
           <View style={styles.customerInfo}>
             <Text style={styles.customerName} numberOfLines={1}>
-              {hire.employer?.name ?? 'Customer'}
+              {hire.employer?.name ?? t('common.customer')}
             </Text>
             <Text style={styles.customerRating} numberOfLines={1}>
               {t('rating.customerLabel')}: {formatRatingSummary(hire.customerRating, t)}
@@ -456,7 +453,7 @@ function RequestCard({
           style={[styles.rejectBtn, rejectDisabled && styles.rejectBtnDisabled]}
           disabled={rejectDisabled}
           onPress={onReject}
-          accessibilityLabel="Reject this request"
+          accessibilityLabel={t('dashboard.rejectRequestA11y')}
         >
           <Ionicons name="close" size={20} color={colors.textPrimary} />
         </Pressable>
@@ -464,13 +461,13 @@ function RequestCard({
           style={[styles.acceptBtn, acceptDisabled && styles.acceptBtnDisabled]}
           disabled={acceptDisabled}
           onPress={onAccept}
-          accessibilityLabel="Accept this request"
+          accessibilityLabel={t('dashboard.acceptRequestA11y')}
         >
           {acceptBusy ? (
             <ActivityIndicator size="small" color={colors.white} />
           ) : (
             <Text style={[styles.acceptText, acceptDisabled && styles.acceptTextDisabled]}>
-              Accept
+              {t('hireDetail.accept')}
             </Text>
           )}
         </Pressable>

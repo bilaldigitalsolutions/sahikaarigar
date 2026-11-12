@@ -204,9 +204,7 @@ export default function ProfileScreen() {
             <Badge label={t(ROLE_LABEL[user.role] ?? 'common.user')} tone="primary" style={styles.badge} />
           </View>
         </View>
-      </Card>
-
-      <Card style={styles.card}>
+        <View style={styles.infoGap} />
         <InfoRow
           icon="location-outline"
           label={t('common.area')}
@@ -529,6 +527,7 @@ const styles = StyleSheet.create({
   },
   phone: { fontSize: fontSize.small, color: colors.textSecondary, marginTop: 2 },
   badge: { marginTop: spacing.sm },
+  infoGap: { height: spacing.md },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',

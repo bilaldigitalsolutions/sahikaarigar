@@ -63,14 +63,14 @@ export interface AadhaarValidation {
 export function validateAadhaar(aadhaar: string): AadhaarValidation {
   const digits = String(aadhaar ?? '').replace(/\D/g, '');
   if (digits.length !== 12) {
-    return { valid: false, error: 'Kripya valid 12-digit Aadhaar number daalein.' };
+    return { valid: false, error: 'Please enter a valid 12-digit Aadhaar number.' };
   }
   // 000000000000 / 111111111111 etc. can slip past some checksums — block.
   if (/^(\d)\1{11}$/.test(digits)) {
-    return { valid: false, error: 'Kripya valid 12-digit Aadhaar number daalein.' };
+    return { valid: false, error: 'Please enter a valid 12-digit Aadhaar number.' };
   }
   if (!verhoeffPasses(digits)) {
-    return { valid: false, error: 'Kripya valid 12-digit Aadhaar number daalein.' };
+    return { valid: false, error: 'Please enter a valid 12-digit Aadhaar number.' };
   }
   return { valid: true, error: null };
 }

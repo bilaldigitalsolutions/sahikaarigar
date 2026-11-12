@@ -340,7 +340,7 @@ export default function WorkerDetailScreen() {
                             {review.reviewer?.name ?? t('common.user')}
                           </Text>
                           <Text style={styles.reviewDate}>
-                            {formatRelativeDate(review.createdAt)}
+                            {formatRelativeDate(review.createdAt, t)}
                           </Text>
                         </View>
                         <Text style={styles.reviewStars}>{generateStars(review.rating)}</Text>

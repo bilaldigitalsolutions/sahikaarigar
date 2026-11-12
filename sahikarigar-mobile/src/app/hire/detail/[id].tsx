@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import type { TFunction } from 'i18next';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -25,22 +26,22 @@ import { colors, fontSize, fontWeight, radius, spacing } from '@/theme';
 import type { HireAction, HireStatus } from '@/types';
 import { calculateDistance, formatCurrency, formatDuration, formatRatingSummary } from '@/utils';
 
-function fmtTime(iso?: string | null): string {
+function fmtTime(iso: string | null | undefined, t: TFunction): string {
   if (!iso) return '';
   const d = new Date(iso);
   const time = d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
   const sameDay = d.toDateString() === new Date().toDateString();
   return sameDay
-    ? `Today, ${time}`
+    ? `${t('common.today')}, ${time}`
     : `${d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}, ${time}`;
 }
 
-const DEMO_ACTIONS: { action: HireAction; label: string }[] = [
-  { action: 'accept', label: 'Accept' },
-  { action: 'en_route', label: 'On the way' },
-  { action: 'arrived', label: 'Arrived' },
-  { action: 'start', label: 'Start Work' },
-  { action: 'complete', label: 'Complete' },
+const DEMO_ACTIONS: { action: HireAction; key: string }[] = [
+  { action: 'accept', key: 'hireDetail.accept' },
+  { action: 'en_route', key: 'hireDetail.onTheWay' },
+  { action: 'arrived', key: 'hireDetail.arrived' },
+  { action: 'start', key: 'hireDetail.startWork' },
+  { action: 'complete', key: 'hireDetail.complete' },
 ];
 
 /** Demo mode only: the status each simulated action is valid from. Without
@@ -106,7 +107,7 @@ export default function HireDetailScreen() {
     return () => clearInterval(timer);
   }, [fetchHire]);
 
-  const onHelp = () => Alert.alert(t('common.help'), `Support: ${SUPPORT_PHONE}`);
+  const onHelp = () => Alert.alert(t('common.help'), t('profile.needHelpPhone', { phone: SUPPORT_PHONE }));
 
   const onCall = () => {
     // Defence in depth: even if a stale render leaves the button enabled,
@@ -348,7 +349,7 @@ function BookingBody({
   const workerArea = hire.worker?.user?.locationArea
     ? areaLabel(hire.worker.user.locationArea)
     : null;
-  const customerName = hire.employer?.name ?? 'Customer';
+  const customerName = hire.employer?.name ?? t('common.customer');
   const customerRating = hire.customerRating ?? null;
   const workerRating = hire.worker
     ? {
@@ -409,7 +410,7 @@ function BookingBody({
   };
 
   const steps: TimelineStep[] = [
-    { label: t('common.booked'), time: fmtTime(hire.createdAt), state: 'done' },
+    { label: t('common.booked'), time: fmtTime(hire.createdAt, t), state: 'done' },
     {
       label: t('hireDetail.workerAssigned'),
       time: accepted ? t('hireDetail.confirmed') : t('common.pending'),
@@ -417,7 +418,7 @@ function BookingBody({
     },
     {
       label: t('hireDetail.onTheWay'),
-      time: enRoute ? fmtTime(hire.enRouteAt) : t('common.pending'),
+      time: enRoute ? fmtTime(hire.enRouteAt, t) : t('common.pending'),
       note: hire.status === 'en_route' ? t('hireDetail.expectedIn45') : undefined,
       state: enRoute ? (arrived ? 'done' : 'active') : 'pending',
     },
@@ -425,7 +426,7 @@ function BookingBody({
       label: t('hireDetail.workStarted'),
       time: workStarted
         ? hire.startedAt
-          ? fmtTime(hire.startedAt)
+          ? fmtTime(hire.startedAt, t)
           : t('hireDetail.active')
         : hire.status === 'arrived'
           ? t('hireDetail.waitingForOTP')
@@ -501,7 +502,7 @@ function BookingBody({
                 {distance != null ? (
                   <>
                     <Ionicons name="location-outline" size={13} color={colors.primaryDark} />
-                    <Text style={styles.workerMeta}>• ~{distance} km away</Text>
+                    <Text style={styles.workerMeta}>• ~{t('home.kmAway', { distance })}</Text>
                   </>
                 ) : null}
               </View>
@@ -662,7 +663,7 @@ function BookingBody({
           <View style={styles.feeRow}>
             <View style={styles.feeCol}>
               <Text style={styles.feeLabel}>{t('hireDetail.rateLabel')}</Text>
-              <Text style={styles.feeValue}>{formatCurrency(hourlyRate)}/hr</Text>
+              <Text style={styles.feeValue}>{formatCurrency(hourlyRate)}{t('hireDetail.ratePerHourShort')}</Text>
             </View>
             <View style={styles.feeDivider} />
             <View style={styles.feeCol}>
@@ -702,7 +703,7 @@ function BookingBody({
                   onPress={() => onAction(item.action)}
                   disabled={busy}
                 >
-                  <Text style={styles.demoBtnText}>{item.label}</Text>
+                  <Text style={styles.demoBtnText}>{t(item.key)}</Text>
                 </Pressable>
               ))}
             </View>

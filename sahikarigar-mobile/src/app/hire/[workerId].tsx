@@ -10,6 +10,7 @@ import { createHire, getWorker } from '@/lib/api';
 import { trackEvent } from '@/lib/observability';
 import { getLocation } from '@/lib/storage';
 import { colors, fontSize, fontWeight, radius, spacing } from '@/theme';
+import { formatCurrency } from '@/utils';
 
 /** Phone numbers (India) are 10 digits; a rate field is max 5 digits. */
 
@@ -196,7 +197,7 @@ export default function CreateHireScreen() {
             {t('hire.homeAreaSub')}
           </Text>
           <Input
-            label="Home area"
+            label={t('hire.area')}
             value={homeLocation}
             editable={false}
             style={styles.inputReadOnly}
@@ -221,7 +222,7 @@ export default function CreateHireScreen() {
         <View style={styles.rateRow}>
           <Text style={styles.rateLabel}>{t('hireDetail.rateLabel')}</Text>
           <Text style={styles.rateValue}>
-            ₹{workerRate ?? 0}/hr (set by worker)
+            {formatCurrency(workerRate ?? 0)}{t('hireDetail.ratePerHour')}
           </Text>
         </View>
 

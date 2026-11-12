@@ -48,17 +48,19 @@ configureNotificationHandler();
  * instead of a blank frame.
  */
 function AppLoading() {
+  const { t } = useTranslation();
   return (
     <View style={styles.loading}>
       <BrandLogo size={64} showWordmark={false} />
       <Text style={styles.loadingTitle}>Sahi Kaarigar</Text>
       <ActivityIndicator color={colors.primaryDark} style={styles.loadingSpinner} />
-      <Text style={styles.loadingText}>Loading…</Text>
+      <Text style={styles.loadingText}>{t('common.loading')}</Text>
     </View>
   );
 }
 
 function RootNavigator() {
+  const { t } = useTranslation();
   const { initializing, user } = useAuth();
   const pathname = usePathname();
   const segments = useSegments();
@@ -185,18 +187,18 @@ function RootNavigator() {
         <Stack.Screen name="onboarding/role" />
         <Stack.Screen name="role-selection" />
         <Stack.Screen name="welcome" />
-        <Stack.Screen name="worker/[id]" options={{ headerShown: true, title: 'Worker Profile', headerBackTitle: 'Back' }} />
+        <Stack.Screen name="worker/[id]" options={{ headerShown: true, title: t('workerScreen.title'), headerBackTitle: t('common.back') }} />
         <Stack.Screen
           name="hire/[workerId]"
-          options={{ headerShown: true, title: 'Book a Worker', headerBackTitle: 'Back' }}
+          options={{ headerShown: true, title: t('hire.bookWorkerTitle'), headerBackTitle: t('common.back') }}
         />
-        <Stack.Screen name="hire/detail/[id]" options={{ headerShown: true, title: 'Booking Details', headerBackTitle: 'Back' }} />
-        <Stack.Screen name="hire/feedback/[id]" options={{ headerShown: true, title: 'Feedback', headerBackTitle: 'Back' }} />
+        <Stack.Screen name="hire/detail/[id]" options={{ headerShown: true, title: t('hireDetail.title'), headerBackTitle: t('common.back') }} />
+        <Stack.Screen name="hire/feedback/[id]" options={{ headerShown: true, title: t('feedback.title'), headerBackTitle: t('common.back') }} />
         <Stack.Screen name="/help/faq" />
-        <Stack.Screen name="register-worker" options={{ headerShown: true, title: 'Join as Kaarigar', headerBackTitle: 'Back' }} />
-        <Stack.Screen name="edit-profile" options={{ headerShown: true, title: 'Edit Profile', headerBackTitle: 'Back' }} />
-        <Stack.Screen name="search" options={{ headerShown: true, title: 'Search Workers', headerBackTitle: 'Back' }} />
-        <Stack.Screen name="map" options={{ headerShown: true, title: 'Map', headerBackTitle: 'Back' }} />
+        <Stack.Screen name="register-worker" options={{ headerShown: true, title: t('profile.joiningAs'), headerBackTitle: t('common.back') }} />
+        <Stack.Screen name="edit-profile" options={{ headerShown: true, title: t('profile.editProfile'), headerBackTitle: t('common.back') }} />
+        <Stack.Screen name="search" options={{ headerShown: true, title: t('dashboard.searchWorkers'), headerBackTitle: t('common.back') }} />
+        <Stack.Screen name="map" options={{ headerShown: true, title: t('map.title'), headerBackTitle: t('common.back') }} />
       </Stack>
       {/* Rapido/Porter-style in-app push banner — slides down under the status
           bar when a new job request notification arrives. */}

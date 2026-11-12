@@ -132,7 +132,7 @@ export default function RegisterWorkerScreen() {
       return;
     }
     if (!aadhaarValid) {
-      setError(aadhaarCheck.error ?? t('profile.aadhaarInvalid'));
+      setError(t('profile.aadhaarInvalid'));
       return;
     }
     if (!values.aadhaarPhotoUri || !values.aadhaarPhotoDataUrl) {

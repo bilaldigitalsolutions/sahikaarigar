@@ -4,10 +4,9 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { BrandLogo, Button, Card, LocationPicker, Rating, Screen, Select } from '@/components';
+import { BrandLogo, Button, Card, LanguageToggle, LocationPicker, Rating, Screen, Select } from '@/components';
 import { SKILLS } from '@/constants';
 import { useAuth } from '@/contexts/AuthContext';
-import { setAppLanguage, type SupportedLanguage } from '@/lib/i18n';
 import { colors, fontSize, fontWeight, radius, spacing } from '@/theme';
 
 const TRUST = [
@@ -51,7 +50,7 @@ const REVIEWS = [
 ] as const;
 
 export default function WelcomeScreen() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const router = useRouter();
   const { user } = useAuth();
   const [service, setService] = useState<string | null>(null);
@@ -114,25 +113,9 @@ export default function WelcomeScreen() {
       </View>
 
       {/* Language toggle — first screen, so users pick their language before
-          anything else. Same persisting switch as the Profile card. */}
-      <View style={styles.langRow}>
-        {(['en', 'te'] as const).map((lang) => {
-          const selected = i18n.language.startsWith(lang);
-          return (
-            <Pressable
-              key={lang}
-              style={[styles.langBtn, selected && styles.langBtnActive]}
-              onPress={() => void setAppLanguage(lang as SupportedLanguage)}
-              accessibilityRole="button"
-              accessibilityState={{ selected }}
-            >
-              <Text style={[styles.langBtnText, selected && styles.langBtnTextActive]}>
-                {t(`language.${lang}`)}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
+          anything else. Same component also appears logged-out on the login
+          and onboarding screens, and signed-in on the Profile card. */}
+      <LanguageToggle />
 
       {/* Hero */}
       <View style={styles.hero}>
@@ -255,33 +238,6 @@ const styles = StyleSheet.create({
     fontSize: fontSize.caption,
     fontWeight: fontWeight.bold,
     color: colors.white,
-  },
-  langRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    marginTop: spacing.xs,
-  },
-  langBtn: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.pill,
-    paddingVertical: 6,
-    paddingHorizontal: spacing.md,
-    backgroundColor: colors.card,
-  },
-  langBtnActive: {
-    backgroundColor: colors.primaryDark,
-    borderColor: colors.primaryDark,
-  },
-  langBtnText: {
-    fontSize: fontSize.caption,
-    fontWeight: fontWeight.medium,
-    color: colors.textPrimary,
-  },
-  langBtnTextActive: {
-    color: colors.white,
-    fontWeight: fontWeight.bold,
   },
   hero: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
   badgeRow: {

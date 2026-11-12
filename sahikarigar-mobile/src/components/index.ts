@@ -1,6 +1,7 @@
 export * from './ui';
 export { EmptyState } from './EmptyState';
 export { HireCard } from './HireCard';
+export { LanguageToggle } from './LanguageToggle';
 export { WorkerCard } from './WorkerCard';
 export { MAX_WORK_PHOTOS, WorkerProfileForm } from './WorkerProfileForm';
 export type { EmptyStateProps } from './EmptyState';

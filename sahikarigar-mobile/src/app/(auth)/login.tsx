@@ -12,7 +12,7 @@ import {
   View,
 } from 'react-native';
 
-import { BrandLogo, Button, Input, Screen } from '@/components';
+import { BrandLogo, Button, Input, LanguageToggle, Screen } from '@/components';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors, fontSize, fontWeight, spacing } from '@/theme';
 import { isFakePhoneSequence, isValidPhone, normalizeIndianPhone } from '@/utils';
@@ -92,6 +92,10 @@ export default function LoginScreen() {
           <Text style={styles.title}>{t('common.appName')}</Text>
           <Text style={styles.subtitle}>{t('auth.loginSubtitle')}</Text>
         </View>
+
+        {/* Language pills — reachable while logged out, so a user who picked
+            the wrong language never has to sign in to fix it. */}
+        <LanguageToggle />
 
         <View style={styles.form}>
           <Input

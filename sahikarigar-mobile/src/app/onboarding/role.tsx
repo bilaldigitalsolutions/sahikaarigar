@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { BrandLogo, Screen } from '@/components';
+import { BrandLogo, LanguageToggle, Screen } from '@/components';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMode } from '@/contexts/ModeContext';
 import { setHasSeenOnboarding } from '@/lib/storage';
@@ -46,6 +46,9 @@ export default function RoleStep() {
           {t('onboarding.roleSub')}
         </Text>
       </View>
+      {/* Language pills — this is the first screen guests see on app start,
+          so language must be changeable here without signing in. */}
+      <LanguageToggle />
       <RoleCard icon="construct-outline" title={t('onboarding.workerCardTitle')} desc={t('onboarding.workerCardDesc')} active={roleChosen && role === 'worker'} onPress={() => { void done('worker'); }} />
       <RoleCard icon="home-outline" title={t('onboarding.employerCardTitle')} desc={t('onboarding.employerCardDesc')} active={roleChosen && role === 'employer'} onPress={() => { void done('employer'); }} />
       <Text style={styles.note}>{t('onboarding.roleNote')}</Text>

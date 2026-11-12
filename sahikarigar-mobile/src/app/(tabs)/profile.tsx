@@ -109,8 +109,9 @@ export default function ProfileScreen() {
     );
   }
 
-  // `signOut()` performs the full stack reset and lands on /welcome, so no
-  // extra navigation here — doing it in both places raced the reset.
+  // `signOut()` performs the full stack reset and lands on the role-selection
+  // onboarding screen (same entry as a fresh guest), so no extra navigation
+  // here — doing it in both places raced the reset.
   const onSignOut = async () => {
     await signOut();
   };

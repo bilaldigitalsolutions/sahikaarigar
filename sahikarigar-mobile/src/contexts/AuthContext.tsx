@@ -46,7 +46,7 @@ interface AuthContextValue {
    * Clear the stored session and reset navigation. Defaults to the public
    * welcome screen; account deletion lands directly on the login screen.
    */
-  signOut: (redirectTo?: '/welcome' | '/(auth)/login') => Promise<void>;
+  signOut: (redirectTo?: '/onboarding/role' | '/welcome' | '/(auth)/login') => Promise<void>;
   refreshUser: () => Promise<void>;
   resetOtpFlow: () => void;
 }
@@ -169,7 +169,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(
-    async (redirectTo: '/welcome' | '/(auth)/login' = '/welcome') => {
+    async (
+      redirectTo: '/onboarding/role' | '/welcome' | '/(auth)/login' = '/onboarding/role',
+    ) => {
       try {
         await logoutSession();
       } finally {
@@ -188,7 +190,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         // Hard reset the navigation stack. Pop everything back to the first
         // screen (even when the current screen is inside the tab navigator),
-        // then replace that first screen with the public landing page. This
+        // then replace that first screen with the role-selection onboarding
+        // screen — the same entry a fresh guest gets on app start. This
         // guarantees Android's hardware Back cannot reopen a signed-in screen.
         try {
           router.dismissAll();

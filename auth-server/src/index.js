@@ -108,6 +108,23 @@ const WEBSITE_DOMAIN = (process.env.WEBSITE_DOMAIN || 'http://localhost:3000').r
 const API_BASE_PATH = process.env.API_BASE_PATH || '/auth';
 const APP_NAME = process.env.APP_NAME || 'SahiKaarigar';
 
+// -----------------------------------------------------------------------------
+// Play Store review logins — reusable OTP sign-in for Google's reviewers.
+// Login is phone + random SMS OTP; Google's reviewers cannot receive Indian
+// SMS, and Play requires reusable sign-in details for OTP apps in the App
+// Access form. REVIEW_LOGIN_PHONES (comma-separated Indian numbers) always
+// sign in with the fixed REVIEW_LOGIN_OTP — the code is forced at creation
+// time and no SMS is ever sent for these numbers. With both envs unset the
+// behaviour for real users is unchanged.
+// -----------------------------------------------------------------------------
+const REVIEW_LOGIN_OTP = process.env.REVIEW_LOGIN_OTP || '';
+const REVIEW_LOGIN_PHONES = (process.env.REVIEW_LOGIN_PHONES || '')
+  .split(',')
+  .map((raw) => normalizeIndianPhone(raw.trim()))
+  .filter(Boolean);
+const isReviewLoginPhone = (phone) =>
+  Boolean(REVIEW_LOGIN_OTP && phone && REVIEW_LOGIN_PHONES.includes(phone));
+
 // Sentry error tracking — optional; only active when SENTRY_DSN is set.
 if (process.env.SENTRY_DSN) {
   Sentry.init({
@@ -157,7 +174,32 @@ supertokens.init({
             if (!otp) throw new Error('SuperTokens did not supply an OTP to deliver');
             if (!phone) throw new Error('SuperTokens did not supply a phone number to deliver to');
 
+            // Play review accounts sign in with the fixed REVIEW_LOGIN_OTP —
+            // never spend SMS balance (or text a real code) on them.
+            if (isReviewLoginPhone(phone)) {
+              console.log(`[review-login] SMS skipped for review phone ${phone}`);
+              return;
+            }
+
             await sendOtpSms({ phone, otp });
+          },
+        }),
+      },
+      // Force the fixed review OTP at code-creation time. SuperTokens verifies
+      // the code the user enters against the one it STORED — so the fixed
+      // value must be the stored code, not merely the delivered one.
+      override: {
+        functions: (originalImplementation) => ({
+          ...originalImplementation,
+          createNewCodeForPhoneNumber: async (input) => {
+            const phone = normalizeIndianPhone(input?.phoneNumber ?? '');
+            if (isReviewLoginPhone(phone)) {
+              return originalImplementation.createNewCodeForPhoneNumber({
+                ...input,
+                userInputCode: REVIEW_LOGIN_OTP,
+              });
+            }
+            return originalImplementation.createNewCodeForPhoneNumber(input);
           },
         }),
       },

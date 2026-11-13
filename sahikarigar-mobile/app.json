@@ -3,7 +3,7 @@
     "name": "Sahi Kaarigar",
     "slug": "sahi-kaarigar",
     "owner": "mohammadbilalmd",
-    "version": "1.0.39",
+    "version": "1.0.40",
     "orientation": "portrait",
     "icon": "./assets/images/app-icon.png",
     "backgroundColor": "#16A34A",
@@ -16,7 +16,7 @@
     },
     "android": {
       "package": "com.sahikarigar.app",
-      "versionCode": 47,
+      "versionCode": 48,
       "adaptiveIcon": {
         "backgroundColor": "#16A34A",
         "foregroundImage": "./assets/images/app-icon.png",
@@ -77,7 +77,8 @@
         "expo-notifications",
         {
           "color": "#16A34A",
-          "defaultChannel": "default"
+          "defaultChannel": "hires",
+          "sounds": ["./assets/sounds/hire_ding.wav"]
         }
       ]
     ],

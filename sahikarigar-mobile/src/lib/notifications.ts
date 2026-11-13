@@ -111,6 +111,38 @@ export async function promptForNotificationPermissionOnce(): Promise<void> {
   }
 }
 
+/**
+ * Create the loud notification channel. Android channels are IMMUTABLE after
+ * creation — the first build shipped 'default' with DEFAULT importance (no
+ * heads-up, no guaranteed sound), so the channel id changed to 'hires'.
+ *
+ * The channel ships with a bundled custom sound (hire_ding.wav, added to
+ * res/raw at build time by the expo-notifications plugin 'sounds' config in
+ * app.json). Without an explicit sound, Android creates the channel silent —
+ * the channel's settings override whatever the push message requests, which is
+ * why notifications were easy to miss before.
+ *
+ * Runs at app start (root layout) — channel creation does NOT need
+ * notification permission, so the channel exists even before the user signs
+ * in, and pushes delivered to a killed app always find their channel.
+ * Never throws.
+ */
+export async function ensureNotificationChannel(): Promise<void> {
+  try {
+    if (Platform.OS !== 'android') return;
+    await Notifications.setNotificationChannelAsync('hires', {
+      name: 'SahiKaarigar',
+      importance: Notifications.AndroidImportance.HIGH,
+      sound: 'hire_ding.wav',
+      enableVibrate: true,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: '#16A34A',
+    });
+  } catch {
+    // Best-effort — a failed channel creation must not break app startup.
+  }
+}
+
 /** Foreground handler — show the banner even while the app is open. */
 export function configureNotificationHandler() {
   Notifications.setNotificationHandler({
@@ -137,20 +169,10 @@ export async function registerForPushNotifications(): Promise<string | null> {
     const { status } = await Notifications.getPermissionsAsync();
     if (status !== 'granted') return null;
 
-    // Android needs a notification channel (8+) for sound/vibration/heads-up.
-    // Channels are IMMUTABLE after creation — bumping importance on the same id
-    // would do nothing for phones that already have the old quiet channel. The
-    // first build shipped 'default' with DEFAULT importance, so notifications
-    // arrived silently and were easy to miss. 'hires' is a fresh channel with
-    // HIGH importance: heads-up popup + default notification sound + vibration.
+    // Loud channel (heads-up + custom ding sound) — created here again as a
+    // no-op safety net; the root layout already runs it at every app start.
     if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync('hires', {
-        name: 'SahiKaarigar',
-        importance: Notifications.AndroidImportance.HIGH,
-        enableVibrate: true,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#16A34A',
-      });
+      await ensureNotificationChannel();
     }
 
     // The token is tied to the Expo project ID in app.json → extra.eas.projectId

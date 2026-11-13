@@ -19,6 +19,7 @@ import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { ModeProvider } from '@/contexts/ModeContext';
 import {
   configureNotificationHandler,
+  ensureNotificationChannel,
   promptForNotificationPermissionOnce,
   useHireRequestNotificationRoute,
 } from '@/lib/notifications';
@@ -41,6 +42,11 @@ console.log(
 
 // Show hire status banners even while the app is open.
 configureNotificationHandler();
+
+// Create the loud 'hires' channel at every app start — channels need NO
+// notification permission, so it exists before any sign-in and pushes to a
+// killed app always find their channel. No-op on non-Android.
+void ensureNotificationChannel();
 
 /**
  * Shown while the stored session is being restored — the native splash screen

@@ -60,9 +60,11 @@ export async function sendExpoPushMany(messages) {
       body: message.body || '',
       data: message.data ?? {},
       priority: 'high',
-      // expo-notifications creates this channel on Android (see the mobile
-      // lib/notifications.ts); without it Android 8+ drops the notification.
-      channelId: message.channelId ?? 'default',
+      // The mobile app (v1.0.39+) creates the 'hires' channel at HIGH importance
+      // (heads-up + sound — see lib/notifications.ts). On older app builds the
+      // channel doesn't exist yet, so Android falls back to its default
+      // channel — delivery is unaffected, just quieter, as before.
+      channelId: message.channelId ?? 'hires',
     }));
   if (payload.length === 0) return { sent: 0, failed: 0 };
 

@@ -137,11 +137,17 @@ export async function registerForPushNotifications(): Promise<string | null> {
     const { status } = await Notifications.getPermissionsAsync();
     if (status !== 'granted') return null;
 
-    // Android needs a default channel for the sound/vibration to fire.
+    // Android needs a notification channel (8+) for sound/vibration/heads-up.
+    // Channels are IMMUTABLE after creation — bumping importance on the same id
+    // would do nothing for phones that already have the old quiet channel. The
+    // first build shipped 'default' with DEFAULT importance, so notifications
+    // arrived silently and were easy to miss. 'hires' is a fresh channel with
+    // HIGH importance: heads-up popup + default notification sound + vibration.
     if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync('default', {
+      await Notifications.setNotificationChannelAsync('hires', {
         name: 'SahiKaarigar',
-        importance: Notifications.AndroidImportance.DEFAULT,
+        importance: Notifications.AndroidImportance.HIGH,
+        enableVibrate: true,
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#16A34A',
       });

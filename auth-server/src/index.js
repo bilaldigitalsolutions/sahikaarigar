@@ -71,6 +71,7 @@ import {
   getCustomerReviewByHireRequest,
 } from './reviews.js';
 import { createReport } from './reports.js';
+import { sendEmail } from './email.js';
 import {
   ADMIN_SESSION_COOKIE,
   ADMIN_SESSION_TTL_MS,
@@ -372,6 +373,78 @@ app.get('/health', (_req, res) => {
     build: (process.env.RENDER_GIT_COMMIT || '').slice(0, 7) || 'dev',
     smsProvider: resolveSmsProvider(),
     supportedSmsProviders: SUPPORTED_SMS_PROVIDERS,
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Account deletion WEB requests (Play policy).
+//
+// The mobile app deletes the account instantly (Profile -> Delete Account ->
+// deleteUserAccount in users.js). This public endpoint is for users who cannot
+// open the app — Google Play requires a web destination where deletion can be
+// requested, and the delete-account page on the Vercel site posts here.
+//
+// Deletion is completed manually from the emailed request. Two deliberate
+// properties:
+//   * The response is ALWAYS the same for a well-formed number, so the endpoint
+//     cannot be used to probe which phone numbers are registered.
+//   * Rate limited per IP+phone so the admin inbox cannot be flooded.
+// ---------------------------------------------------------------------------
+const DELETE_REQUEST_MAX_ATTEMPTS = 5;
+const DELETE_REQUEST_WINDOW_MS = 60 * 60_000;
+const deleteRequestAttempts = new Map();
+
+app.post('/account/delete-request', (req, res) => {
+  const phone = normalizeIndianPhone(String(req.body?.phone ?? ''));
+  const reason = String(req.body?.reason ?? '').trim().slice(0, 500);
+  const ip =
+    (String(req.headers['x-forwarded-for'] ?? '').split(',')[0] ?? '').trim() ||
+    req.socket.remoteAddress ||
+    'unknown';
+
+  if (!isValidIndianPhone(phone)) {
+    res.status(400).json({
+      ok: false,
+      error: 'Sahi 10-digit Indian mobile number daalo (6, 7, 8 ya 9 se shuru).',
+    });
+    return;
+  }
+
+  if (
+    !takeRateLimitSlot(
+      deleteRequestAttempts,
+      `${ip}:${phone}`,
+      DELETE_REQUEST_MAX_ATTEMPTS,
+      DELETE_REQUEST_WINDOW_MS,
+    )
+  ) {
+    res.status(429).json({
+      ok: false,
+      error: 'Bahut zyada requests. Thodi der baad try karein.',
+    });
+    return;
+  }
+
+  console.log(`[delete-request] ${phone} ip=${ip} reason=${reason ? 'yes' : 'no'}`);
+  // Fire-and-forget: sendEmail never throws and delivery must not delay the
+  // response. Without `to` it goes to ADMIN_EMAIL.
+  void sendEmail({
+    subject: `Account deletion request - ${phone}`,
+    text:
+      `Phone: ${phone}\n` +
+      `Received: ${new Date().toISOString()}\n` +
+      `Request IP: ${ip}\n` +
+      `Reason: ${reason || '(not provided)'}\n\n` +
+      'Delete this account: the app runs deleteUserAccount() in src/users.js\n' +
+      'from Profile -> Delete Account. Log in as this number and run it, or\n' +
+      'remove the users row + attached data manually and revoke the\n' +
+      'SuperTokens identity.\n',
+  });
+
+  res.json({
+    ok: true,
+    message:
+      'Request mil gayi. Aapka account aur data 7 din ke andar delete kar diye jayenge.',
   });
 });
 

@@ -33,7 +33,7 @@ const SECTIONS: { title: string; body: string }[] = [
   },
   {
     title: '6. Aapke rights',
-    body: 'Aap kabhi bhi apna account ya data delete karwa sakte ho. Iske liye Contact page se humse sampark karo.',
+    body: 'Aap kabhi bhi apna account ya data delete karwa sakte ho — app ke Profile tab se turant delete ho jata hai, ya app ke bina /delete-account page se request bhej sakte ho.',
   },
 ];
 

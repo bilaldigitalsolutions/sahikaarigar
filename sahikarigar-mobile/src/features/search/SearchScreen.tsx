@@ -35,6 +35,8 @@ import { calculateDistance, formatCurrency } from '@/utils';
 const PRICE_MAX = 1000;
 /** Select option id shown as "All skills" (maps back to no skill filter). */
 const ALL_SKILLS = '__all__';
+/** Surrounding search radius — matches the "Near Me" 10 km promise. */
+const AREA_SEARCH_RADIUS_KM = 10;
 
 /**
  * Sample profiles shown when the API has no approved workers yet, so the
@@ -78,6 +80,10 @@ export function SearchScreen() {
   }, [query]);
   const [skill, setSkill] = useState<string | null>(params.skill ?? null);
   const [areaFilter, setAreaFilter] = useState<string | null>(params.area ?? null);
+  // Coordinates of the picked area. Present only when the picker resolved a
+  // real place (Ola/Google) — then the server does radius (surrounding)
+  // filtering; free-typed areas fall back to the lenient text match below.
+  const [areaCoords, setAreaCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [filters, setFilters] = useState<PopularFilterId[]>([]);
   const [maxPrice, setMaxPrice] = useState(PRICE_MAX);
   const [workers, setWorkers] = useState<ApiWorker[]>([]);
@@ -108,12 +114,23 @@ export function SearchScreen() {
   const load = useCallback(async () => {
     setRefreshing(true);
     try {
-      const result = await searchWorkers({ skill: skill ?? undefined, limit: 50 });
+      const result = await searchWorkers({
+        skill: skill ?? undefined,
+        // Surrounding search: with resolved coordinates the server filters by
+        // radius and orders nearest-first. The text `area` param is only a
+        // legacy exact match and would over-filter, so it is never sent here.
+        ...(areaCoords
+          ? { lat: areaCoords.lat, lng: areaCoords.lng, radius: AREA_SEARCH_RADIUS_KM }
+          : {}),
+        limit: 50,
+      });
       setWorkers(result.workers ?? []);
       setError(null);
       trackEvent('search_performed', {
         skill: skill ?? undefined,
         query_text: queryRef.current.trim(),
+        area_text: areaFilter ?? undefined,
+        area_geo: Boolean(areaCoords),
         resultCount: (result.workers ?? []).length,
       });
     } catch (e) {
@@ -123,7 +140,7 @@ export function SearchScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [skill]);
+  }, [skill, areaCoords, areaFilter, t]);
 
   useEffect(() => {
     load();
@@ -152,7 +169,10 @@ export function SearchScreen() {
 
     let list = workers.filter((w) => {
       if (skill && !w.skills.includes(skill)) return false;
-      if (areaFilter && !matchesArea(w, areaFilter)) return false;
+      // Radius searches are already filtered server-side by distance from the
+      // searched place — the lenient text match must NOT re-filter them,
+      // or a Madhapur worker 2 km from a Hitech City search would disappear.
+      if (areaFilter && !areaCoords && !matchesArea(w, areaFilter)) return false;
       if (q) {
         const name = (w.user?.name ?? '').toLowerCase();
         const matchesSkill = w.skills.some((s) => querySkills.includes(s) || q.includes(s));
@@ -170,17 +190,22 @@ export function SearchScreen() {
       return true;
     });
 
-    // Default ordering is always nearest-first. "Top Rated" is the explicit
-    // user override; workers without coordinates stay at the end.
+    // Default ordering is always nearest-first — around the searched place
+    // when the user picked one (server sends distanceKm), otherwise around
+    // the customer. "Top Rated" is the explicit user override.
     if (filters.includes('top')) {
       list = [...list].sort((a, b) => b.ratingAverage - a.ratingAverage);
+    } else if (areaCoords) {
+      list = [...list].sort(
+        (a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity),
+      );
     } else {
       list = [...list].sort(
         (a, b) => (distance(a) ?? Infinity) - (distance(b) ?? Infinity),
       );
     }
     return list;
-  }, [workers, query, skill, areaFilter, filters, maxPrice, customerLat, customerLng]);
+  }, [workers, query, skill, areaFilter, areaCoords, filters, maxPrice, customerLat, customerLng]);
 
   /** Works both as a tab and as the standalone public route. */
   const goBack = () => {
@@ -249,7 +274,10 @@ export function SearchScreen() {
               <LocationPicker
                 placeholder={t('search.areaPlaceholder')}
                 value={areaFilter}
-                onSelect={(p) => setAreaFilter(p.description)}
+                onSelect={(p) => {
+                  setAreaFilter(p.description);
+                  setAreaCoords(p.lat != null && p.lng != null ? { lat: p.lat, lng: p.lng } : null);
+                }}
                 icon="location-outline"
               />
             </View>
@@ -295,7 +323,10 @@ export function SearchScreen() {
         <View style={styles.chipWrap}>
           <Pressable
             style={[styles.filterChip, styles.filterChipActive]}
-            onPress={() => setAreaFilter(null)}
+            onPress={() => {
+              setAreaFilter(null);
+              setAreaCoords(null);
+            }}
           >
             <Ionicons name="location" size={15} color={colors.white} />
             <Text style={[styles.filterText, styles.filterTextActive]} numberOfLines={1}>
@@ -348,7 +379,7 @@ export function SearchScreen() {
         {t('search.sortedBy')}{' '}
         {filters.includes('top')
           ? t('home.topRated')
-          : customerLat != null && customerLng != null
+          : areaCoords || (customerLat != null && customerLng != null)
             ? t('search.nearestFirst')
             : t('search.bestMatch')}
       </Text>
@@ -388,6 +419,7 @@ export function SearchScreen() {
               worker={w}
               userLat={customerLat}
               userLng={customerLng}
+              searchDistance={areaCoords ? (w.distanceKm ?? null) : null}
               onPress={() =>
                 w.id.startsWith('demo-')
                   ? Alert.alert(t('search.sampleProfileTitle'), t('search.sampleProfileBody'))
@@ -411,11 +443,16 @@ function WorkerRow({
   worker,
   userLat,
   userLng,
+  searchDistance,
   onPress,
 }: {
   worker: ApiWorker;
   userLat: number | null;
   userLng: number | null;
+  /** Distance from the searched area (radius searches) — preferred over the
+   *  customer-based estimate, which needs worker coordinates the public API
+   *  deliberately withholds. */
+  searchDistance?: number | null;
   onPress: () => void;
 }) {
   const { t } = useTranslation();
@@ -423,9 +460,10 @@ function WorkerRow({
   const name = user?.name ?? t('common.kaarigar');
   const areaId = user?.locationArea ?? worker.serviceAreas[0];
   const distance =
-    userLat != null && userLng != null && worker.lat != null && worker.lng != null
+    searchDistance ??
+    (userLat != null && userLng != null && worker.lat != null && worker.lng != null
       ? calculateDistance(userLat, userLng, worker.lat, worker.lng)
-      : null;
+      : null);
   const farAway = distance != null && distance > 10;
 
   return (

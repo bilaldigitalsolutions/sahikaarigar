@@ -19,6 +19,26 @@ export const WORKER_PUBLIC_SELECT =
   'customer_rating_avg, system_rating_score, service_areas, is_approved, created_at, ' +
   'user:users!user_id(id, name, avatar, location_area, location_city, is_verified, trust_score, is_active)';
 
+/** WORKER_PUBLIC_SELECT plus lat/lng — server-side only, never sent to clients. */
+export const WORKER_GEO_SELECT = WORKER_PUBLIC_SELECT + ', lat, lng';
+
+/** Default surrounding-search radius in kilometres when the client sends none. */
+const DEFAULT_RADIUS_KM = 10;
+
+/** Upper bound on rows fetched for one radius search before filtering in JS. */
+const GEO_CANDIDATE_CAP = 500;
+
+/** Great-circle distance between two coordinates, in kilometres (Haversine). */
+function haversineKm(lat1, lng1, lat2, lng2) {
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 6371 * 2 * Math.asin(Math.min(1, Math.sqrt(a)));
+}
+
 function mapPublicUser(row) {
   if (!row) return null;
   return {
@@ -113,9 +133,43 @@ export function mapWorker(row) {
 }
 
 /** Approved + available workers, newest rating first. */
-export async function searchWorkers({ skill, area, page = 1, limit = 20 } = {}) {
+export async function searchWorkers({
+  skill,
+  area,
+  lat,
+  lng,
+  radius,
+  page = 1,
+  limit = 20,
+} = {}) {
   const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 50);
   const safePage = Math.max(Number(page) || 1, 1);
+
+  // Surrounding search: a valid lat/lng origin switches to radius filtering
+  // ("kaarigar near Hitech City"), which no text match can approximate.
+  // Empty strings parse as 0 and nonsense values as NaN — both rejected, and
+  // range-checked so a bogus origin can only ever return an empty result.
+  const originLat = Number(lat);
+  const originLng = Number(lng);
+  const originValid =
+    String(lat ?? '').trim() !== '' &&
+    String(lng ?? '').trim() !== '' &&
+    Number.isFinite(originLat) &&
+    Number.isFinite(originLng) &&
+    Math.abs(originLat) <= 90 &&
+    Math.abs(originLng) <= 180;
+  if (originValid) {
+    const safeRadius = Math.min(Math.max(Number(radius) || DEFAULT_RADIUS_KM, 1), 50);
+    return geoSearchWorkers({
+      skill,
+      originLat,
+      originLng,
+      radius: safeRadius,
+      page: safePage,
+      limit: safeLimit,
+    });
+  }
+
   const from = (safePage - 1) * safeLimit;
 
   let query = db
@@ -139,6 +193,70 @@ export async function searchWorkers({ skill, area, page = 1, limit = 20 } = {}) 
   return {
     workers: (data ?? []).map(mapWorker),
     pagination: { page: safePage, limit: safeLimit, total, pages: Math.ceil(total / safeLimit) },
+  };
+}
+
+/**
+ * Radius search around a point (surrounding-area search).
+ *
+ * The customer searches a place ("Hitech City"); the server keeps every
+ * approved + available worker whose saved profile coordinates fall inside
+ * `radius` km of that place, nearest first. Distance is computed here —
+ * mapWorker strips worker coordinates from the public response (a worker's
+ * exact location can reveal their home), so clients only ever receive the
+ * distance number, never the coordinates themselves.
+ *
+ * Candidates are fetched without DB pagination and filtered in JS: the radius
+ * predicate cannot be expressed through PostgREST filters, and the marketplace
+ * is far below the candidate cap at launch. Pagination is applied afterwards
+ * on the filtered set, so `total` stays accurate.
+ */
+async function geoSearchWorkers({ skill, originLat, originLng, radius, page, limit }) {
+  let query = db
+    .from('worker_profiles')
+    .select(WORKER_GEO_SELECT)
+    .eq('is_approved', true)
+    .eq('availability', 'available')
+    .eq('user.is_active', true)
+    .order('rating_average', { ascending: false })
+    .order('completed_jobs', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(GEO_CANDIDATE_CAP);
+
+  if (skill) query = query.contains('skills', [String(skill).toLowerCase()]);
+
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+
+  const near = (data ?? [])
+    .map((row) => {
+      if (row.lat == null || row.lng == null) return null;
+      const km = haversineKm(originLat, originLng, row.lat, row.lng);
+      if (km > radius) return null;
+      return { row, distanceKm: Math.round(km * 10) / 10 };
+    })
+    .filter(Boolean)
+    .sort(
+      (a, b) =>
+        a.distanceKm - b.distanceKm ||
+        Number(b.row.rating_average ?? 0) - Number(a.row.rating_average ?? 0) ||
+        Number(b.row.completed_jobs ?? 0) - Number(a.row.completed_jobs ?? 0),
+    );
+
+  const total = near.length;
+  const from = (page - 1) * limit;
+  const workers = near
+    .slice(from, from + limit)
+    .map(({ row, distanceKm }) => ({ ...mapWorker(row), distanceKm }));
+
+  return {
+    workers,
+    pagination: {
+      page,
+      limit,
+      total,
+      pages: Math.max(Math.ceil(total / limit), 1),
+    },
   };
 }
 

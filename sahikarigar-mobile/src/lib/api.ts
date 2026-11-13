@@ -217,6 +217,9 @@ export interface ApiWorker {
   serviceAreas: string[];
   lat?: number | null;
   lng?: number | null;
+  /** Distance in km from the searched area — present only on radius searches.
+   *  Worker coordinates themselves are never sent to public clients. */
+  distanceKm?: number | null;
   isApproved: boolean;
   /** When this worker registered — used for the "recently joined" list. */
   createdAt?: string | null;
@@ -320,6 +323,12 @@ export interface ApiCustomerReview {
 export async function searchWorkers(params: {
   skill?: string;
   area?: string;
+  /** Search-place coordinates — switches the server to radius (surrounding)
+   *  filtering and nearest-first sorting. */
+  lat?: number;
+  lng?: number;
+  /** Radius in kilometres around the searched place (default 10 on the server). */
+  radius?: number;
   page?: number;
   limit?: number;
 }): Promise<{
@@ -329,6 +338,11 @@ export async function searchWorkers(params: {
   const query = new URLSearchParams();
   if (params.skill) query.set('skill', params.skill);
   if (params.area) query.set('area', params.area);
+  if (params.lat != null && params.lng != null) {
+    query.set('lat', String(params.lat));
+    query.set('lng', String(params.lng));
+  }
+  if (params.radius != null) query.set('radius', String(params.radius));
   if (params.page) query.set('page', String(params.page));
   if (params.limit) query.set('limit', String(params.limit));
   const suffix = query.toString() ? `?${query.toString()}` : '';

@@ -441,6 +441,9 @@ app.get('/workers', async (req, res, next) => {
     const result = await searchWorkers({
       skill: req.query.skill,
       area: req.query.area,
+      lat: req.query.lat,
+      lng: req.query.lng,
+      radius: req.query.radius,
       page: req.query.page,
       limit: req.query.limit,
     });

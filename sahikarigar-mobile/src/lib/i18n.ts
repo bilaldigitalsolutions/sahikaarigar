@@ -28,6 +28,12 @@ i18n.use(initReactI18next).init({
   resources,
   lng: getDeviceLanguage(),
   fallbackLng: 'en',
+  // Hermes (Expo's JS engine) does not provide Intl.PluralRules, so i18next
+  // cannot resolve the JSON v4 plural suffixes (_one/_other) — it would fall
+  // back to base-key lookups and render raw keys like "rating.summary".
+  // Pin the classic v3 plural format: "key" (count === 1) + "key_plural"
+  // (everything else). Static rules, no Intl dependency, deterministic.
+  compatibilityJSON: 'v3',
   interpolation: {
     escapeValue: false,
   },

@@ -234,6 +234,33 @@ export function emitAppBanner(payload: AppBannerPayload): void {
   });
 }
 
+// -----------------------------------------------------------------------------
+// Hire-push listeners — screens (worker dashboard, hire lists) subscribe so
+// their lists refresh INSTANTLY when a hire push arrives or is tapped, instead
+// of waiting for the next poll tick. Without this a new request can sit hidden
+// until the worker pulls to refresh.
+// -----------------------------------------------------------------------------
+
+const hirePushListeners = new Set<(hireId?: string) => void>();
+
+/** Subscribe to hire-push events. Returns an unsubscribe function. */
+export function onHirePush(listener: (hireId?: string) => void): () => void {
+  hirePushListeners.add(listener);
+  return () => {
+    hirePushListeners.delete(listener);
+  };
+}
+
+function emitHirePush(hireId?: string): void {
+  hirePushListeners.forEach((listener) => {
+    try {
+      listener(hireId);
+    } catch {
+      // ignore — one broken screen must never block the others
+    }
+  });
+}
+
 function bannerPayloadOf(content: Notifications.NotificationContent): AppBannerPayload {
   return {
     title: content.title ?? i18n.t('common.newJobRequestTitle'),
@@ -287,26 +314,39 @@ export function useHireRequestNotificationRoute(enabled: boolean) {
       }
     };
 
-    // Push RECEIVED while the app is open — pop the in-app banner.
+    // Push RECEIVED while the app is open — pop the in-app banner for new
+    // requests and refresh any hire lists that are on screen.
     const receivedSubscription = Notifications.addNotificationReceivedListener((notification) => {
-      const data = notification.request.content.data as { action?: string } | undefined;
+      const data = notification.request.content.data as
+        | { action?: string; hireId?: string }
+        | undefined;
       if (data?.action === 'created') emitRequestBanner(notification.request.content);
+      if (data?.hireId) emitHirePush(data.hireId);
     });
 
-    // Foreground/background tap — navigate + show the banner.
+    // Foreground/background tap — navigate + show the banner + refresh lists.
     const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response.notification.request.content.data as
+        | { action?: string; hireId?: string }
+        | undefined;
       if (isNewRequestPush(response)) {
         openRequests();
         emitRequestBanner(response.notification.request.content);
       }
+      if (data?.hireId) emitHirePush(data.hireId);
     });
 
     // Cold start — the app process began with this tap.
     void Notifications.getLastNotificationResponseAsync().then((response) => {
-      if (response && mounted && isNewRequestPush(response)) {
+      if (!response || !mounted) return;
+      const data = response.notification.request.content.data as
+        | { action?: string; hireId?: string }
+        | undefined;
+      if (isNewRequestPush(response)) {
         openRequests();
         emitRequestBanner(response.notification.request.content);
       }
+      if (data?.hireId) emitHirePush(data.hireId);
     });
 
     return () => {

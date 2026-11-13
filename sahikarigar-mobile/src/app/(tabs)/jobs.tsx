@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -22,6 +23,7 @@ import {
   type ApiHire,
   type ApiWorkerDashboard,
 } from '@/lib/api';
+import { onHirePush } from '@/lib/notifications';
 import { colors, fontSize, fontWeight, radius, shadows, spacing } from '@/theme';
 import {
   formatCurrency,
@@ -63,12 +65,28 @@ export default function WorkerJobsScreen() {
   useFocusEffect(
     useCallback(() => {
       void load();
+      // A hire push arrived (or a tray notification was tapped) — refresh
+      // immediately so a new request shows up the moment it exists, without
+      // waiting for the next poll tick or a manual pull-to-refresh.
+      const offHirePush = onHirePush(() => {
+        void load();
+      });
+      // App resumed from background — refresh right away. JS timers pause
+      // while backgrounded, so the first poll tick would otherwise be up to
+      // 5s late exactly when the worker is looking at the screen again.
+      const appStateSub = AppState.addEventListener('change', (state) => {
+        if (state === 'active') void load();
+      });
       // Keep the worker dashboard (new requests / active jobs) live while the
       // tab is open; otherwise a status change can look one step behind.
       const timer = setInterval(() => {
         void load();
       }, 5000);
-      return () => clearInterval(timer);
+      return () => {
+        offHirePush();
+        appStateSub.remove();
+        clearInterval(timer);
+      };
     }, [load]),
   );
 

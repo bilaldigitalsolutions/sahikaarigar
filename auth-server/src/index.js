@@ -483,7 +483,7 @@ app.post('/me/push-token', async (req, res, next) => {
       res.status(400).json({ ok: false, code: 'BAD_REQUEST', message: 'Invalid push token' });
       return;
     }
-    await savePushToken(user.id, token || null);
+    await savePushToken(active.user.id, token || null);
     res.json({ ok: true, saved: Boolean(token) });
   } catch (error) {
     next(error);

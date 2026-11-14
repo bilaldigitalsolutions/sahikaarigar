@@ -113,7 +113,7 @@ export default function WorkerDetailScreen() {
   };
 
   return (
-    <Screen padded={false} edges={['bottom']} header={<Header title={t('workerScreen.title')} showBack={false} />}>
+    <Screen padded={false} edges={['bottom']} header={<Header title={t('workerScreen.title')} />}>
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator color={colors.primaryDark} />

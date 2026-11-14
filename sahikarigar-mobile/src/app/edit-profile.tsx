@@ -227,7 +227,7 @@ export default function EditProfileScreen() {
       <Screen
         padded={false}
         edges={['bottom']}
-        header={<Header center={<BrandLogo size={28} />} showBack={false} />}
+        header={<Header center={<BrandLogo size={28} />} />}
       >
         <KeyboardAvoidingView
           style={styles.flex}
@@ -322,7 +322,7 @@ export default function EditProfileScreen() {
     <Screen
       padded={false}
       edges={['bottom']}
-      header={<Header center={<BrandLogo size={28} />} showBack={false} />}
+      header={<Header center={<BrandLogo size={28} />} />}
     >
       <KeyboardAvoidingView
         style={styles.flex}

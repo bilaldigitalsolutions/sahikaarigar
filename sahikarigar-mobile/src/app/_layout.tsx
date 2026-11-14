@@ -193,18 +193,22 @@ function RootNavigator() {
         <Stack.Screen name="onboarding/role" />
         <Stack.Screen name="role-selection" />
         <Stack.Screen name="welcome" />
-        <Stack.Screen name="worker/[id]" options={{ headerShown: true, title: t('workerScreen.title'), headerBackTitle: t('common.back') }} />
+        {/* These routes render their OWN custom <Header/> (brand bar + back
+            chevron + top-inset handling). The native Stack header must stay
+            OFF here — showing both stacked two title bars and a dead white
+            band below the real header. */}
+        <Stack.Screen name="worker/[id]" options={{ headerShown: false, title: t('workerScreen.title') }} />
         <Stack.Screen
           name="hire/[workerId]"
           options={{ headerShown: true, title: t('hire.bookWorkerTitle'), headerBackTitle: t('common.back') }}
         />
-        <Stack.Screen name="hire/detail/[id]" options={{ headerShown: true, title: t('hireDetail.title'), headerBackTitle: t('common.back') }} />
+        <Stack.Screen name="hire/detail/[id]" options={{ headerShown: false, title: t('hireDetail.title') }} />
         <Stack.Screen name="hire/feedback/[id]" options={{ headerShown: true, title: t('feedback.title'), headerBackTitle: t('common.back') }} />
         <Stack.Screen name="/help/faq" />
-        <Stack.Screen name="register-worker" options={{ headerShown: true, title: t('profile.joiningAs'), headerBackTitle: t('common.back') }} />
-        <Stack.Screen name="edit-profile" options={{ headerShown: true, title: t('profile.editProfile'), headerBackTitle: t('common.back') }} />
+        <Stack.Screen name="register-worker" options={{ headerShown: false, title: t('profile.joiningAs') }} />
+        <Stack.Screen name="edit-profile" options={{ headerShown: false, title: t('profile.editProfile') }} />
         <Stack.Screen name="search" options={{ headerShown: true, title: t('dashboard.searchWorkers'), headerBackTitle: t('common.back') }} />
-        <Stack.Screen name="map" options={{ headerShown: true, title: t('map.title'), headerBackTitle: t('common.back') }} />
+        <Stack.Screen name="map" options={{ headerShown: false, title: t('map.title') }} />
       </Stack>
       {/* Rapido/Porter-style in-app push banner — slides down under the status
           bar when a new job request notification arrives. */}

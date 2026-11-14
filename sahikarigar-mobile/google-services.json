@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "284642545254",
+    "project_id": "sahi-kaarigar",
+    "storage_bucket": "sahi-kaarigar.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:284642545254:android:ed40a1b455f722f2aae7a7",
+        "android_client_info": {
+          "package_name": "com.sahikarigar.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBFoCPYzztvczk7jzcYmxympADuWMnZGac"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

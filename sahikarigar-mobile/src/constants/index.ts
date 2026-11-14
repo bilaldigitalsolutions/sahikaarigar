@@ -233,37 +233,47 @@ export const SUPPORT_PHONE = '+91 9949363310';
  * Sample service catalogue per skill, used to render the "Services & Pricing"
  * list on the worker profile. The API only exposes an hourly rate, so the price
  * shown for each service is the worker's `hourlyRate`.
+ *
+ * Entries store i18n KEYS, not copy — skillServices() translates at call time
+ * (same pattern as skillLabel above), so Telugu users never see raw English.
  */
-export const SKILL_SERVICES: Record<string, { title: string; desc: string }[]> = {
+const SKILL_SERVICE_KEYS: Record<string, { titleKey: string; descKey: string }[]> = {
   plumber: [
-    { title: 'Tap Repair', desc: 'General tap repair & replacement' },
-    { title: 'Pipe Leakage', desc: 'Fixing pipe leaks & sealing' },
-    { title: 'Drain Cleaning', desc: 'Blocked drain & sink cleaning' },
+    { titleKey: 'services.plumberTapTitle', descKey: 'services.plumberTapDesc' },
+    { titleKey: 'services.plumberPipeTitle', descKey: 'services.plumberPipeDesc' },
+    { titleKey: 'services.plumberDrainTitle', descKey: 'services.plumberDrainDesc' },
   ],
   electrician: [
-    { title: 'Wiring & Fittings', desc: 'Switch, socket & fan installation' },
-    { title: 'Fault Finding', desc: 'Short circuit & fault repair' },
-    { title: 'Appliance Repair', desc: 'Basic appliance wiring repair' },
+    { titleKey: 'services.electricianWiringTitle', descKey: 'services.electricianWiringDesc' },
+    { titleKey: 'services.electricianFaultTitle', descKey: 'services.electricianFaultDesc' },
+    { titleKey: 'services.electricianApplianceTitle', descKey: 'services.electricianApplianceDesc' },
   ],
   cleaning: [
-    { title: 'Deep Cleaning', desc: 'Full home deep cleaning' },
-    { title: 'Sofa & Carpet', desc: 'Sofa, carpet & mattress cleaning' },
+    { titleKey: 'services.cleaningDeepTitle', descKey: 'services.cleaningDeepDesc' },
+    { titleKey: 'services.cleaningSofaTitle', descKey: 'services.cleaningSofaDesc' },
   ],
   carpenter: [
-    { title: 'Furniture Repair', desc: 'Door, window & furniture repair' },
-    { title: 'Custom Work', desc: 'Made-to-order carpentry' },
+    { titleKey: 'services.carpenterFurnitureTitle', descKey: 'services.carpenterFurnitureDesc' },
+    { titleKey: 'services.carpenterCustomTitle', descKey: 'services.carpenterCustomDesc' },
   ],
   'ac repair': [
-    { title: 'AC Service', desc: 'General service & gas check' },
-    { title: 'AC Installation', desc: 'Split / window AC installation' },
+    { titleKey: 'services.acServiceTitle', descKey: 'services.acServiceDesc' },
+    { titleKey: 'services.acInstallTitle', descKey: 'services.acInstallDesc' },
   ],
   painter: [
-    { title: 'Wall Painting', desc: 'Interior & exterior painting' },
-    { title: 'Touch-up', desc: 'Patch & touch-up work' },
+    { titleKey: 'services.painterWallTitle', descKey: 'services.painterWallDesc' },
+    { titleKey: 'services.painterTouchupTitle', descKey: 'services.painterTouchupDesc' },
   ],
 };
 
 /** Services shown for a skill id (falls back to a single generic entry). */
 export function skillServices(id: string): { title: string; desc: string }[] {
-  return SKILL_SERVICES[id] ?? [{ title: skillLabel(id), desc: 'General work & repair' }];
+  const entries = SKILL_SERVICE_KEYS[id];
+  if (entries) {
+    return entries.map((entry) => ({
+      title: i18n.t(entry.titleKey) as string,
+      desc: i18n.t(entry.descKey) as string,
+    }));
+  }
+  return [{ title: skillLabel(id), desc: i18n.t('services.genericDesc') as string }];
 }

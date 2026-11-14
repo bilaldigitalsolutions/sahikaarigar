@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Alert,
@@ -187,22 +187,24 @@ export default function RegisterWorkerScreen() {
   };
 
   // An already-registered worker should never see the registration form again
-  // (for example after returning from the OTP screen with next=/register-worker).
-  if (user?.role === 'worker') {
-    router.replace('/(tabs)');
-    return null;
-  }
+  // (for example after returning from the OTP screen with next=/register-worker),
+  // and a signed-out visitor is auto-routed to login and lands right back on
+  // this form after the OTP screen. Both redirects live in an EFFECT — calling
+  // router.replace() during render can corrupt the Android navigation stack.
+  useEffect(() => {
+    if (user?.role === 'worker') {
+      router.replace('/(tabs)');
+      return;
+    }
+    if (!user) {
+      router.replace({
+        pathname: '/(auth)/login',
+        params: { next: '/register-worker' },
+      });
+    }
+  }, [user, router]);
 
-  // Registering as a Kaarigar requires a verified mobile number. The OTP comes
-  // during LOGIN only ("registration ke time OTP") — so an unverified visitor is
-  // auto-routed there and lands right back on this form after the OTP screen.
-  if (!user) {
-    router.replace({
-      pathname: '/(auth)/login',
-      params: { next: '/register-worker' },
-    });
-    return null;
-  }
+  if (user?.role === 'worker' || !user) return null;
 
   return (
     <Screen

@@ -61,10 +61,11 @@ export default function HiresScreen() {
       }
       void load();
       // The worker can change status while this list is open. Poll only while
-      // focused so the "OTP ready" banner cannot stay stale.
+      // focused; the push handler is the primary refresh, so this fallback can
+      // stay gentle (15 s) instead of the old 5 s churn.
       const timer = setInterval(() => {
         void load();
-      }, 5000);
+      }, 15000);
       return () => clearInterval(timer);
     }, [load, user]),
   );

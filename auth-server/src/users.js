@@ -294,7 +294,9 @@ export async function uploadWorkerImages(
 
   // Work photos (the "portfolio" strip on the worker profile) — up to 5, each
   // stored in the PUBLIC avatars bucket so employers can actually see them.
-  const workPhotos = Array.isArray(workPhotoDataUrls) ? workPhotoDataUrls : [];
+  // Hard cap at 5: the client UI offers exactly 5, so a longer array is abuse
+  // (25 × 5 MB = 125 MB of storage/bandwidth from a single request).
+  const workPhotos = (Array.isArray(workPhotoDataUrls) ? workPhotoDataUrls : []).slice(0, 5);
   if (workPhotos.length > 0) {
     images.workPhotoUrls = [];
     for (let i = 0; i < workPhotos.length; i += 1) {

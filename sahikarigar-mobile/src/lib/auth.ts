@@ -16,6 +16,8 @@
 
 import SuperTokens from 'supertokens-react-native';
 
+import i18n from '@/lib/i18n';
+
 import { AUTH_API_URL, requireAuthApiUrl } from './config';
 
 let initialised = false;
@@ -69,9 +71,9 @@ async function postAuth(path: string, body: Record<string, unknown>): Promise<Su
     });
   } catch (e) {
     if (e instanceof Error && e.name === 'AbortError') {
-      throw new Error('Auth server slow hai. Thodi der baad try karo.');
+      throw new Error(i18n.t('auth.serverSlow') as string);
     }
-    throw new Error('Could not reach the auth server. Check your connection and try again.');
+    throw new Error(i18n.t('auth.cannotReachServer') as string);
   } finally {
     clearTimeout(timer);
   }

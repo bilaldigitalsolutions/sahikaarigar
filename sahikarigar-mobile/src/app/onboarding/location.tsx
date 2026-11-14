@@ -62,7 +62,10 @@ function describePlace(place: Location.LocationGeocodedAddress | undefined) {
     place.district ||
     place.city ||
     place.region ||
-    'Current location';
+    // Fallback must be a REAL place: this string gets PERSISTED as the user's
+    // area (setLocation + updateProfile). The old 'Current location' label
+    // leaked into the hire screen's home field and search filters.
+    'Hyderabad';
 
   const parts = [
     place.name,

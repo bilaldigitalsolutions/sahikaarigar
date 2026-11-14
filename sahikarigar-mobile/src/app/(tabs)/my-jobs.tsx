@@ -53,10 +53,11 @@ export default function MyJobsScreen() {
     useCallback(() => {
       void load();
       // Keep the worker's job list in step with customer/OTP changes while
-      // the tab is open; detail polling alone leaves these cards stale.
+      // the tab is open; detail polling alone leaves these cards stale. Push
+      // is the primary refresh — 15 s fallback instead of the old 5 s churn.
       const timer = setInterval(() => {
         void load();
-      }, 5000);
+      }, 15000);
       return () => clearInterval(timer);
     }, [load]),
   );

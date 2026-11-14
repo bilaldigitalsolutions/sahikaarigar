@@ -328,6 +328,12 @@ async function recordRateLimitRow(key) {
 }
 
 /** Add one attempt to a sliding-window bucket; false when the limit is hit. */
+const RATE_LIMIT_STORE_MAX_KEYS = 1000;
+/** Longest window any of the in-memory limiters uses (delete-request = 1 h).
+ *  Entries older than this are expired for EVERY map, so a sweep trimmed at
+ *  this horizon can never reset an active brute-force/abuse counter. */
+const RATE_LIMIT_MAX_WINDOW_MS = 60 * 60_000;
+
 function takeRateLimitSlot(store, key, maxAttempts, windowMs) {
   const now = Date.now();
   const recent = (store.get(key) ?? []).filter((t) => now - t < windowMs);
@@ -339,6 +345,19 @@ function takeRateLimitSlot(store, key, maxAttempts, windowMs) {
 
   recent.push(now);
   store.set(key, recent);
+
+  // Memory guard (512 MB free tier): keys are client-controlled strings
+  // (IP:phone, preAuthSessionId), so an attacker can grow the Map forever.
+  // Past the cap, drop every key whose newest timestamp is older than the
+  // LONGEST window — O(n), rare, and never resets an active bucket.
+  if (store.size > RATE_LIMIT_STORE_MAX_KEYS) {
+    for (const [expiredKey, timestamps] of store) {
+      const newest = timestamps[timestamps.length - 1];
+      if (!Number.isFinite(newest) || now - newest > RATE_LIMIT_MAX_WINDOW_MS) {
+        store.delete(expiredKey);
+      }
+    }
+  }
   return true;
 }
 
@@ -348,7 +367,7 @@ function takeRateLimitSlot(store, key, maxAttempts, windowMs) {
 // SMS bombing after the prefix limiter is removed.
 app.post(
   ['/auth/signinup/code', '/auth/signinup/code/resend'],
-  express.json({ limit: '15mb' }),
+  express.json({ limit: '2mb' }),
   async (req, res, next) => {
     const rawPhone = String(req.body?.phoneNumber || '');
     const phone = normalizeIndianPhone(rawPhone);
@@ -408,7 +427,7 @@ app.post(
 // number. That closes the bypass where a new phone/IP reset the old counter.
 app.post(
   '/auth/signinup/code/consume',
-  express.json({ limit: '15mb' }),
+  express.json({ limit: '2mb' }),
   (req, res, next) => {
     const preAuthSessionId = String(req.body?.preAuthSessionId || '').trim().slice(0, 200);
     const deviceId = String(req.body?.deviceId || '').trim().slice(0, 200);
@@ -437,7 +456,17 @@ app.post(
 );
 
 app.use(middleware());
-app.use(express.json({ limit: '15mb' }));
+
+// Body limits: 2 MB is enough for every normal JSON request. The three
+// image-carrying routes register a 15 MB parser BEFORE the global one —
+// express.json skips already-parsed bodies, so only those routes accept
+// photo payloads (register-worker: Aadhaar + portfolio, profile: avatar,
+// worker/profile: portfolio edits). Everything else 413s above 2 MB, which
+// stops a single request from hogging the 512 MB free-tier worker.
+app.post('/register-worker', express.json({ limit: '15mb' }), (_req, _res, next) => next());
+app.post('/profile', express.json({ limit: '15mb' }), (_req, _res, next) => next());
+app.patch('/worker/profile', express.json({ limit: '15mb' }), (_req, _res, next) => next());
+app.use(express.json({ limit: '2mb' }));
 
 app.get('/health', (_req, res) => {
   res.json({
@@ -1160,6 +1189,67 @@ app.post('/admin/logout', (req, res) => {
   res.json({ ok: true });
 });
 
+// ---------------------------------------------------------------------------
+// Maintenance sweep — cron-friendly endpoint (Render free tier has no
+// scheduler). Point an external cron (cron-job.org, GitHub Action, ...) at
+// POST /admin/maintenance/sweep with the `x-cron-secret` header, and set
+// CRON_SECRET on Render. Without the secret it answers 403 and reveals
+// nothing. Every step is idempotent — safe to call as often as you like:
+//   1. pending hire_requests older than 48 h -> 'rejected' + employer push.
+//      A stale pending otherwise blocks new bookings for that employer-worker
+//      pair FOREVER (0027's one-live-request index counts pending as live).
+//   2. rate_limits rows older than 7 days -> deleted. start-OTP needs 1 min
+//      and the SMS budget 24 h; 7 days keeps a small forensic tail.
+// Accepted-but-never-started hires are deliberately NOT auto-cancelled: the
+// worker has an explicit cancel button and admin force-close exists, and a
+// silently cancelled committed job would render confusing UI on both sides.
+// ---------------------------------------------------------------------------
+app.post('/admin/maintenance/sweep', async (req, res, next) => {
+  try {
+    const secret = String(req.headers['x-cron-secret'] || '');
+    const expected = process.env.CRON_SECRET || '';
+    if (!expected || secret !== expected) {
+      res.status(403).json({ ok: false, code: 'FORBIDDEN', message: 'Not allowed' });
+      return;
+    }
+
+    // 1) Expire stale pending requests (48 h).
+    const cutoffHires = new Date(Date.now() - 48 * 60 * 60_000).toISOString();
+    const { data: stalePending, error: staleError } = await db
+      .from('hire_requests')
+      .update({ status: 'rejected' })
+      .eq('status', 'pending')
+      .lt('created_at', cutoffHires)
+      .select('id');
+    if (staleError) throw new Error(staleError.message);
+
+    // Employer push per expired request (a healthy sweep touches zero rows).
+    let expiredCount = 0;
+    for (const row of stalePending ?? []) {
+      expiredCount += 1;
+      const hire = await getHireById(row.id);
+      await notifyHireUpdate(hire, 'reject');
+    }
+
+    // 2) Purge old rate_limits rows (7 days).
+    const cutoffLimits = new Date(Date.now() - 7 * 24 * 60 * 60_000).toISOString();
+    const { data: purgedRows, error: purgeError } = await db
+      .from('rate_limits')
+      .delete()
+      .lt('created_at', cutoffLimits)
+      .select('id');
+    if (purgeError) throw new Error(purgeError.message);
+
+    const purgedCount = (purgedRows ?? []).length;
+    console.log(
+      `[sweep] expired pending hires: ${expiredCount}, purged rate_limits rows: ${purgedCount}`,
+    );
+    res.json({ ok: true, expiredPendingHires: expiredCount, purgedRateLimitRows: purgedCount });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.get('/admin/session', async (req, res, next) => {
   try {
     const admin = await requireAdmin(req, res);
@@ -1437,6 +1527,10 @@ app.use(errorHandler());
 //    (HTTP 200) — that is what makes the browser SDK surface `message` to the
 //    user, e.g. "FAST2SMS_API_KEY is not set", instead of a generic failure.
 //  - Our own routes keep the `{ ok, code, message }` shape.
+//  - INFRA-looking failures (PostgREST/connection/schema/provider text) are
+//    NEVER echoed to clients: they leak table names and credentials hints and
+//    would read as gibberish Hinglish anyway. The client gets a clean 500 and
+//    the real message stays in the Render log + Sentry.
 app.use((error, req, res, _next) => {
   const message = error instanceof Error ? error.message : 'Unexpected error';
   console.error('auth-server error:', message);
@@ -1449,8 +1543,16 @@ app.use((error, req, res, _next) => {
   });
   if (res.headersSent) return;
 
+  const infraLike =
+    /postgrest|duplicate column|relation .* does not exist|column .* does not exist|violates (unique|foreign key|check) constraint|econnrefused|enotfound|etimedout|fetch failed|supabaseurl|service_role|invalid api key|permission denied/i.test(
+      message,
+    );
+
   if (req.path.startsWith(API_BASE_PATH)) {
-    res.status(200).json({ status: 'GENERAL_ERROR', message });
+    res.status(200).json({
+      status: 'GENERAL_ERROR',
+      message: infraLike ? 'Server me dikkat hai. Thodi der baad try karein.' : message,
+    });
     return;
   }
   // Errors that carry their own HTTP status (e.g. the start-OTP rate limiter
@@ -1459,7 +1561,17 @@ app.use((error, req, res, _next) => {
     res.status(error.status).json({
       ok: false,
       code: typeof error.code === 'string' ? error.code : 'ERROR',
-      message,
+      message: infraLike ? 'Server me dikkat hai. Thodi der baad try karein.' : message,
+    });
+    return;
+  }
+  // Unclassified failures: infra-like ones are 500 (our fault), everything
+  // else stays a 400 (caller's fault) — both with a client-safe message.
+  if (infraLike) {
+    res.status(500).json({
+      ok: false,
+      code: 'SERVER_ERROR',
+      message: 'Server me dikkat hai. Thodi der baad try karein.',
     });
     return;
   }

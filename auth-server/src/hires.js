@@ -369,13 +369,28 @@ export async function createHireRequest({
   const requestedHome = String(homeLocation || '').trim();
 
   const rate = Number(proposedRate);
-  if (!Number.isFinite(rate) || rate <= 0) throw new Error('Rate sahi daalo');
+  // Same band as worker-profile validation (users.js / worker-dashboard.js:
+  // 50..10000). Below the floor is a typo; above the ceiling is a fat-fingered
+  // value that would create an absurd bill. The mobile hire screen pre-fills
+  // the worker's own rate, so honest users never hit this.
+  if (!Number.isFinite(rate) || rate < 50 || rate > 10000) {
+    throw new Error('Rate ₹50 se ₹10,000 ke beech daalo');
+  }
 
   // scheduled_time is the baseline for punctuality. If the customer did not
   // pick an explicit date, treat the booking as "immediate" and use now. The
   // actual on-time window comes from the booking distance (20 / 35 / 50 min)
   // when the worker presses Arrived.
   const scheduledAt = scheduledDate ? new Date(scheduledDate) : null;
+  if (scheduledAt && !Number.isNaN(scheduledAt.getTime())) {
+    // A booking cannot start in the past (2-minute clock-skew tolerance). The
+    // current app never sends scheduledDate — this guards direct API calls and
+    // future clients. (Date-only strings parse as UTC midnight, so the
+    // tolerance also keeps a "today" booking at 10am IST from being rejected.)
+    if (scheduledAt.getTime() < Date.now() - 2 * 60_000) {
+      throw new Error('Purani date par booking nahi hoti — aaj ya aage ki date chuno');
+    }
+  }
   const scheduledIso =
     scheduledAt && !Number.isNaN(scheduledAt.getTime())
       ? scheduledAt.toISOString()
@@ -738,10 +753,11 @@ export async function hireAction({ hireId, userId, action, lat, lng, otp }) {
 
   if (error) {
     // Unique-violation from the 0027 partial unique indexes = a concurrent
-    // action won the race. Map it to the same friendly 409 as a lost
-    // compare-and-swap instead of leaking raw Postgres text.
+    // action won the race. Reuse the EXACT copy the app-level check throws —
+    // the dashboard matches /already have an active job/i to show its clean
+    // "another device accepted" alert, so both paths must share one string.
     if (/hire_requests_one_active_per_worker/i.test(error.message)) {
-      throw new Error('Aapke paas pehle se ek active job hai — pehle use complete karo');
+      throw new Error('You already have an active job. Please complete it before accepting a new one.');
     }
     if (
       /hire_requests_one_live_per_pair/i.test(error.message) ||

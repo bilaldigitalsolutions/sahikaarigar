@@ -226,6 +226,30 @@ export async function setWorkerAvailability(userId, availability) {
     throw new Error(`Availability "${availability}" valid nahi hai (available / busy / offline)`);
   }
 
+  const { data: profile, error: profileError } = await db
+    .from('worker_profiles')
+    .select('id')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (profileError) throw new Error(profileError.message);
+  if (!profile) throw new Error('Pehle kaarigar ke roop me register karo');
+
+  // A worker mid-job cannot accept new requests (the accept guard answers
+  // "already have an active job"), so flipping themselves to available would
+  // only invite requests they must refuse. Block it until the job closes.
+  if (value === 'available') {
+    const { data: activeHire, error: activeError } = await db
+      .from('hire_requests')
+      .select('id')
+      .eq('worker_id', profile.id)
+      .in('status', ['accepted', 'en_route', 'arrived', 'in_progress'])
+      .maybeSingle();
+    if (activeError) throw new Error(activeError.message);
+    if (activeHire) {
+      throw new Error('Kaam chal raha hai — complete hone ke baad hi available ho sakte ho');
+    }
+  }
+
   const { data, error } = await db
     .from('worker_profiles')
     .update({ availability: value })

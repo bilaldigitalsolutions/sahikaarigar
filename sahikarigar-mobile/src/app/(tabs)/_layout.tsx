@@ -99,12 +99,13 @@ export default function TabsLayout() {
 
   // Poll while the tabs are mounted so the badge appears shortly after the
   // worker marks "Arrived" (even if the employer never leaves this screen).
+  // 30 s fallback — the hire-detail push refreshes the badge instantly.
   useEffect(() => {
     if (!user || role !== 'employer') return undefined;
     void loadActionCount();
     const timer = setInterval(() => {
       void loadActionCount();
-    }, 15000);
+    }, 30000);
     return () => clearInterval(timer);
   }, [user, role, loadActionCount]);
 

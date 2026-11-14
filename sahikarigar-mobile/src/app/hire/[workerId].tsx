@@ -21,16 +21,6 @@ export default function CreateHireScreen() {
   const workerId = String(params.workerId);
   const { user, isDemo } = useAuth();
 
-  // Guest employers land here from browsing — require login before any hire
-  // data is collected, and come straight back to THIS worker after OTP.
-  if (!user && !isDemo) {
-    router.replace({
-      pathname: '/(auth)/login',
-      params: { next: `/hire/${workerId}` },
-    });
-    return null;
-  }
-
   const [description, setDescription] = useState('');
   /** Customer's home area — auto-filled from onboarding, read-only on this screen. */
   const [homeLocation, setHomeLocation] = useState(user?.locationArea ?? '');
@@ -81,6 +71,22 @@ export default function CreateHireScreen() {
       active = false;
     };
   }, []);
+
+  // Guest employers land here from browsing — require login before any hire
+  // data is collected, and come straight back to THIS worker after OTP.
+  // (Effect, not render-time: router.replace() during render can corrupt the
+  // Android navigation stack, and the old early return sat ABOVE the hook
+  // calls, so the hook ORDER changed between logged-out and logged-in.)
+  useEffect(() => {
+    if (!user && !isDemo) {
+      router.replace({
+        pathname: '/(auth)/login',
+        params: { next: `/hire/${workerId}` },
+      });
+    }
+  }, [user, isDemo, router, workerId]);
+
+  if (!user && !isDemo) return null;
 
   // Fetch worker data on mount to get their hourly rate for the booking form.
   useEffect(() => {

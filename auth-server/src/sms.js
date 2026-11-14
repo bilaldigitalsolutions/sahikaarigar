@@ -18,8 +18,10 @@ const TIMEOUT_MS = 10_000;
 
 // =============================================================================
 // STAGING ONLY — Fixed OTP bypass for QA.
-// NEVER set ENABLE_FIXED_OTP=true on production. It is ignored when
-// NODE_ENV=production as an extra safety guard.
+// NEVER set ENABLE_FIXED_OTP=true on production. It is ignored whenever the
+// process looks like a cloud deployment (RENDER_EXTERNAL_URL present) or
+// NODE_ENV=production — so a leftover staging flag cannot leak real OTPs into
+// hosted logs.
 // =============================================================================
 const ENABLE_FIXED_OTP = process.env.ENABLE_FIXED_OTP === 'true';
 
@@ -269,9 +271,12 @@ export function isSmsProviderConfigured(name) {
  * leaking the code to the logs.
  */
 export function resolveSmsProvider() {
-  // STAGING ONLY: fixed OTP bypass. Completely disabled in production
-  // (guarded by NODE_ENV check) and only when explicitly opted in.
-  if (ENABLE_FIXED_OTP && process.env.NODE_ENV !== 'production') {
+  // STAGING ONLY: fixed OTP bypass. Disabled whenever the process looks like a
+  // cloud deployment (Render injects RENDER_EXTERNAL_URL) or NODE_ENV=production —
+  // a leftover staging flag must never print real OTPs into hosted logs.
+  const onRender = Boolean(process.env.RENDER_EXTERNAL_URL);
+  const productionLike = onRender || process.env.NODE_ENV === 'production';
+  if (ENABLE_FIXED_OTP && !productionLike) {
     return 'fixed';
   }
 

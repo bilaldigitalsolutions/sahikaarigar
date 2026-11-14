@@ -9,18 +9,21 @@
 import { db } from './users.js';
 
 // Everything the public is allowed to see about a worker — NO phone number,
-// NO Aadhaar data, NO admin notes and NO exact coordinates. Selecting explicit
-// columns (instead of `*`) means sensitive fields are never even fetched by
-// the public endpoints. `!user_id` pins the FK explicitly so PostgREST never
-// has to guess the join path.
+// NO Aadhaar data and NO admin notes. Raw lat/lng IS selected but mapWorker()
+// only ever emits a ~1 km-rounded copy of it (exact coordinates could reveal a
+// worker's home; the owner's own coordinates are added back by mapOwnWorker()
+// in worker-dashboard.js). Selecting explicit columns (instead of `*`) means
+// sensitive fields are never even fetched by the public endpoints. `!user_id`
+// pins the FK explicitly so PostgREST never has to guess the join path.
 export const WORKER_PUBLIC_SELECT =
   'id, user_id, skills, experience, description, hourly_rate, availability, portfolio, ' +
   'rating_average, rating_count, completed_jobs, total_jobs_completed, on_time_jobs, ' +
-  'customer_rating_avg, system_rating_score, service_areas, is_approved, created_at, ' +
+  'customer_rating_avg, system_rating_score, service_areas, is_approved, lat, lng, created_at, ' +
   'user:users!user_id(id, name, avatar, location_area, location_city, is_verified, trust_score, is_active)';
 
-/** WORKER_PUBLIC_SELECT plus lat/lng — server-side only, never sent to clients. */
-export const WORKER_GEO_SELECT = WORKER_PUBLIC_SELECT + ', lat, lng';
+// The radius search filters on the EXACT coordinates server-side; the same
+// projection is reused, mapWorker rounds before anything leaves the process.
+export const WORKER_GEO_SELECT = WORKER_PUBLIC_SELECT;
 
 /** Default surrounding-search radius in kilometres when the client sends none. */
 const DEFAULT_RADIUS_KM = 10;
@@ -122,9 +125,13 @@ export function mapWorker(row) {
     systemRatingScore,
     badge: getWorkerBadge({ systemRatingScore }),
     serviceAreas: row.service_areas ?? [],
-    // Exact coordinates are private: they can reveal a worker's home. Public
-    // clients only get area-level location. The owner's own coordinates are
-    // added back by mapOwnWorker() in worker-dashboard.js.
+    // COARSE coordinates (~1 km precision): the raw values never leave the
+    // server, but rounding to 2 decimals keeps the client's "X km away" chip
+    // working without exposing exact positions. Owner gets exact via
+    // mapOwnWorker(); surrounding search computes the precise distance
+    // server-side and sends it as `distanceKm`.
+    lat: row.lat == null ? null : Math.round(Number(row.lat) * 100) / 100,
+    lng: row.lng == null ? null : Math.round(Number(row.lng) * 100) / 100,
     isApproved: row.is_approved ?? false,
     trustScore: computeTrustScore(row),
     createdAt: row.created_at ?? null,
@@ -178,6 +185,9 @@ export async function searchWorkers({
     .eq('is_approved', true)
     .eq('availability', 'available')
     .eq('user.is_active', true) // Suspended workers are hidden from search
+    // Flagged workers (Trust & Penalty, 3rd worker-cancel strike) drop out of
+    // public search until an admin clears the flag.
+    .or('is_flagged.is.null,is_flagged.eq.false')
     .order('rating_average', { ascending: false })
     .order('completed_jobs', { ascending: false })
     .order('created_at', { ascending: false })
@@ -218,6 +228,7 @@ async function geoSearchWorkers({ skill, originLat, originLng, radius, page, lim
     .eq('is_approved', true)
     .eq('availability', 'available')
     .eq('user.is_active', true)
+    .or('is_flagged.is.null,is_flagged.eq.false') // flagged = hidden from search
     .order('rating_average', { ascending: false })
     .order('completed_jobs', { ascending: false })
     .order('created_at', { ascending: false })
@@ -260,13 +271,17 @@ async function geoSearchWorkers({ skill, originLat, originLng, radius, page, lim
   };
 }
 
-/** A single worker profile by its `worker_profiles.id`. */
+/** A single worker profile by its `worker_profiles.id` — PUBLIC endpoint, so
+ *  only APPROVED profiles are reachable (pending/rejected profiles must not be
+ *  publicly viewable; the owner sees their own through the worker dashboard). */
 export async function getWorkerById(profileId) {
   const { data, error } = await db
     .from('worker_profiles')
     .select(WORKER_PUBLIC_SELECT)
     .eq('id', profileId)
+    .eq('is_approved', true)
     .eq('user.is_active', true) // Suspended workers are not publicly visible
+    .or('is_flagged.is.null,is_flagged.eq.false')
     .maybeSingle();
 
   if (error) throw new Error(error.message);

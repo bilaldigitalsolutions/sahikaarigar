@@ -101,9 +101,12 @@ export default function HireDetailScreen() {
   );
 
   useEffect(() => {
+    // Status poll is only a FALLBACK now — the push handler (onHirePush)
+    // refreshes instantly. 10 s keeps battery/data churn low on low-end
+    // Androids while still healing a lost push within seconds.
     const timer = setInterval(() => {
       void fetchHire(true);
-    }, 3_000);
+    }, 10_000);
     return () => clearInterval(timer);
   }, [fetchHire]);
 
@@ -317,7 +320,10 @@ function BookingBody({
     fetchStartOtp();
 
     if (!startOtp) {
-      otpPollRef.current = setInterval(fetchStartOtp, 3000);
+      // The "worker arrived" push triggers an instant refresh; this poll is
+      // only the fallback for a lost push. 5 s keeps the waiting worker's
+      // delay tolerable without the old 3 s churn.
+      otpPollRef.current = setInterval(fetchStartOtp, 5000);
     } else if (otpPollRef.current) {
       clearInterval(otpPollRef.current);
       otpPollRef.current = null;

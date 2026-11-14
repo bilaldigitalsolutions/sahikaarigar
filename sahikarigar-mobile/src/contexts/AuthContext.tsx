@@ -22,6 +22,9 @@ import {
 } from '@/lib/auth';
 import { DEMO_MODE } from '@/lib/config';
 import { DEMO_USER, setDemoMode } from '@/lib/demoData';
+// i18n singleton (not useTranslation) — these callbacks run OUTSIDE render,
+// and the thrown messages surface raw in screens' catch blocks.
+import i18n from '@/lib/i18n';
 import { registerForPushNotifications } from '@/lib/notifications';
 import { posthog, setAnalyticsUserId } from '@/lib/observability';
 import type { User } from '@/types';
@@ -120,7 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const confirmOtp = useCallback(async (code: string): Promise<User> => {
     const challenge = challengeRef.current;
-    if (!challenge) throw new Error('Enter your phone number and request an OTP first.');
+    if (!challenge) throw new Error(i18n.t('auth.needPhoneFirst') as string);
     setBusy(true);
     try {
       await verifyOtp({
@@ -156,7 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const resend = useCallback(async () => {
     const challenge = challengeRef.current;
-    if (!challenge) throw new Error('Enter your phone number first.');
+    if (!challenge) throw new Error(i18n.t('auth.needPhoneFirstResend') as string);
     setBusy(true);
     try {
       await resendOtp({

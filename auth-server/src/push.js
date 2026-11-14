@@ -86,6 +86,13 @@ export async function sendExpoPushMany(messages) {
           'token:',
           chunk[index]?.to ?? '',
         );
+        // The app was uninstalled / its data cleared / FCM rotated — this token
+        // can never deliver again. Null it so future sends stop wasting a
+        // request on it; the device re-registers a fresh token on its next app
+        // open (AuthContext runs registerForPushNotifications on every start).
+        if (ticket.details?.error === 'DeviceNotRegistered') {
+          void clearPushToken(chunk[index]?.to ?? '');
+        }
       });
     } catch (error) {
       failed += chunk.length;
@@ -93,6 +100,21 @@ export async function sendExpoPushMany(messages) {
     }
   }
   return { sent, failed };
+}
+
+/** Null the users.push_token that matches this (now dead) token. Never throws. */
+async function clearPushToken(token) {
+  if (!isValidPushToken(token)) return;
+  try {
+    const { error } = await db
+      .from('users')
+      .update({ push_token: null })
+      .eq('push_token', token);
+    if (error) throw new Error(error.message);
+    console.log(`[push] cleared dead push token ...${token.slice(-8)}`);
+  } catch (error) {
+    console.warn('clearPushToken failed:', error?.message ?? error);
+  }
 }
 
 /** Fire-and-forget one Expo push message. Never throws. */
@@ -171,13 +193,22 @@ export async function notifyWorkerOfNewHire(hire) {
   try {
     const workerUserId = hire?.worker?.userId ?? null;
     const token = await pushTokenForUser(workerUserId);
+    if (!isValidPushToken(token)) {
+      console.log(
+        `[hire-push] new hire ${hire?.id ?? '?'} worker ${workerUserId ?? '?'}: no valid push token (not logged in / notifications denied)`,
+      );
+      return;
+    }
     const employerName = String(hire?.employer?.name || '').trim() || 'Customer';
-    await sendExpoPush({
+    const { sent, failed } = await sendExpoPush({
       to: token,
       title: 'Naya Kaam Aaya Hai!',
       body: `${employerName} ne aapko hire kiya hai. Details dekhne ke liye app kholiye.`,
       data: { hireId: hire?.id, status: hire?.status, action: 'created' },
     });
+    console.log(
+      `[hire-push] new hire ${hire?.id ?? '?'} -> worker ${workerUserId ?? '?'}: sent=${sent} failed=${failed}`,
+    );
   } catch (error) {
     console.error('notifyWorkerOfNewHire failed:', error?.message ?? error);
   }

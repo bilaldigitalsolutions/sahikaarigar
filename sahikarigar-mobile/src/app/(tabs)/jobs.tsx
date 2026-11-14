@@ -240,6 +240,11 @@ export default function WorkerJobsScreen() {
             value={String(stats?.lifetimeJobs ?? 0)}
           />
           <StatTile
+            icon="close-circle-outline"
+            label={t('dashboard.cancelledJobs')}
+            value={String(stats?.cancelled ?? 0)}
+          />
+          <StatTile
             icon="cash-outline"
             label={t('dashboard.estEarnings')}
             value={formatCurrency(stats?.estimatedEarnings ?? 0)}

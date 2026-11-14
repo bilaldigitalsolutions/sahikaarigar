@@ -262,6 +262,8 @@ export interface ApiHire {
   homeLocation?: string | null;
   proposedRate: number;
   status: HireStatus;
+  /** Who cancelled (worker / employer) — null until the booking is cancelled. */
+  cancelledBy?: 'worker' | 'employer' | null;
   scheduledDate?: string | null;
   scheduledTime?: string | null;
   /** Customer -> worker distance saved when the booking was created. */
@@ -573,6 +575,8 @@ export interface ApiWorkerStats {
   active: number;
   /** Completed jobs still returned by the dashboard query. */
   completed: number;
+  /** Bookings that ended cancelled (either side) within the dashboard window. */
+  cancelled: number;
   /** Lifetime completed-jobs counter on the profile. */
   lifetimeJobs: number;
   /** Lifetime completed jobs (same as lifetimeJobs). */

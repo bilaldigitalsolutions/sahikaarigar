@@ -37,7 +37,9 @@ import { getWorkerBadge, getWorkerProfileIdForUser } from './workers.js';
  */
 export const HIRE_SELECT =
   'id, employer_id, worker_id, description, location, home_location, proposed_rate, status, ' +
-  'scheduled_date, scheduled_time, completed_at, total_amount, phone_revealed, created_at, updated_at, ' +
+  'scheduled_date, scheduled_time, completed_at, total_amount, phone_revealed, ' +
+  'cancelled_by, cancelled_at, ' +
+  'created_at, updated_at, ' +
   'en_route_at, arrived_at, arrived_time, started_at, worker_lat, worker_lng, ' +
   'distance_km, arrived_on_time, feedback_complete, ' +
   'employer:users!employer_id(id, name, phone, avatar, location_area, location_city, ' +
@@ -306,6 +308,9 @@ export function mapHire(row) {
     homeLocation: row.home_location ?? null,
     proposedRate: row.proposed_rate,
     status: row.status,
+    // Who cancelled (worker / employer) — drives the direction-aware cancel
+    // push and the customer's apology + re-book card.
+    cancelledBy: row.cancelled_by ?? null,
     scheduledDate: row.scheduled_date ?? null,
     scheduledTime: row.scheduled_time ?? row.scheduled_date ?? null,
     distanceKm: toFiniteNumber(row.distance_km),

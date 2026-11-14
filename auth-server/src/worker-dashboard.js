@@ -271,6 +271,11 @@ export async function getWorkerDashboard(userId) {
     stats: {
       pending: hires.filter((hire) => hire.status === 'pending').length,
       active: hires.filter((hire) => ACTIVE_STATUSES.includes(hire.status)).length,
+      // Bookings that ended in a cancellation (either side) within the recent
+      // window the dashboard query returns. Shown as its own tile — a cancel
+      // never counts against the worker's ratings (Trust & Penalty is
+      // record-only; the admin decides any penalty).
+      cancelled: hires.filter((hire) => hire.status === 'cancelled').length,
       completed: completed.length,
       // Lifetime counter maintained by the `increment_worker_completed_jobs` RPC.
       lifetimeJobs: worker.totalJobsCompleted ?? worker.completedJobs,

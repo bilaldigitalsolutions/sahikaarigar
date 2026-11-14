@@ -153,11 +153,6 @@ const STATUS_MESSAGES = {
     title: 'Kaam complete ho gaya 🎉',
     body: () => 'Kaam ho gaya. Ek chhota review dekar doosron ki madad karo.',
   },
-  cancelled: {
-    to: 'worker',
-    title: 'Request cancel ho gayi',
-    body: () => 'Customer ne request cancel kar di hai.',
-  },
 };
 
 /**
@@ -168,8 +163,32 @@ const STATUS_MESSAGES = {
  */
 export async function notifyHireUpdate(hire, action) {
   try {
-    const spec = STATUS_MESSAGES[action];
-    if (!spec || !hire) return;
+    if (!hire) return;
+
+    let spec = STATUS_MESSAGES[action];
+
+    // Cancellation is DIRECTION-AWARE (mapHire.cancelledBy):
+    //   worker cancelled  → the CUSTOMER gets an apology + a nudge to re-book.
+    //   customer cancelled → the worker learns they are free again.
+    // The action from the API is 'cancel' (the old 'cancelled' key never
+    // matched, so these pushes silently never fired — fixed).
+    if (action === 'cancel') {
+      spec =
+        (hire.cancelledBy ?? 'worker') === 'worker'
+          ? {
+              to: 'employer',
+              title: 'Maaf kijiye — request cancel ho gayi',
+              body: (h) =>
+                `${h?.worker?.user?.name ?? 'Kaarigar'} ne request cancel kar di hai. Aap turant doosra kaarigar dhoondh sakte ho.`,
+            }
+          : {
+              to: 'worker',
+              title: 'Request cancel ho gayi',
+              body: () => 'Customer ne request cancel kar di hai.',
+            };
+    }
+
+    if (!spec) return;
 
     const body = spec.body(hire);
     const data = { hireId: hire.id, status: hire.status, action };

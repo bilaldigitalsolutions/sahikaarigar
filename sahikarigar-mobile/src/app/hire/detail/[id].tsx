@@ -134,6 +134,12 @@ export default function HireDetailScreen() {
           try {
             const { hire: updated } = await hireAction(hire.id, 'cancel');
             setHire(updated);
+            // The worker cancelled from their own screen — take them straight
+            // back to My Work instead of leaving them on a closed booking.
+            // The customer stays here to see the apology + re-book shortcut.
+            if (updated.worker?.userId != null && updated.worker.userId === user?.id) {
+              router.replace('/(tabs)/jobs');
+            }
           } catch (e) {
             Alert.alert(t('hireDetail.couldNotCancel'), e instanceof Error ? e.message : t('common.error'));
           } finally {
@@ -479,6 +485,22 @@ function BookingBody({
                 ? t('hireDetail.workCompletedMsg')
                 : t('hireDetail.bookingConfirmedMsg')}
         </Text>
+
+        {cancelled && hire.cancelledBy !== 'employer' && !isWorkerViewer ? (
+          <>
+            <View style={styles.apologyCard}>
+              <Ionicons name="sad-outline" size={22} color={colors.warning} />
+              <View style={styles.apologyTextWrap}>
+                <Text style={styles.apologyTitle}>{t('hireDetail.apologyTitle')}</Text>
+                <Text style={styles.apologySub}>{t('hireDetail.apologySub')}</Text>
+              </View>
+            </View>
+            <Button
+              label={t('hireDetail.findAnotherWorker')}
+              onPress={() => router.replace('/(tabs)/search')}
+            />
+          </>
+        ) : null}
 
         {showStartOtp ? (
           <View style={styles.arrivedBanner}>
@@ -917,6 +939,25 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
   statusIconMuted: { backgroundColor: colors.muted },
+  apologyCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    alignSelf: 'stretch',
+    marginTop: spacing.lg,
+    padding: spacing.md,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+  },
+  apologyTextWrap: { flex: 1, gap: 2 },
+  apologyTitle: {
+    fontSize: fontSize.body,
+    fontWeight: fontWeight.semibold,
+    color: colors.textPrimary,
+  },
+  apologySub: { fontSize: fontSize.caption, color: colors.textSecondary, lineHeight: 18 },
   title: {
     fontSize: fontSize.h1,
     fontWeight: fontWeight.bold,

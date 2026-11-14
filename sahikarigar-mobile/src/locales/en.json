@@ -633,6 +633,13 @@
     "tapFullAddress": "Tap to see the full address",
     "acceptRequestA11y": "Accept this request",
     "rejectRequestA11y": "Reject this request",
+    "searchPlaceholder": "Search jobs — customer, address or work",
+    "clearSearch": "Clear search",
+    "noSearchResults": "No matching jobs found.",
+    "testPushBtn": "Test notification 🔔",
+    "testPushTitle": "Test notification",
+    "testPushSentHint": "Test push sent! A loud ding + banner should appear now. Nothing came? Check the phone's silent/DND mode and app notification settings.",
+    "testPushFailedHint": "Push could not be delivered. Try again in a moment — if it keeps failing, the notification permission or token needs a fix.",
     "reviewCount": "{{count}} review",
     "reviewCount_plural": "{{count}} reviews"
   },

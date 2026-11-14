@@ -12,6 +12,7 @@ import {
   StyleSheet,
   Switch,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 
@@ -19,6 +20,7 @@ import { Badge, Button, Card, EmptyState, HireCard, Screen } from '@/components'
 import {
   getWorkerDashboard,
   hireAction,
+  sendTestPush,
   setWorkerAvailability,
   type ApiHire,
   type ApiWorkerDashboard,
@@ -29,8 +31,6 @@ import {
   formatCurrency,
   formatRatingSummary,
   formatRelativeDate,
-  getWorkerBadge,
-  workerBadgeTone,
 } from '@/utils';
 
 /**
@@ -49,6 +49,8 @@ export default function WorkerJobsScreen() {
   /** `'availability'` while the switch saves, otherwise the hire id in flight. */
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** Non-empty = the search filter is active (matches every job bucket). */
+  const [query, setQuery] = useState('');
 
   const load = useCallback(async () => {
     setError(null);
@@ -133,6 +135,24 @@ export default function WorkerJobsScreen() {
     }
   };
 
+  const onTestPush = async () => {
+    setBusy('test');
+    try {
+      const result = await sendTestPush();
+      Alert.alert(
+        t('dashboard.testPushTitle'),
+        result.sent > 0 ? t('dashboard.testPushSentHint') : t('dashboard.testPushFailedHint'),
+      );
+    } catch (e) {
+      // The server answers 400 with a direct Hinglish reason (no push token on
+      // file / delivery failed) — show it as-is so the fix is obvious.
+      const message = e instanceof Error ? e.message : '';
+      Alert.alert(t('dashboard.testPushTitle'), message || t('dashboard.testPushFailedHint'));
+    } finally {
+      setBusy(null);
+    }
+  };
+
   if (loading) {
     return (
       <Screen>
@@ -161,17 +181,37 @@ export default function WorkerJobsScreen() {
   const worker = data.worker;
   const stats = data.stats;
   const isAvailable = worker.availability === 'available';
-  const workerBadge = getWorkerBadge(worker);
-  const performanceScore = Math.round(
-    Number(stats?.systemRatingScore ?? worker.systemRatingScore ?? 0),
-  );
   /** Business rule: a worker can hold exactly ONE active job at a time. */
   const isWorkerBusy = data.active.length > 0;
+
+  // Search across ALL buckets (new requests, active, completed) by customer
+  // name, address or work description — so a worker can settle a "kaun tha /
+  // kya kaam tha" dispute by finding the exact job.
+  const q = query.trim().toLowerCase();
+  const matchesQuery = (hire: ApiHire): boolean => {
+    if (!q) return true;
+    return [hire.employer?.name, hire.location, hire.homeLocation, hire.description].some(
+      (field) => typeof field === 'string' && field.toLowerCase().includes(q),
+    );
+  };
+  const requests = data.requests.filter(matchesQuery);
+  const activeJobs = data.active.filter(matchesQuery);
+  // Completed rows arrive newest-first from the API; re-sort defensively so
+  // "latest 5" really is the latest even if the server order ever changes.
+  const completedSorted = [...data.completed].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
+  // Normal browsing keeps the list light (latest 5); an active search shows
+  // ALL matches instead — that's the point of searching.
+  const completed = q ? completedSorted.filter(matchesQuery) : completedSorted.slice(0, 5);
+  const searchMissedEverything =
+    q.length > 0 && requests.length === 0 && activeJobs.length === 0 && completed.length === 0;
 
   return (
     <Screen scroll={false} padded={false}>
       <ScrollView
         contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -226,23 +266,32 @@ export default function WorkerJobsScreen() {
           </Card>
         ) : null}
 
-        {/* Headline stats */}
+        {/* Headline stats — Rapido-style tinted tiles so each bucket reads at
+            a glance: amber = waiting, blue = running, green = done, red = cancelled. */}
         <View style={styles.statsGrid}>
           <StatTile
             icon="mail-unread-outline"
             label={t('dashboard.newRequests')}
             value={String(stats?.pending ?? 0)}
+            tint={TILE_TINTS.pending}
           />
-          <StatTile icon="construct-outline" label={t('common.inProgress')} value={String(stats?.active ?? 0)} />
+          <StatTile
+            icon="construct-outline"
+            label={t('common.inProgress')}
+            value={String(stats?.active ?? 0)}
+            tint={TILE_TINTS.active}
+          />
           <StatTile
             icon="checkmark-done-outline"
             label={t('dashboard.jobsDone')}
             value={String(stats?.lifetimeJobs ?? 0)}
+            tint={TILE_TINTS.done}
           />
           <StatTile
             icon="close-circle-outline"
             label={t('dashboard.cancelledJobs')}
             value={String(stats?.cancelled ?? 0)}
+            tint={TILE_TINTS.cancelled}
           />
           <StatTile
             icon="cash-outline"
@@ -260,18 +309,42 @@ export default function WorkerJobsScreen() {
           </View>
         ) : null}
 
-        <Card style={styles.performanceCard}>
-          <View style={styles.performanceInfo}>
-            <Text style={styles.performanceLabel}>{t('dashboard.performanceScore')}</Text>
-            <Text style={styles.performanceValue}>{t('dashboard.performanceValue', { percent: performanceScore })}</Text>
-            <Text style={styles.performanceMeta}>
-              {stats && stats.totalJobsCompleted > 0
-                ? t('dashboard.onTimeMeta', { onTime: stats.onTimeJobs, total: stats.totalJobsCompleted })
-                : t('dashboard.noJobsScoreHint')}
-            </Text>
-          </View>
-          <Badge label={t('dashboard.badgeWorker', { badge: workerBadge })} tone={workerBadgeTone(workerBadge)} />
-        </Card>
+        {/* Search — customer / address / kaam; matches every bucket below. */}
+        <View style={styles.searchRow}>
+          <Ionicons name="search" size={18} color={colors.textSecondary} />
+          <TextInput
+            style={styles.searchInput}
+            value={query}
+            onChangeText={setQuery}
+            placeholder={t('dashboard.searchPlaceholder')}
+            placeholderTextColor={colors.muted}
+            returnKeyType="search"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          {query.length > 0 ? (
+            <Pressable onPress={() => setQuery('')} hitSlop={8} accessibilityLabel={t('dashboard.clearSearch')}>
+              <Ionicons name="close-circle" size={18} color={colors.muted} />
+            </Pressable>
+          ) : null}
+        </View>
+
+        {/* One-tap push self-test: the server sends a REAL push to THIS device,
+            so the whole chain (server → Expo → FCM V1 → phone) can be verified
+            with a single tap — no second phone, no test booking needed. */}
+        <Pressable
+          style={styles.testPushBtn}
+          onPress={onTestPush}
+          disabled={busy === 'test'}
+          accessibilityLabel={t('dashboard.testPushBtn')}
+        >
+          {busy === 'test' ? (
+            <ActivityIndicator size="small" color={colors.primaryDark} />
+          ) : (
+            <Ionicons name="notifications-outline" size={17} color={colors.primaryDark} />
+          )}
+          <Text style={styles.testPushText}>{t('dashboard.testPushBtn')}</Text>
+        </Pressable>
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
@@ -283,12 +356,17 @@ export default function WorkerJobsScreen() {
           </View>
         ) : null}
 
+        {searchMissedEverything ? (
+          <EmptyState icon="search-outline" title={t('dashboard.noSearchResults')} />
+        ) : null}
+
         <Section
           title={t('dashboard.newRequests')}
-          count={data.requests.length}
+          count={requests.length}
           empty={t('dashboard.noNewRequestsHint')}
+          hide={q.length > 0 && requests.length === 0}
         >
-          {data.requests.map((hire) => (
+          {requests.map((hire) => (
             <RequestCard
               key={hire.id}
               hire={hire}
@@ -304,10 +382,11 @@ export default function WorkerJobsScreen() {
 
         <Section
           title={t('common.inProgress')}
-          count={data.active.length}
+          count={activeJobs.length}
           empty={t('dashboard.activeJobsEmptySub')}
+          hide={q.length > 0 && activeJobs.length === 0}
         >
-          {data.active.map((hire) => (
+          {activeJobs.map((hire) => (
             <JobRow
               key={hire.id}
               hire={hire}
@@ -316,12 +395,15 @@ export default function WorkerJobsScreen() {
           ))}
         </Section>
 
+        {/* Badge = lifetime completed count; the list itself shows the latest
+            5 (all matches while searching). */}
         <Section
           title={t('dashboard.recentlyCompleted')}
-          count={data.completed.length}
+          count={q ? completed.length : data.completed.length}
           empty={t('dashboard.completedEmptySub')}
+          hide={q.length > 0 && completed.length === 0}
         >
-          {data.completed.map((hire) => (
+          {completed.map((hire) => (
             <JobRow
               key={hire.id}
               hire={hire}
@@ -338,19 +420,34 @@ export default function WorkerJobsScreen() {
 // Sub-components
 // -----------------------------------------------------------------------------
 
-/** One tile in the 2×2 headline-stats grid. */
+/** Rapido-style tint per stat bucket — colour says the state at a glance. */
+const TILE_TINTS = {
+  pending: { bg: '#FEF3C7', border: '#FDE68A', icon: '#B45309' }, // amber — waiting on the worker
+  active: { bg: '#DBEAFE', border: '#BFDBFE', icon: '#1D4ED8' }, // blue — job running
+  done: { bg: colors.primaryBg, border: colors.primaryBorder, icon: colors.primaryDark }, // green — finished
+  cancelled: { bg: '#FEE2E2', border: '#FECACA', icon: '#B91C1C' }, // red — cancelled
+} as const;
+
+/** One tile in the 2×2 headline-stats grid (earnings tile stays neutral). */
 function StatTile({
   icon,
   label,
   value,
+  tint,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   value: string;
+  tint?: { bg: string; border: string; icon: string };
 }) {
   return (
-    <View style={styles.statTile}>
-      <Ionicons name={icon} size={18} color={colors.primaryDark} />
+    <View
+      style={[
+        styles.statTile,
+        tint ? { backgroundColor: tint.bg, borderColor: tint.border } : null,
+      ]}
+    >
+      <Ionicons name={icon} size={18} color={tint?.icon ?? colors.primaryDark} />
       <Text style={styles.statValue}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
     </View>
@@ -362,13 +459,17 @@ function Section({
   title,
   count,
   empty,
+  hide,
   children,
 }: {
   title: string;
   count: number;
   empty: string;
+  /** While searching, buckets without a match vanish instead of showing their empty hint. */
+  hide?: boolean;
   children: ReactNode;
 }) {
+  if (hide) return null;
   return (
     <View style={styles.section}>
       <View style={styles.sectionHead}>
@@ -541,8 +642,9 @@ const styles = StyleSheet.create({
   },
   statTile: {
     flexGrow: 1,
-    flexBasis: '45%',
-    padding: spacing.md,
+    flexBasis: '46%',
+    minHeight: 104,
+    padding: spacing.lg,
     borderRadius: radius.card,
     borderWidth: 1,
     borderColor: colors.border,
@@ -555,33 +657,45 @@ const styles = StyleSheet.create({
   ratingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.md },
   ratingText: { fontSize: fontSize.caption, color: colors.textSecondary },
 
-  performanceCard: {
+  // ---- Search bar ----
+  searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.md,
+    gap: spacing.sm,
     marginTop: spacing.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: radius.button,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: fontSize.caption,
+    color: colors.textPrimary,
+    padding: 0,
+    minHeight: 24,
+  },
+
+  // ---- Push self-test button ----
+  testPushBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.button,
+    borderWidth: 1,
     borderColor: colors.primaryBorder,
     backgroundColor: colors.primaryTint,
   },
-  performanceInfo: { flex: 1 },
-  performanceLabel: {
-    fontSize: fontSize.caption - 1,
+  testPushText: {
+    fontSize: fontSize.caption,
     fontWeight: fontWeight.semibold,
-    color: colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  performanceValue: {
-    fontSize: fontSize.title,
-    fontWeight: fontWeight.bold,
     color: colors.primaryDark,
-    marginTop: 2,
-  },
-  performanceMeta: {
-    fontSize: fontSize.caption - 2,
-    color: colors.textSecondary,
-    marginTop: 2,
   },
 
   errorText: { color: colors.danger, fontSize: fontSize.caption, marginTop: spacing.md },

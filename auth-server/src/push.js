@@ -233,6 +233,31 @@ export async function notifyWorkerOfNewHire(hire) {
   }
 }
 
+/**
+ * Send ONE real push to a user's own registered device — backs the "Test
+ * notification" button in the app (POST /me/test-push). The worker can verify
+ * the whole chain (server -> Expo -> FCM V1 -> phone) with a single tap,
+ * without booking a real job or needing a second phone. The result is logged
+ * as `[test-push]` so Render's log stream is enough to diagnose.
+ * @param {string} userId users.id of the caller
+ * @returns {Promise<{ ok: boolean, sent: number, failed: number, reason: string|null }>}
+ */
+export async function sendTestPushToUser(userId) {
+  const token = await pushTokenForUser(userId);
+  if (!isValidPushToken(token)) {
+    console.log(`[test-push] user ${userId ?? '?'}: no valid push token`);
+    return { ok: false, sent: 0, failed: 0, reason: 'no_token' };
+  }
+  const { sent, failed } = await sendExpoPush({
+    to: token,
+    title: 'Test Notification 🔔',
+    body: 'Push chal raha hai! Naye kaam ki notification aisi hi aayegi.',
+    data: { type: 'test_push' },
+  });
+  console.log(`[test-push] user ${userId}: sent=${sent} failed=${failed}`);
+  return { ok: sent > 0, sent, failed, reason: sent > 0 ? null : 'send_failed' };
+}
+
 const PROFILE_REMINDER_BODY =
   'Apni profile complete karein! Profile complete karne ke baad hi aapko kaam milna shuru hoga.';
 

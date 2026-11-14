@@ -793,3 +793,13 @@ export async function savePushToken(token: string): Promise<{ saved: boolean }> 
     body: JSON.stringify({ token }),
   });
 }
+
+/**
+ * Ask the server to send ONE real push to THIS device (the "Test notification"
+ * button on My Work). On failure the server answers 400 with a direct Hinglish
+ * message (no push token on file / delivery failed) — apiFetch throws it as an
+ * ApiError which the screen shows as-is.
+ */
+export async function sendTestPush(): Promise<{ sent: number; failed: number }> {
+  return apiFetch('/me/test-push', { method: 'POST' });
+}

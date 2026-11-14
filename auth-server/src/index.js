@@ -99,6 +99,7 @@ import {
   notifyHireUpdate,
   sendProfileCompletionReminders,
   sendProfileReminderToWorker,
+  sendTestPushToUser,
 } from './push.js';
 
 const PORT = Number(process.env.PORT || 4000);
@@ -641,6 +642,29 @@ app.post('/me/push-token', async (req, res, next) => {
     }
     await savePushToken(active.user.id, token || null);
     res.json({ ok: true, saved: Boolean(token) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Self-test for push: sends ONE real push to the caller's own device. Lets a
+// worker (and the founder) verify the whole chain — server -> Expo -> FCM V1
+// -> phone — with a single tap, no second phone needed. Render logs it as
+// [test-push]; a 400 answer carries the direct reason (no token / delivery).
+app.post('/me/test-push', async (req, res, next) => {
+  try {
+    const active = await requireActiveUser(req, res);
+    if (!active) return;
+    const result = await sendTestPushToUser(active.user.id);
+    if (!result.ok) {
+      const message =
+        result.reason === 'no_token'
+          ? 'Notification token nahi mila. App ko ek baar band karke dobara kholo, aur phone Settings → Apps → SahiKaarigar → Notifications ON karo.'
+          : `Push deliver nahi hua (failed=${result.failed ?? 0}). Thodi der me phir try karo.`;
+      res.status(400).json({ ok: false, code: 'PUSH_TEST_FAILED', message });
+      return;
+    }
+    res.json({ ok: true, sent: result.sent, failed: result.failed });
   } catch (error) {
     next(error);
   }

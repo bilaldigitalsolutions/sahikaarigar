@@ -117,9 +117,13 @@ async function clearPushToken(token) {
   }
 }
 
-/** Fire-and-forget one Expo push message. Never throws. */
+/** Send one Expo push message and RETURN the send result (sent/failed counts).
+ *  The return value is load-bearing: notifyWorkerOfNewHire and the /me/test-push
+ *  self-test destructure `{ sent, failed }` from it — the old version forgot the
+ *  return statement, so every caller that read the result crashed with
+ *  "Cannot destructure property 'sent' …" and the push outcome was lost. */
 async function sendExpoPush({ to, title, body, data }) {
-  await sendExpoPushMany([{ to, title, body, data }]);
+  return sendExpoPushMany([{ to, title, body, data }]);
 }
 
 const STATUS_MESSAGES = {

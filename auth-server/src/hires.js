@@ -444,7 +444,18 @@ export async function createHireRequest({
     .select(HIRE_SELECT)
     .single();
 
-  if (error) throw hireReadError(error);
+  if (error) {
+    // 0027's (employer_id, worker_id) live-request index caught a concurrent
+    // duplicate — the check-then-insert above is not race-safe by itself.
+    if (
+      /hire_requests_one_live_per_pair/i.test(error.message) ||
+      error.code === '23505' ||
+      /duplicate key value/i.test(error.message)
+    ) {
+      throw new Error('Is kaarigar ke saath aapki ek request pehle se chal rahi hai');
+    }
+    throw hireReadError(error);
+  }
 
   const hire = mapHire(data);
   // Fire-and-forget: the assigned kaarigar gets a push about the new request.
@@ -712,14 +723,33 @@ export async function hireAction({ hireId, userId, action, lat, lng, otp }) {
       throw new Error(`Unknown action "${action}"`);
   }
 
+  // Conditional update (compare-and-swap): the row must STILL be in the exact
+  // state we validated above. Two devices acting concurrently (accept on one,
+  // cancel on the other) can no longer clobber each other — the second writer
+  // matches zero rows and gets the friendly 409 below, instead of silently
+  // flipping a cancelled hire back to accepted (or double-counting a complete).
   const { data, error } = await db
     .from('hire_requests')
     .update(patch)
-    .eq('id', hireId) // update by id only; state-transition validation happens in the switch above
+    .eq('id', hireId)
+    .eq('status', raw.status)
     .select(HIRE_SELECT)
     .maybeSingle();
 
   if (error) {
+    // Unique-violation from the 0027 partial unique indexes = a concurrent
+    // action won the race. Map it to the same friendly 409 as a lost
+    // compare-and-swap instead of leaking raw Postgres text.
+    if (/hire_requests_one_active_per_worker/i.test(error.message)) {
+      throw new Error('Aapke paas pehle se ek active job hai — pehle use complete karo');
+    }
+    if (
+      /hire_requests_one_live_per_pair/i.test(error.message) ||
+      error.code === '23505' ||
+      /duplicate key value/i.test(error.message)
+    ) {
+      throw new Error('Status pehle hi badal chuka hai — refresh karke dobara try karo');
+    }
     // The status CHECK constraint still lists only the old states — the
     // 0010_hire_start_flow.sql migration has not been applied to this database.
     if (/hire_requests_status/i.test(error.message)) {

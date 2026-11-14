@@ -27,14 +27,14 @@
   ],
   "shortcuts": [
     {
-      "name": "Search Workers",
-      "short_name": "Search",
-      "url": "/search"
+      "name": "Privacy Policy",
+      "short_name": "Privacy",
+      "url": "/privacy"
     },
     {
-      "name": "Meri Requests",
-      "short_name": "Requests",
-      "url": "/hires"
+      "name": "Delete Account",
+      "short_name": "Delete Account",
+      "url": "/delete-account"
     }
   ]
 }

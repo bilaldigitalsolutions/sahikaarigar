@@ -38,6 +38,7 @@ async function requireActiveUser(req, res) {
 
 import { sendOtpSms, resolveSmsProvider, SUPPORTED_SMS_PROVIDERS } from './sms.js';
 import {
+  db,
   getOrCreateUserByAuthId,
   upsertWorkerProfile,
   uploadWorkerImages,
@@ -211,6 +212,13 @@ supertokens.init({
 
 const app = express();
 
+// Render terminates TLS behind one reverse proxy; without this, every client
+// shares the proxy's IP. Consequences: admin-login lockout collapses into one
+// global bucket (5 wrong passwords lock ALL admins out), and rate limits keyed
+// on req.ip group unrelated users. `1` = trust exactly one hop (Render's
+// proxy) — req.ip then reflects the real client address from X-Forwarded-For.
+app.set('trust proxy', 1);
+
 // Order matters: SuperTokens' middleware must see its own routes BEFORE the
 // JSON body parser consumes the request body.
 // CORS: allow the configured website domain(s), localhost dev origins (Expo web
@@ -273,15 +281,19 @@ app.use(
 // ---------------------------------------------------------------------------
 // Rate limiting for login OTP.
 //
-// Two separate budgets:
-//   * code creation/resend — 3 per minute per IP + phone (SMS bombing)
+// Three separate budgets:
+//   * code creation/resend — 3 per minute per IP + phone (in-memory; real-time
+//     SMS bombing)
 //   * code verification  — 5 per 5 minutes per preAuthSessionId + deviceId
-//                          (brute-force protection; rotating IP/phone does not
-//                          reset the attempt budget for a challenge)
-//
-// In-memory maps are fine here: both attacks are real-time, and a redeploy
-// resetting the counters is acceptable. (Start-work OTP rate limiting uses the
-// persistent `rate_limits` table in hires.js.)
+//                          (in-memory brute-force protection; rotating IP/phone
+//                          does not reset the attempt budget for a challenge)
+//   * persistent SMS spend budget — `rate_limits` table, survives redeploys:
+//       - 8 codes/day per phone (a real user rarely needs more than 2-3)
+//       - 200 codes/hour GLOBAL — a script rotating phone numbers hits this
+//         ceiling instead of billing unlimited SMS (~₹0.25 each)
+//     Review-login phones are exempt (no SMS is ever sent for them). DB
+//     failures fail OPEN — a rate_limits outage must not lock every user out;
+//     the in-memory 3/min limiter still applies.
 // ---------------------------------------------------------------------------
 const LOGIN_OTP_MAX_ATTEMPTS = 3;
 const LOGIN_OTP_WINDOW_MS = 60_000;
@@ -290,6 +302,30 @@ const loginOtpAttempts = new Map();
 const LOGIN_OTP_CONSUME_MAX_ATTEMPTS = 5;
 const LOGIN_OTP_CONSUME_WINDOW_MS = 5 * 60_000;
 const loginOtpConsumeAttempts = new Map();
+
+const SMS_DAILY_PER_PHONE_MAX = 8;
+const SMS_DAILY_WINDOW_MS = 24 * 60 * 60_000;
+const SMS_GLOBAL_HOURLY_MAX = 200;
+const SMS_GLOBAL_WINDOW_MS = 60 * 60_000;
+
+/** Count `rate_limits` rows for a key within a sliding window. Throws on DB
+ *  errors so callers can fail open. */
+async function countRateLimitRows(key, windowMs) {
+  const cutoff = new Date(Date.now() - windowMs).toISOString();
+  const { data, error } = await db
+    .from('rate_limits')
+    .select('id')
+    .eq('key', key)
+    .gte('created_at', cutoff);
+  if (error) throw new Error(error.message);
+  return (data ?? []).length;
+}
+
+/** Add one `rate_limits` row under the given key. */
+async function recordRateLimitRow(key) {
+  const { error } = await db.from('rate_limits').insert({ key });
+  if (error) throw new Error(error.message);
+}
 
 /** Add one attempt to a sliding-window bucket; false when the limit is hit. */
 function takeRateLimitSlot(store, key, maxAttempts, windowMs) {
@@ -313,10 +349,11 @@ function takeRateLimitSlot(store, key, maxAttempts, windowMs) {
 app.post(
   ['/auth/signinup/code', '/auth/signinup/code/resend'],
   express.json({ limit: '15mb' }),
-  (req, res, next) => {
-    const phone = String(req.body?.phoneNumber || '').slice(0, 20);
+  async (req, res, next) => {
+    const rawPhone = String(req.body?.phoneNumber || '');
+    const phone = normalizeIndianPhone(rawPhone);
     const ip = req.ip || req.socket.remoteAddress || 'unknown';
-    const key = `login_otp:${ip}:${phone}`;
+    const key = `login_otp:${ip}:${rawPhone.slice(0, 20)}`;
 
     if (
       !takeRateLimitSlot(loginOtpAttempts, key, LOGIN_OTP_MAX_ATTEMPTS, LOGIN_OTP_WINDOW_MS)
@@ -325,6 +362,42 @@ app.post(
         status: 'GENERAL_ERROR',
         message: 'Bahut zyada OTP requests. Kripya 1 minute baad try karein.',
       });
+    }
+
+    // Persistent spend budget — only for well-formed numbers (an invalid one is
+    // rejected by SuperTokens without any SMS, so it must not consume budget).
+    if (isValidIndianPhone(phone) && !isReviewLoginPhone(phone)) {
+      try {
+        const [perPhone, global] = await Promise.all([
+          countRateLimitRows(`login_sms_daily:${phone}`, SMS_DAILY_WINDOW_MS),
+          countRateLimitRows('login_sms_global', SMS_GLOBAL_WINDOW_MS),
+        ]);
+        if (perPhone >= SMS_DAILY_PER_PHONE_MAX) {
+          console.warn(`[sms-budget] per-phone cap hit: ${phone} (${perPhone}/day)`);
+          return res.status(429).json({
+            status: 'GENERAL_ERROR',
+            message:
+              'Aaj is number ke liye bahut zyada OTP maang liye. Kal try karein.',
+          });
+        }
+        if (global >= SMS_GLOBAL_HOURLY_MAX) {
+          console.error(
+            `[sms-budget] GLOBAL hourly cap hit: ${global} codes in the last hour` +
+              ' — possible SMS-abuse attack, check request logs.',
+          );
+          return res.status(429).json({
+            status: 'GENERAL_ERROR',
+            message: 'Server SMS limit hit ho gayi. Thodi der baad try karein.',
+          });
+        }
+        await Promise.all([
+          recordRateLimitRow(`login_sms_daily:${phone}`),
+          recordRateLimitRow('login_sms_global'),
+        ]);
+      } catch (budgetError) {
+        // Fail open: never let a rate_limits outage block all logins.
+        console.error('[sms-budget] check failed (fail-open):', budgetError.message);
+      }
     }
 
     return next();
@@ -394,13 +467,13 @@ const DELETE_REQUEST_MAX_ATTEMPTS = 5;
 const DELETE_REQUEST_WINDOW_MS = 60 * 60_000;
 const deleteRequestAttempts = new Map();
 
-app.post('/account/delete-request', (req, res) => {
+app.post('/account/delete-request', async (req, res) => {
   const phone = normalizeIndianPhone(String(req.body?.phone ?? ''));
   const reason = String(req.body?.reason ?? '').trim().slice(0, 500);
-  const ip =
-    (String(req.headers['x-forwarded-for'] ?? '').split(',')[0] ?? '').trim() ||
-    req.socket.remoteAddress ||
-    'unknown';
+  // `trust proxy` is set, so req.ip is already the real client address.
+  // (The old code manually trusted the first XFF hop — client-supplied, so the
+  // 5/hour cap was bypassable by rotating fake XFF values.)
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
 
   if (!isValidIndianPhone(phone)) {
     res.status(400).json({
@@ -426,20 +499,74 @@ app.post('/account/delete-request', (req, res) => {
   }
 
   console.log(`[delete-request] ${phone} ip=${ip} reason=${reason ? 'yes' : 'no'}`);
-  // Fire-and-forget: sendEmail never throws and delivery must not delay the
-  // response. Without `to` it goes to ADMIN_EMAIL.
-  void sendEmail({
-    subject: `Account deletion request - ${phone}`,
-    text:
-      `Phone: ${phone}\n` +
-      `Received: ${new Date().toISOString()}\n` +
-      `Request IP: ${ip}\n` +
-      `Reason: ${reason || '(not provided)'}\n\n` +
-      'Delete this account: the app runs deleteUserAccount() in src/users.js\n' +
-      'from Profile -> Delete Account. Log in as this number and run it, or\n' +
-      'remove the users row + attached data manually and revoke the\n' +
-      'SuperTokens identity.\n',
-  });
+
+  // PERSIST FIRST — before the 200. The email alone is not a durable record:
+  // sendEmail swallows failures and ADMIN_EMAIL can be unset, in which case the
+  // request used to vanish while the user was told "7 days". A DB failure here
+  // must not break the user flow, but it is logged loudly (and to Sentry) so
+  // the admin notices instead of silently losing the request.
+  let requestId = null;
+  try {
+    const { data, error } = await db
+      .from('delete_requests')
+      .insert({ phone, reason: reason || null })
+      .select('id')
+      .single();
+    if (error) throw new Error(error.message);
+    requestId = data?.id ?? null;
+  } catch (persistError) {
+    console.error(
+      `[delete-request] DB PERSIST FAILED for ${phone}: ${persistError.message}` +
+        ' — Supabase me 0028_delete_requests.sql migration chalao. Email ke bina ye request sirf log me hai.',
+    );
+    Sentry.withScope((scope) => {
+      scope.setTag('route', '/account/delete-request');
+      scope.setLevel('error');
+      Sentry.captureException(persistError);
+    });
+  }
+
+  const sendAdminEmail = async () => {
+    const result = await sendEmail({
+      subject: `Account deletion request - ${phone}`,
+      text:
+        `Phone: ${phone}\n` +
+        `Received: ${new Date().toISOString()}\n` +
+        `Request IP: ${ip}\n` +
+        `Reason: ${reason || '(not provided)'}\n` +
+        (requestId ? `Request ID: ${requestId}\n` : '') +
+        '\n' +
+        'Delete this account: the app runs deleteUserAccount() in src/users.js\n' +
+        'from Profile -> Delete Account. Log in as this number and run it, or\n' +
+        'remove the users row + attached data manually and revoke the\n' +
+        'SuperTokens identity. Then mark the delete_requests row processed.\n',
+    });
+    if (!result.ok) {
+      console.error(
+        `[delete-request] EMAIL FAILED for ${phone}: ${result.error}` +
+          ' — request DB me saved hai (0028), admin ko manually dekhna hoga.',
+      );
+      if (requestId) {
+        const { error: updateError } = await db
+          .from('delete_requests')
+          .update({ email_sent: false, email_error: result.error })
+          .eq('id', requestId);
+        if (updateError) console.error(`[delete-request] email-status update failed: ${updateError.message}`);
+      }
+      return;
+    }
+    if (requestId) {
+      const { error: updateError } = await db
+        .from('delete_requests')
+        .update({ email_sent: true, email_error: null })
+        .eq('id', requestId);
+      if (updateError) console.error(`[delete-request] email-status update failed: ${updateError.message}`);
+    }
+  };
+
+  // Fire-and-forget: the persisted row already makes this request durable, so
+  // email delivery must not delay the response.
+  void sendAdminEmail();
 
   res.json({
     ok: true,
@@ -538,7 +665,7 @@ app.delete('/account', async (req, res, next) => {
     if (!active) return;
     await deleteUserAccount({ userId: active.user.id, authUserId: active.authUserId });
     try {
-      await Session.revokeAllSessionsForUser(authUserId);
+      await Session.revokeAllSessionsForUser(active.authUserId);
     } catch {
       // best-effort: rows + identity are already gone
     }

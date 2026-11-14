@@ -48,6 +48,10 @@ export default function DeleteAccountPage() {
           <div id="web-request">
             <h2 className="font-semibold mb-2">2. App ke bina delete request</h2>
             <DeleteRequestForm />
+            <p className="mt-3 text-small text-text-secondary">
+              Web request ka jawab hum <strong>7 din ke andar</strong> dete hain aur
+              usi window me deletion complete karne ki koshish karte hain.
+            </p>
           </div>
 
           <Card>
@@ -69,7 +73,14 @@ export default function DeleteAccountPage() {
               <Link href="/contact" className="text-primary-dark font-semibold hover:underline">
                 Contact page
               </Link>{' '}
-              se humse poocho.
+              se poocho, ya email karo:{' '}
+              <a className="text-primary-dark font-semibold hover:underline" href="mailto:support@sahikaarigar.com">
+                support@sahikaarigar.com
+              </a>{' '}
+              · Grievance officer:{' '}
+              <a className="text-primary-dark font-semibold hover:underline" href="mailto:grievance@sahikaarigar.com">
+                grievance@sahikaarigar.com
+              </a>
             </p>
           </Card>
         </div>

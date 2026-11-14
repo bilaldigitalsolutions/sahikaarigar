@@ -17,8 +17,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { colors, fontSize, fontWeight, spacing } from '@/theme';
 import { isFakePhoneSequence, isValidPhone, normalizeIndianPhone } from '@/utils';
 
-/** Official DPDP consent notice link for this app listing. */
-const PRIVACY_POLICY_URL = 'https://appland.info/app/33336/privacy-policy';
+/** Our own privacy policy (Vercel website) — the DPDP consent notice target. */
+const PRIVACY_POLICY_URL = 'https://sahikaarigar.vercel.app/privacy';
 
 export default function LoginScreen() {
   const router = useRouter();

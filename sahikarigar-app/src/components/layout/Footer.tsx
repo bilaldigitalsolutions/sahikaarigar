@@ -1,42 +1,24 @@
 import Link from 'next/link';
 import { Leaf } from 'lucide-react';
 
-const FOOTER_STATS = [
-  '10,000+ Workers Verified',
-  '50,000+ Jobs Completed',
-  'Eco-Friendly Commitment',
+// Only real pages on this deployment — the old footer linked /search,
+// /register/* and /about, which do not exist here (404s on every legal page).
+const LEGAL_LINKS = [
+  { label: 'Privacy Policy', href: '/privacy' },
+  { label: 'Terms of Service', href: '/terms' },
+  { label: 'Delete Account', href: '/delete-account' },
+  { label: 'Contact Us', href: '/contact' },
 ];
 
-const QUICK_LINKS = [
-  { label: 'Search Workers', href: '/search' },
-  { label: 'Register as Worker', href: '/register/worker' },
-  { label: 'Register as Employer', href: '/register/employer' },
-  { label: 'About Us', href: '/about' },
-];
-
-const POPULAR_SERVICES = [
-  { label: 'Electrician', href: '/search?skill=electrician' },
-  { label: 'Plumber', href: '/search?skill=plumber' },
-  { label: 'Painter', href: '/search?skill=painter' },
-  { label: 'Carpenter', href: '/search?skill=carpenter' },
-];
+const SUPPORT_EMAIL = 'support@sahikaarigar.com';
+const GRIEVANCE_EMAIL = 'grievance@sahikaarigar.com';
+const SUPPORT_PHONE = '+91 9949363310';
 
 export function Footer() {
   return (
     <footer className="bg-gradient-to-b from-green-950 to-[#04210F] text-green-100/80">
-      {/* Stats strip */}
-      <div className="border-b border-white/10 bg-white/5">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-x-8 gap-y-2 px-4 py-5 text-center text-small font-semibold text-green-50 sm:px-6 lg:px-8">
-          {FOOTER_STATS.map((stat) => (
-            <span key={stat} className="flex items-center gap-2">
-              <Leaf size={16} className="text-primary-light" /> {stat}
-            </span>
-          ))}
-        </div>
-      </div>
-
       <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 gap-10 md:grid-cols-4">
+        <div className="grid grid-cols-1 gap-10 md:grid-cols-3">
           {/* Brand */}
           <div className="col-span-1 md:col-span-2">
             <div className="mb-4 flex items-center gap-2">
@@ -54,11 +36,12 @@ export function Footer() {
             </p>
           </div>
 
-          {/* Quick Links */}
+          {/* Legal & Support — every link resolves; contacts are inline so a
+              Play reviewer never needs a second click to reach a human. */}
           <div>
-            <h3 className="mb-4 font-semibold text-white">Quick Links</h3>
+            <h3 className="mb-4 font-semibold text-white">Legal &amp; Support</h3>
             <ul className="space-y-3">
-              {QUICK_LINKS.map((link) => (
+              {LEGAL_LINKS.map((link) => (
                 <li key={link.href}>
                   <Link
                     href={link.href}
@@ -69,22 +52,25 @@ export function Footer() {
                 </li>
               ))}
             </ul>
-          </div>
-
-          {/* Popular Services */}
-          <div>
-            <h3 className="mb-4 font-semibold text-white">Popular Services</h3>
-            <ul className="space-y-3">
-              {POPULAR_SERVICES.map((link) => (
-                <li key={link.href}>
-                  <Link
-                    href={link.href}
-                    className="text-small transition-colors hover:text-primary-light"
-                  >
-                    {link.label}
-                  </Link>
-                </li>
-              ))}
+            <ul className="mt-6 space-y-2 text-caption text-green-200/70">
+              <li>
+                Support:{' '}
+                <a className="underline hover:text-white" href={`mailto:${SUPPORT_EMAIL}`}>
+                  {SUPPORT_EMAIL}
+                </a>
+              </li>
+              <li>
+                Grievance officer:{' '}
+                <a className="underline hover:text-white" href={`mailto:${GRIEVANCE_EMAIL}`}>
+                  {GRIEVANCE_EMAIL}
+                </a>
+              </li>
+              <li>
+                Phone / WhatsApp:{' '}
+                <a className="underline hover:text-white" href={`tel:${SUPPORT_PHONE.replace(/\s/g, '')}`}>
+                  {SUPPORT_PHONE}
+                </a>
+              </li>
             </ul>
           </div>
         </div>
@@ -92,25 +78,21 @@ export function Footer() {
         {/* Bottom Bar */}
         <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-white/10 pt-8 md:flex-row">
           <p className="text-caption text-green-200/70">
-            © {new Date().getFullYear()} SahiKaarigar. All rights reserved.
+            © SahiKaarigar. All rights reserved.
           </p>
           <div className="flex flex-wrap justify-center gap-6">
-            <Link href="/privacy" className="text-caption text-green-200/70 transition-colors hover:text-white">
-              Privacy Policy
-            </Link>
-            <Link href="/terms" className="text-caption text-green-200/70 transition-colors hover:text-white">
-              Terms of Service
-            </Link>
-            <Link href="/delete-account" className="text-caption text-green-200/70 transition-colors hover:text-white">
-              Delete Account
-            </Link>
-            <Link href="/contact" className="text-caption text-green-200/70 transition-colors hover:text-white">
-              Contact Us
-            </Link>
+            {LEGAL_LINKS.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="text-caption text-green-200/70 transition-colors hover:text-white"
+              >
+                {link.label}
+              </Link>
+            ))}
           </div>
         </div>
       </div>
     </footer>
   );
 }
-

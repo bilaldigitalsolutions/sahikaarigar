@@ -49,7 +49,8 @@ export default function TermsPage() {
       <main className="max-w-3xl mx-auto px-4 py-10">
         <h1 className="text-2xl font-bold mb-2">Terms of Service</h1>
         <p className="text-text-secondary mb-8">
-          Aakhri update: {new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
+          {/* Hardcoded policy date — see privacy page note. */}
+          Aakhri update: November 2026
         </p>
 
         <div className="space-y-4">
@@ -67,7 +68,10 @@ export default function TermsPage() {
               <Link href="/contact" className="text-primary-dark font-semibold hover:underline">
                 Contact page
               </Link>{' '}
-              dekho.
+              dekho, ya email karo:{' '}
+              <a className="text-primary-dark font-semibold hover:underline" href="mailto:support@sahikaarigar.com">
+                support@sahikaarigar.com
+              </a>
             </p>
           </Card>
         </div>

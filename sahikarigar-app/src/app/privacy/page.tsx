@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 const SECTIONS: { title: string; body: string }[] = [
   {
     title: '1. Kaunsa data collect karte hain',
-    body: 'Login ke liye mobile number (OTP), aur account ke liye naam. Workers ke liye skills, experience, hourly rate aur service areas ke saath verification ke liye Aadhaar image aur optional profile photo collect hoti hai. Aadhaar image private storage me rakhi jaati hai aur sirf worker verification ke liye admin dekh sakte hain; yeh public profile par nahi dikhai jaati. Hum aapke contacts access nahi karte.',
+    body: 'Login ke liye mobile number (OTP), aur account ke liye naam. Workers ke liye skills, experience, hourly rate aur service areas ke saath verification ke liye Aadhaar image aur optional profile photo collect hoti hai — plus kaam ke samples (work photos). Employer aur worker dono ke liye location data (area/city, aur job ke time GPS location) collect hota hai taake aas-paas ke kaarigar dhoondh sake aur kaam track ho. Push notifications bhejne ke liye device ka push token save hota hai. Aadhaar image private storage me rakhi jaati hai aur sirf worker verification ke liye admin dekh sakte hain; yeh public profile par nahi dikhai jaati. Hum aapke contacts access nahi karte.',
   },
   {
     title: '2. Phone number privacy',
@@ -33,7 +33,7 @@ const SECTIONS: { title: string; body: string }[] = [
   },
   {
     title: '6. Aapke rights',
-    body: 'Aap kabhi bhi apna account ya data delete karwa sakte ho — app ke Profile tab se turant delete ho jata hai, ya app ke bina /delete-account page se request bhej sakte ho.',
+    body: 'Aap kabhi bhi apna account ya data delete karwa sakte ho — app ke Profile tab se turant delete ho jata hai, ya app ke bina /delete-account page se request bhej sakte ho. Web request ka jawab hum 7 din ke andar dete hain, aur poori deletion bhi usi window me complete karne ki koshish karte hain.',
   },
 ];
 
@@ -45,7 +45,9 @@ export default function PrivacyPage() {
       <main className="max-w-3xl mx-auto px-4 py-10">
         <h1 className="text-2xl font-bold mb-2">Privacy Policy</h1>
         <p className="text-text-secondary mb-8">
-          Aakhri update: {new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
+          {/* Hardcoded policy date — a new Date() here changes every build,
+              which makes the policy look "updated" when it is not. */}
+          Aakhri update: November 2026
         </p>
 
         <div className="space-y-4">
@@ -63,7 +65,14 @@ export default function PrivacyPage() {
               <Link href="/contact" className="text-primary-dark font-semibold hover:underline">
                 Contact page
               </Link>{' '}
-              se humse poocho.
+              se poocho, ya seedha email karo:{' '}
+              <a className="text-primary-dark font-semibold hover:underline" href="mailto:support@sahikaarigar.com">
+                support@sahikaarigar.com
+              </a>{' '}
+              · Grievance officer:{' '}
+              <a className="text-primary-dark font-semibold hover:underline" href="mailto:grievance@sahikaarigar.com">
+                grievance@sahikaarigar.com
+              </a>
             </p>
           </Card>
         </div>

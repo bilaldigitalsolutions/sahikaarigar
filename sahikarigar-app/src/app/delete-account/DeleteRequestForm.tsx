@@ -58,7 +58,9 @@ export function DeleteRequestForm() {
         setStatus('done');
         return;
       }
-      setError(body?.error || 'Request bhej nahi paye. Thodi der baad try karein.');
+      // Server sends 429 rate-limit copy in `message`, other failures in
+      // `error` — read both so the real reason always surfaces (C12).
+      setError(body?.message || body?.error || 'Request bhej nahi paye. Thodi der baad try karein.');
       setStatus('idle');
     } catch {
       setError('Internet ki dikkat lagti hai. Thodi der baad try karein.');

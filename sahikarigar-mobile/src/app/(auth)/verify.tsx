@@ -63,10 +63,12 @@ export default function VerifyScreen() {
       }
 
       if (me.role === 'worker') {
-        // Smart worker routing: profile exists → straight to the dashboard
-        // (it renders "Verification Pending" until an admin approves, then the
-        // live stats). No profile yet → the registration form first.
-        router.replace(me.role === 'worker' ? '/(tabs)' : '/register-worker');
+        // Worker WITH a profile → straight to the dashboard (it renders
+        // "Verification Pending" until an admin approves, then the live
+        // stats). The `(tabs)` layout handles the half-registered case
+        // itself: stored worker role + user.role !== 'worker' redirects to
+        // /register-worker, so no client-side guessing is needed here.
+        router.replace('/(tabs)');
         return;
       }
 
@@ -142,7 +144,7 @@ export default function VerifyScreen() {
           />
           <Text style={styles.consentText} numberOfLines={3}>
             {t('auth.consentPrefix')}{' '}
-            <Text style={styles.consentLink} onPress={() => Linking.openURL('https://sahi-kaarigar.web.app/privacy')}>
+            <Text style={styles.consentLink} onPress={() => Linking.openURL('https://sahikaarigar.vercel.app/privacy')}>
               {t('auth.privacyPolicy')}
             </Text>{' '}
             {t('auth.consentSuffix')}

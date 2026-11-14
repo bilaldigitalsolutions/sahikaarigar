@@ -218,10 +218,11 @@ export const AVAILABILITY_OPTIONS = [
   { value: 'weekends', label: 'Weekends only', key: 'profile.availWeekends' },
 ] as const;
 
-/** Live legal pages (served by the website) — opened in the phone's browser. */
+/** Live legal pages (served by the Vercel website) — opened in the phone's
+ *  browser. Must match the URLs submitted in the Play Console listings. */
 export const LEGAL_URLS = {
-  terms: 'https://sahi-kaarigar.web.app/terms',
-  privacy: 'https://sahi-kaarigar.web.app/privacy',
+  terms: 'https://sahikaarigar.vercel.app/terms',
+  privacy: 'https://sahikaarigar.vercel.app/privacy',
 } as const;
 
 /** SahiKaarigar support number (call / WhatsApp) — used on the Join as Kaarigar
